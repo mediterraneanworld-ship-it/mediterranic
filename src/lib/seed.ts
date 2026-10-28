@@ -2,6 +2,7 @@ import { count } from "drizzle-orm";
 import { db } from "@/db";
 import { products, reviews } from "@/db/schema";
 import { SEED_PRODUCTS, SEED_REVIEWS } from "@/lib/seed-data";
+import { ensureSchema } from "@/lib/schema-migrate";
 
 let seedPromise: Promise<void> | null = null;
 
@@ -12,6 +13,9 @@ let seedPromise: Promise<void> | null = null;
 export function ensureSeeded(): Promise<void> {
   if (!seedPromise) {
     seedPromise = (async () => {
+      // Tables first — a fresh database has none.
+      await ensureSchema();
+
       const [{ value }] = await db.select({ value: count() }).from(products);
       if (Number(value) > 0) return;
 

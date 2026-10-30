@@ -145,6 +145,20 @@ export const uploadedImages = pgTable("uploaded_images", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Newsletter sign-ups collected on the public storefront. Append-only: a
+ * subscriber is never deleted by a deploy, only by an explicit admin action.
+ */
+export const newsletterSubscribers = pgTable("newsletter_subscribers", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  /** Where the sign-up came from: "footer", "shipping", "admin"… */
+  source: text("source").notNull().default("footer"),
+  /** Reserved for a future double opt-in; today a sign-up is confirmed on the spot. */
+  confirmed: boolean("confirmed").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const productsRelations = relations(products, ({ many }) => ({
   reviews: many(reviews),
 }));

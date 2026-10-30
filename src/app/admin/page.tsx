@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { AdminGate } from "@/components/admin-gate";
-import { getAllOrdersWithItems, getAllProducts, getSiteSettings } from "@/lib/catalog";
+import {
+  getAllOrdersWithItems,
+  getAllProducts,
+  getNewsletterSubscribers,
+  getSiteSettings,
+} from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +15,19 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  const [products, settings, orders] = await Promise.all([
+  const [products, settings, orders, subscribers] = await Promise.all([
     getAllProducts({ includeDrafts: true }),
     getSiteSettings(),
     getAllOrdersWithItems(),
+    getNewsletterSubscribers(2000),
   ]);
 
-  return <AdminGate products={products} settings={settings} orders={orders} />;
+  return (
+    <AdminGate
+      products={products}
+      settings={settings}
+      orders={orders}
+      subscribers={subscribers}
+    />
+  );
 }

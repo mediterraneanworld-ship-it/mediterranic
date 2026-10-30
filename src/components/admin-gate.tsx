@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import type { ProductWithStats, SiteSettings } from "@/lib/catalog";
+import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import { AdminDashboard } from "@/components/admin-dashboard";
 
 type OrderEntry = Parameters<typeof AdminDashboard>[0]["orders"];
@@ -13,10 +13,12 @@ export function AdminGate({
   products,
   settings,
   orders,
+  subscribers,
 }: {
   products: ProductWithStats[];
   settings: SiteSettings;
   orders: OrderEntry;
+  subscribers: NewsletterSubscriber[];
 }) {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
@@ -124,6 +126,7 @@ export function AdminGate({
       initialProducts={products}
       initialSettings={settings}
       orders={orders}
+      initialSubscribers={subscribers}
       onSignOut={handleSignOut}
     />
   );

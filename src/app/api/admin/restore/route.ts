@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { products, reviews, siteSettings } from "@/db/schema";
+import { newsletterSubscribers, products, reviews, siteSettings } from "@/db/schema";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,8 @@ export async function POST(request: Request) {
     format?: string;
     products?: BackupProduct[];
     settings?: Record<string, unknown> | null;
+    /** Present in backups from version 2 onwards; older files simply omit it. */
+    subscribers?: { email?: string; source?: string }[];
   };
   try {
     payload = await request.json();
@@ -96,6 +98,22 @@ export async function POST(request: Request) {
     settingsRestored = true;
   }
 
+  // Newsletter list: append-only. An address already in the database is left
+  // exactly as it is, and nobody is ever removed by a restore.
+  let subscribersAdded = 0;
+  if (Array.isArray(payload.subscribers)) {
+    for (const sub of payload.subscribers) {
+      const email = typeof sub?.email === "string" ? sub.email.trim().toLowerCase() : "";
+      if (!email) continue;
+      const [row] = await db
+        .insert(newsletterSubscribers)
+        .values({ email, source: typeof sub.source === "string" && sub.source ? sub.source : "backup" })
+        .onConflictDoNothing({ target: newsletterSubscribers.email })
+        .returning({ id: newsletterSubscribers.id });
+      if (row) subscribersAdded += 1;
+    }
+  }
+
   const [{ total }] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(products);
@@ -107,6 +125,7 @@ export async function POST(request: Request) {
     settingsRestored,
     totalProducts: total,
     reviewsUntouched: true,
+    subscribersAdded,
   });
 }
 

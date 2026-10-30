@@ -47,6 +47,26 @@ export function getCountry(code: string) {
   return COUNTRIES.find((c) => c.code === code);
 }
 
+/** Public labels for the three delivery zones, used on the Shipping & Returns page. */
+export const ZONE_LABELS: Record<ShippingZone, string> = {
+  americas: "North America",
+  europe: "Europe & United Kingdom",
+  asia: "Japan & Asia",
+};
+
+/** The order in which zones are presented to customers. */
+export const ZONE_ORDER: ShippingZone[] = ["europe", "americas", "asia"];
+
+/** Insured rates in cents for a zone — the same numbers the checkout charges. */
+export function getZoneRates(zone: ShippingZone): Record<ShippingMethodId, number> {
+  return RATES[zone];
+}
+
+/** Country names served in a zone, for the delivery table. */
+export function countriesInZone(zone: ShippingZone): string[] {
+  return COUNTRIES.filter((c) => c.zone === zone).map((c) => c.name);
+}
+
 /** Returns shipping in cents, or null when the country / method is unknown. */
 export function calculateShipping(
   countryCode: string,

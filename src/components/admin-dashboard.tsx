@@ -8,6 +8,7 @@ import {
   Edit3,
   ExternalLink,
   LogOut,
+  Mail,
   Package,
   Plus,
   Save,
@@ -19,7 +20,7 @@ import {
 } from "lucide-react";
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import type { ProductImage } from "@/db/schema";
-import type { ProductWithStats, SiteSettings } from "@/lib/catalog";
+import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
 
@@ -218,15 +219,18 @@ export function AdminDashboard({
   initialProducts,
   initialSettings,
   orders,
+  initialSubscribers,
   onSignOut,
 }: {
   initialProducts: ProductWithStats[];
   initialSettings: SiteSettings;
   orders: OrderEntry[];
+  initialSubscribers: NewsletterSubscriber[];
   onSignOut: () => void | Promise<void>;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"products" | "settings" | "orders">("products");
+  const [tab, setTab] = useState<"products" | "settings" | "orders" | "newsletter">("products");
+  const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>(initialSubscribers);
   const [editing, setEditing] = useState<EditableProduct | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -288,6 +292,18 @@ export function AdminDashboard({
   function notify(msg: string) {
     setFeedback(msg);
     window.setTimeout(() => setFeedback(null), 4000);
+  }
+
+  /** Removes one address when a reader asks to be taken off the list. */
+  async function handleRemoveSubscriber(email: string) {
+    if (!window.confirm(`Remove ${email} from the newsletter list?`)) return;
+    const res = await fetch(`/api/newsletter?email=${encodeURIComponent(email)}`, { method: "DELETE" });
+    if (res.ok) {
+      setSubscribers((list) => list.filter((s) => s.email !== email));
+      notify(`${email} removed from the list.`);
+    } else {
+      notify("Could not remove that address.");
+    }
   }
 
 
@@ -928,6 +944,15 @@ export function AdminDashboard({
           }`}
         >
           <ShoppingBag size={15} /> 3. Orders ({orders.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("newsletter")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "newsletter" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Mail size={15} /> 4. Newsletter ({subscribers.length})
         </button>
       </div>
 
@@ -2264,6 +2289,74 @@ export function AdminDashboard({
                 </div>
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: NEWSLETTER */}
+      {tab === "newsletter" && (
+        <div className="mt-10 space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="font-display text-3xl text-ink">Newsletter subscribers</h2>
+              <p className="mt-1 max-w-2xl text-sm text-ink/60">
+                Addresses collected by the public form in the footer and on the Shipping &amp; Returns page. The list
+                only grows — a deploy never removes anyone. Download it as CSV and send your mailings from Gmail,
+                Mailchimp or Brevo.
+              </p>
+            </div>
+            <a
+              href="/api/newsletter?format=csv"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-sea"
+            >
+              <Mail size={15} /> Download CSV
+            </a>
+          </div>
+
+          {subscribers.length === 0 ? (
+            <div className="rounded-sm border border-dashed border-ink/20 p-12 text-center text-sm text-ink/60">
+              No subscribers yet. The sign-up form is live in the footer of the public shop.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-sm border border-ink/10 bg-white/75">
+              <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-ink/10 bg-bone/60 text-[11px] uppercase tracking-[0.18em] text-ink/70">
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Email
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Subscribed
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Source
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right font-medium">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subscribers.map((s) => (
+                    <tr key={s.id} className="border-b border-ink/8 last:border-0">
+                      <td className="px-4 py-3 text-ink">{s.email}</td>
+                      <td className="px-4 py-3 text-ink/65">{formatDate(s.createdAt)}</td>
+                      <td className="px-4 py-3 text-ink/65">{s.source}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSubscriber(s.email)}
+                          aria-label={`Remove ${s.email}`}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-ink/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink/70 transition hover:border-terracotta hover:text-terracotta"
+                        >
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

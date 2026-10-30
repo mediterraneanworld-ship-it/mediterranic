@@ -133,6 +133,17 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "video_url" text;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "last_price_check" timestamp with time zone;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "has_certificate" boolean DEFAULT false NOT NULL;
 ALTER TABLE "site_settings" ADD COLUMN IF NOT EXISTS "hero_image" text DEFAULT '/images/hero.jpg' NOT NULL;
+
+-- Newsletter (public sign-up form in the footer). Brand-new table: it is only
+-- created when missing, so existing subscriber rows are never touched.
+CREATE TABLE IF NOT EXISTS "newsletter_subscribers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"email" text NOT NULL,
+	"source" text DEFAULT 'footer' NOT NULL,
+	"confirmed" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "newsletter_subscribers_email_unique" UNIQUE("email")
+);
 `;
 
 let migrated: Promise<void> | null = null;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { COLLECTIONS } from "@/lib/collections";
 import { getSiteSettings } from "@/lib/catalog";
+import { NewsletterForm } from "@/components/newsletter-form";
 
 export async function SiteFooter() {
   const settings = await getSiteSettings();
@@ -30,6 +31,9 @@ export async function SiteFooter() {
             Museum-grade Moroccan trilobites, documented from quarry to study. Sourced under licence, prepared by
             specialists, delivered insured.
           </p>
+          <div className="pt-4">
+            <NewsletterForm />
+          </div>
         </div>
 
         <div>
@@ -48,10 +52,31 @@ export async function SiteFooter() {
         <div>
           <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">Client care</h3>
           <ul className="space-y-3 text-sm">
-            <li>Insured worldwide delivery</li>
-            <li>30-day considered returns</li>
-            <li>Certificate of authenticity</li>
-            <li>Private viewings by appointment</li>
+            <li>
+              <Link href="/shipping#rates" className="transition hover:text-parchment">
+                Insured worldwide delivery
+              </Link>
+            </li>
+            <li>
+              <Link href="/shipping#returns" className="transition hover:text-parchment">
+                30-day considered returns
+              </Link>
+            </li>
+            <li>
+              <Link href="/shipping#packing" className="transition hover:text-parchment">
+                Certificate of authenticity
+              </Link>
+            </li>
+            <li>
+              <Link href="/shipping" className="transition hover:text-parchment">
+                Shipping &amp; returns
+              </Link>
+            </li>
+            <li>
+              <Link href="/archive" className="transition hover:text-parchment">
+                The archive
+              </Link>
+            </li>
           </ul>
         </div>
 
@@ -124,6 +149,20 @@ export async function SiteFooter() {
       <div className="border-t border-parchment/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-6 text-xs text-parchment/50 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <p>© {new Date().getFullYear()} Mediterranic. Every specimen ships with full documentation.</p>
+          <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link href="/shop" className="transition hover:text-parchment">
+              Shop
+            </Link>
+            <Link href="/archive" className="transition hover:text-parchment">
+              Archive
+            </Link>
+            <Link href="/shipping" className="transition hover:text-parchment">
+              Shipping &amp; returns
+            </Link>
+            <a href={`mailto:${settings.contactEmail}`} className="transition hover:text-parchment">
+              Contact
+            </a>
+          </nav>
           <p>Fossils are natural objects sourced under Moroccan regulations for private collecting.</p>
         </div>
       </div>

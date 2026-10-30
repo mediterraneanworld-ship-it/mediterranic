@@ -79,9 +79,25 @@ Marcar as três opções: *Production*, *Preview* e *Development*.
 
 ## 7. Falta fazer antes de vender a sério
 
-1. **PayPal** — ligar a conta PayPal Business (o email já é o de recebimento).
-2. **Limitação de pedidos** (*rate limiting*) para proteger o checkout.
-3. **Cópias de segurança** — o Neon faz cópias automáticas nos planos pagos.
+1. **PayPal** — ligar a conta PayPal Business (o email de recebimento já é
+   `mediterranean.world@gmail.com`). Faltam as credenciais da API
+   (`PAYPAL_CLIENT_ID` e `PAYPAL_SECRET`) nas Environment Variables da Vercel.
+2. **Importar o catálogo antigo** de `www.mediterranic.com` (galerias numeradas,
+   ex.: *9588 Koneprusia dahmani*).
+3. **Subdomínio** `shop.mediterranic.com` — na Vercel: *Settings → Domains → Add*
+   `shop.mediterranic.com`; no DNS do domínio: um **CNAME** `shop` →
+   `cname.vercel-dns.com`. Depois actualizar `NEXT_PUBLIC_SITE_URL` para
+   `https://shop.mediterranic.com` (o `sitemap.ts` já usa este endereço por omissão).
+4. **Limitação de pedidos** (*rate limiting*) para proteger o checkout.
+5. **Cópias de segurança** — o Neon faz cópias automáticas nos planos pagos.
+
+### Já está feito
+
+- **Página Envios e Devoluções** → `/shipping`, ligada no cabeçalho
+  (*Insured Worldwide Shipping*) e no rodapé. Os valores mostrados são lidos de
+  `src/lib/shipping.ts`, ou seja, são exactamente os que o checkout cobra — não
+  há duas tabelas que possam divergir.
+- **Newsletter** → formulário no rodapé e em `/shipping`. Ver secção 10.
 
 ---
 
@@ -177,3 +193,40 @@ ao mesmo tempo, ou do comportamento do back-office.
 
 O código só preenche a base de dados se ela estiver **vazia**. Como a sua já
 tem peças, qualquer deploy novo deixa peças, preços, fotos e textos intactos.
+
+---
+
+## 10. Newsletter
+
+Um formulário de subscrição aparece no **rodapé** de todas as páginas e no fim
+de `/shipping`.
+
+- Os endereços ficam na tabela `newsletter_subscribers` do Neon (criada
+  sozinha no arranque, via `UPGRADE_SQL` em `src/lib/schema-migrate.ts`).
+- No back-office, separador **“4. Newsletter”**: vê a lista, a data e a origem
+  de cada subscrição, e descarrega **Download CSV** para enviar a partir do
+  Gmail, Mailchimp ou Brevo.
+- **Remove** apaga apenas um endereço, quando alguém pede para sair. Nada mais
+  apaga — nem um deploy, nem o restauro de um backup.
+- O endereço é único: se alguém se inscrever duas vezes não fica duplicado.
+- O backup (`⬇ Download backup`) passou a incluir a lista de subscritores
+  (versão 2). Um restauro volta a acrescentar os que faltarem sem nunca apagar
+  os que entretanto se inscreveram.
+- Ainda **não envia emails automaticamente** — falta ligar um fornecedor
+  (Resend, Brevo ou Mailchimp). A lista é sua e exporta-se em CSV.
+
+---
+
+## 11. Regras de apresentação pública (recordatório)
+
+Estas regras estão aplicadas no código e devem manter-se:
+
+- Nunca aparece **“Sold”** em público. Uma peça fora de stock mostra
+  **“Unavailable”**, **sem preço**, com o apelo **“Request a similar specimen”**.
+- Leilão **vendido** → a peça vai para o arquivo público em `/archive`, sem preço.
+- Leilão **não vendido** → a peça volta a **Site Only** com o preço do campo
+  *“When in Site Only”*.
+- **“Reserve price not met”** com o leilão ainda a decorrer **não** significa que
+  terminou — a peça mantém-se no canal do leiloeiro.
+- Os preços actualizam-se em `/admin` com **“Check prices now”** e, uma vez por
+  dia às 06:00, pelo cron da Vercel (`vercel.json`).

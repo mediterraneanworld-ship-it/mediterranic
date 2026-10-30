@@ -1,12 +1,13 @@
 import { and, asc, avg, count, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { orderItems, orders, products, reviews, siteSettings } from "@/db/schema";
+import { newsletterSubscribers, orderItems, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
 
 export type Product = typeof products.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type SiteSettings = typeof siteSettings.$inferSelect;
+export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 export type ProductWithStats = Product & { rating: number; reviewCount: number };
 
 export const DEFAULT_SITE_SETTINGS: Omit<SiteSettings, "updatedAt"> = SEED_SETTINGS;
@@ -178,4 +179,31 @@ export async function getAllOrdersWithItems() {
     order,
     items: allItems.filter((i) => i.orderId === order.id),
   }));
+}
+
+/** Every newsletter sign-up, newest first. Read-only: nothing here is ever pruned. */
+export async function getNewsletterSubscribers(limit = 1000): Promise<NewsletterSubscriber[]> {
+  await ensureSeeded();
+  return db
+    .select()
+    .from(newsletterSubscribers)
+    .orderBy(desc(newsletterSubscribers.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Records a sign-up. Emails are unique, so a repeated address is simply ignored
+ * and reported back as "already subscribed" instead of creating a duplicate.
+ */
+export async function addNewsletterSubscriber(
+  email: string,
+  source = "footer",
+): Promise<{ added: boolean }> {
+  await ensureSeeded();
+  const [inserted] = await db
+    .insert(newsletterSubscribers)
+    .values({ email, source })
+    .onConflictDoNothing({ target: newsletterSubscribers.email })
+    .returning({ id: newsletterSubscribers.id });
+  return { added: Boolean(inserted) };
 }

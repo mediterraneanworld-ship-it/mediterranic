@@ -31,7 +31,9 @@ export function SiteHeader() {
           <span className="hidden text-parchment/30 sm:inline">·</span>
           <span className="text-parchment/70">eBay &amp; Catawiki Verified</span>
           <span className="hidden text-parchment/30 sm:inline">·</span>
-          <span className="text-parchment/70">Insured Worldwide Shipping</span>
+          <Link href="/shipping" className="text-parchment/70 underline-offset-4 transition hover:text-brass hover:underline">
+            Insured Worldwide Shipping
+          </Link>
         </div>
       </div>
 

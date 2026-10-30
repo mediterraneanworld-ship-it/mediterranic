@@ -124,12 +124,24 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 `;
 
+/** Column changes made after the first deployment — all idempotent. */
+const UPGRADE_SQL = `
+ALTER TABLE "products" ALTER COLUMN "listing_channel" DROP NOT NULL;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "site_only_price_cents" integer;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "archived" boolean DEFAULT false NOT NULL;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "video_url" text;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "last_price_check" timestamp with time zone;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "has_certificate" boolean DEFAULT false NOT NULL;
+ALTER TABLE "site_settings" ADD COLUMN IF NOT EXISTS "hero_image" text DEFAULT '/images/hero.jpg' NOT NULL;
+`;
+
 let migrated: Promise<void> | null = null;
 
 export function ensureSchema(): Promise<void> {
   if (!migrated) {
     migrated = (async () => {
       await db.execute(sql.raw(SCHEMA_SQL));
+      await db.execute(sql.raw(UPGRADE_SQL));
     })().catch((error) => {
       migrated = null;
       throw error;

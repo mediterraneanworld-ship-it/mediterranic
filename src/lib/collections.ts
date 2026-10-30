@@ -7,6 +7,8 @@ export type CollectionSlug =
 export type Collection = {
   slug: CollectionSlug;
   title: string;
+  /** When set, the home card links here instead of the shop filter. */
+  externalUrl?: string;
   eyebrow: string;
   description: string;
   /** Product image used as the collection cover */
@@ -32,7 +34,8 @@ export const COLLECTIONS: Collection[] = [
   },
   {
     slug: "cambrian-dawn",
-    title: "The Cambrian Dawn",
+    title: "Souss Lagerstätte",
+    externalUrl: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
     eyebrow: "c. 485–541 million years",
     description:
       "The earliest chapter. Paradoxides and the great Cambrian assemblages of the Anti-Atlas, from the seas that first filled with complex animal life.",

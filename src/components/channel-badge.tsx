@@ -35,9 +35,13 @@ export const CHANNEL_META: Record<
   },
 };
 
-export function normalizeChannel(value: string | null | undefined): ListingChannel {
+/**
+ * Null means the piece is not currently offered on any channel — an auction
+ * that ended, for instance. Such pieces get no channel badge at all.
+ */
+export function normalizeChannel(value: string | null | undefined): ListingChannel | null {
   if (value === "catawiki" || value === "ebay") return value;
-  return "direct";
+  return value === "direct" ? "direct" : null;
 }
 
 export function ChannelPill({
@@ -56,6 +60,9 @@ export function ChannelPill({
   }
 
   const normalized = normalizeChannel(channel);
+  // No channel: the "Unavailable" label alone is enough.
+  if (!normalized) return null;
+
   const meta = CHANNEL_META[normalized];
 
   return (
@@ -79,9 +86,9 @@ export function ChannelBanner({
 }) {
   if (soldOut) return null;
   const normalized = normalizeChannel(channel);
-  const meta = CHANNEL_META[normalized];
+  const meta = normalized ? CHANNEL_META[normalized] : null;
 
-  if (normalized === "direct") {
+  if (normalized === "direct" && meta) {
     return (
       <div className="mt-5 flex items-center gap-3 rounded-sm border border-sea/25 bg-sea/5 px-4 py-3 text-xs text-ink/80">
         <ShieldCheck size={16} className="shrink-0 text-sea" />
@@ -96,6 +103,7 @@ export function ChannelBanner({
   const platformName = normalized === "catawiki" ? "Catawiki" : "eBay";
   const targetUrl =
     externalUrl?.trim() || (normalized === "catawiki" ? "https://www.catawiki.com" : "https://www.ebay.com");
+  if (!meta) return null;
 
   return (
     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-brass/50 bg-bone/80 px-4 py-3.5 text-xs text-ink">

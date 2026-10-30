@@ -125,7 +125,13 @@ export function ShopExplorer({
     const q = filters.query.trim().toLowerCase();
     const filtered = products.filter((p) => {
       if (filters.collection !== "all" && !collectionsOf(p).includes(filters.collection)) return false;
-      if (filters.channel !== "all" && (p.listingChannel ?? "direct") !== filters.channel) return false;
+      // Unavailable pieces (no channel) only appear under "All specimens".
+      const pieceChannel = p.listingChannel;
+      if (filters.channel !== "all") {
+        if (filters.channel === "direct") {
+          if (pieceChannel !== "direct") return false;
+        } else if (pieceChannel !== filters.channel) return false;
+      }
       if (filters.category !== "all" && p.category !== filters.category) return false;
       if (filters.period !== "all" && p.period !== filters.period) return false;
       if (!matchesPrice(p.priceCents, filters.price)) return false;
@@ -163,7 +169,7 @@ export function ShopExplorer({
   const channelCounts = useMemo(
     () => ({
       all: products.length,
-      direct: products.filter((p) => (p.listingChannel ?? "direct") === "direct").length,
+      direct: products.filter((p) => p.listingChannel === "direct").length,
       ebay: products.filter((p) => p.listingChannel === "ebay").length,
       catawiki: products.filter((p) => p.listingChannel === "catawiki").length,
     }),

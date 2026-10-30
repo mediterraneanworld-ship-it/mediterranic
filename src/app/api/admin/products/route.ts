@@ -114,6 +114,11 @@ export async function POST(request: Request) {
   const stock = Math.max(0, Number(body.stock ?? 1));
   const published = body.published === undefined ? true : Boolean(body.published);
   const hasCertificate = Boolean(body.hasCertificate);
+  const archived = Boolean(body.archived);
+  const siteOnlyPriceCents =
+    body.siteOnlyPriceDollars && Number(body.siteOnlyPriceDollars) > 0
+      ? Math.round(Number(body.siteOnlyPriceDollars) * 100)
+      : null;
   const featured = Boolean(body.featured);
   const rawChannel = String(body.listingChannel ?? "direct").trim();
   const listingChannel = ["direct", "catawiki", "ebay"].includes(rawChannel) ? rawChannel : "direct";
@@ -179,6 +184,8 @@ export async function POST(request: Request) {
           featured,
           published,
           hasCertificate,
+          archived,
+          siteOnlyPriceCents,
           listingChannel,
           externalListingUrl,
           videoUrl,
@@ -221,6 +228,8 @@ export async function POST(request: Request) {
           featured,
           published,
           hasCertificate,
+          archived,
+          siteOnlyPriceCents,
           listingChannel,
           externalListingUrl,
           videoUrl,

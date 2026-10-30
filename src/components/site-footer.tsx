@@ -5,8 +5,24 @@ import { getSiteSettings } from "@/lib/catalog";
 
 export async function SiteFooter() {
   const settings = await getSiteSettings();
+  const orgJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Mediterranic",
+    email: settings.contactEmail,
+    description:
+      "Moroccan trilobites — Cambrian, Ordovician and Devonian. Specialist curatorship for collectors, verified on eBay and Catawiki.",
+    sameAs: [settings.ebayUrl, settings.catawikiUrl, settings.instagramUrl, settings.facebookUrl, settings.trustamiUrl]
+      .filter(Boolean)
+      .filter((value, index, list) => list.indexOf(value) === index),
+  };
+
   return (
     <footer className="mt-32 bg-midnight text-parchment/80">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
+      />
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div className="space-y-5 lg:col-span-1">
           <p className="font-display text-3xl uppercase tracking-[0.2em] text-parchment">Mediterranic</p>

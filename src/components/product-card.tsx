@@ -19,7 +19,7 @@ export function ProductCard({ product, priority = false }: { product: ProductWit
           fill
           priority={priority}
           sizes="(min-width: 1280px) 22vw, (min-width: 768px) 30vw, 46vw"
-          className={`object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06] ${soldOut ? "opacity-60 grayscale" : ""}`}
+          className="object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06]"
         />
         <div className="absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-1.5 p-3">
           {product.period ? (
@@ -30,7 +30,7 @@ export function ProductCard({ product, priority = false }: { product: ProductWit
             <span />
           )}
 
-          <ChannelPill channel={channel} soldOut={soldOut} />
+          <ChannelPill channel={soldOut ? null : channel} soldOut={soldOut} />
         </div>
         <div className="absolute inset-x-3 bottom-3 translate-y-2 rounded-sm bg-ink/90 py-3 text-center text-[11px] uppercase tracking-[0.25em] text-parchment opacity-0 backdrop-blur transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
           {soldOut

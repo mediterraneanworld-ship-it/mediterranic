@@ -43,7 +43,8 @@ export const products = pgTable("products", {
   compareAtCents: integer("compare_at_cents"),
   stock: integer("stock").notNull().default(0),
   featured: boolean("featured").notNull().default(false),
-  listingChannel: text("listing_channel").notNull().default("direct"), // direct | ebay | catawiki
+  /** Null when the piece is not currently offered on any channel (e.g. an ended auction). */
+  listingChannel: text("listing_channel"),
   published: boolean("published").notNull().default(true),
   externalListingUrl: text("external_listing_url"),
   /** Optional YouTube / Vimeo link shown on the product page */
@@ -52,6 +53,10 @@ export const products = pgTable("products", {
   lastPriceCheck: timestamp("last_price_check", { withTimezone: true }),
   /** Not every specimen is sold with a certificate — ticked per piece. */
   hasCertificate: boolean("has_certificate").notNull().default(false),
+  /** Price used automatically when an auction ends unsold and the piece returns to Site Only. */
+  siteOnlyPriceCents: integer("site_only_price_cents"),
+  /** Sold pieces shown (without price) in the public archive. */
+  archived: boolean("archived").notNull().default(false),
   shortDescription: text("short_description").notNull(),
   description: text("description").notNull(),
   provenance: text("provenance").notNull(),

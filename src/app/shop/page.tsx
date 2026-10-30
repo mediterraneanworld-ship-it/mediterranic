@@ -20,7 +20,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 export default async function ShopPage({ searchParams }: Props) {
   const { collection, channel } = await searchParams;
-  const products = await getAllProducts();
+  const products = (await getAllProducts()).filter((p) => !p.archived);
 
   return (
     <ShopExplorer

@@ -157,8 +157,43 @@ export default async function ProductPage({ params }: Props) {
     ["Preparation", product.preparation],
   ];
 
+  const siteBase = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://shop.mediterranic.com").replace(/\/$/, "");
+  const absolute = (src: string) => (src.startsWith("http") ? src : `${siteBase}${src}`);
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.shortDescription,
+    image: product.images.map((i) => absolute(i.src)),
+    category: "Fossil specimen",
+    brand: { "@type": "Brand", name: "Mediterranic" },
+    ...(product.stock > 0
+      ? {
+          offers: {
+            "@type": "Offer",
+            url: `${siteBase}/shop/${product.slug}`,
+            priceCurrency: "EUR",
+            price: (product.priceCents / 100).toFixed(2),
+            availability: "https://schema.org/InStock",
+            itemCondition: "https://schema.org/NewCondition",
+          },
+        }
+      : {
+          offers: {
+            "@type": "Offer",
+            url: `${siteBase}/shop/${product.slug}`,
+            priceCurrency: "EUR",
+            availability: "https://schema.org/OutOfStock",
+          },
+        }),
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-5 pb-28 pt-10 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <nav aria-label="Breadcrumb" className="text-[11px] uppercase tracking-[0.2em] text-ink/50">
         <ol className="flex flex-wrap items-center gap-2">
           <li>
@@ -255,7 +290,7 @@ export default async function ProductPage({ params }: Props) {
                 priceCents: product.priceCents,
                 image: product.images[0].src,
                 stock: product.stock,
-                listingChannel: product.listingChannel,
+                listingChannel: product.listingChannel ?? undefined,
                 externalListingUrl: product.externalListingUrl,
               }}
             />

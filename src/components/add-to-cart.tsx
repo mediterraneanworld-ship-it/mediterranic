@@ -23,7 +23,7 @@ export function AddToCart({ product }: { product: CartableProduct }) {
 
   const maxQuantity = Math.min(product.stock, 10);
   const soldOut = product.stock <= 0;
-  const channel = product.listingChannel ?? "direct";
+  const channel = product.listingChannel; // undefined/null = not offered anywhere
 
   const handleAdd = () => {
     addItem(

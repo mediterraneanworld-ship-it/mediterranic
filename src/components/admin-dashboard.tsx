@@ -70,6 +70,8 @@ type EditableProduct = {
   featured: boolean;
   published: boolean;
   hasCertificate: boolean;
+  siteOnlyPriceDollars: string;
+  archived: boolean;
   listingChannel: string;
   externalListingUrl: string;
   videoUrl: string;
@@ -98,6 +100,8 @@ const EMPTY_PRODUCT: EditableProduct = {
   featured: true,
   published: true,
   hasCertificate: false,
+  siteOnlyPriceDollars: "",
+  archived: false,
   listingChannel: "direct",
   externalListingUrl: "",
   videoUrl: "",
@@ -130,6 +134,8 @@ function toEditable(p: ProductWithStats): EditableProduct {
     featured: p.featured,
     published: p.published ?? true,
     hasCertificate: p.hasCertificate ?? false,
+    siteOnlyPriceDollars: p.siteOnlyPriceCents ? String(Math.round(p.siteOnlyPriceCents / 100)) : "",
+    archived: p.archived ?? false,
     listingChannel: p.listingChannel ?? "direct",
     externalListingUrl: p.externalListingUrl ?? "",
     videoUrl: p.videoUrl ?? "",
@@ -242,7 +248,15 @@ export function AdminDashboard({
   const [refreshing, setRefreshing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [priceReport, setPriceReport] = useState<
-    { name: string; channel: string; previousCents: number; currentCents: number | null; error?: string }[] | null
+    {
+      name: string;
+      channel: string;
+      previousCents: number;
+      currentCents: number | null;
+      status?: "live" | "sold" | "unsold" | "ended" | "unknown";
+      markedUnavailable?: boolean;
+      error?: string;
+    }[] | null
   >(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -368,9 +382,12 @@ export function AdminDashboard({
           channel: string;
           previousCents: number;
           currentCents: number | null;
+          status?: "live" | "sold" | "unsold" | "ended" | "unknown";
+          markedUnavailable?: boolean;
           error?: string;
         }[];
         changed?: number;
+        ended?: number;
         error?: string;
       };
       if (!res.ok) {
@@ -378,10 +395,11 @@ export function AdminDashboard({
         return;
       }
       setPriceReport(data.results ?? []);
+      const endedCount = data.ended ?? 0;
       notify(
-        `Prices checked. ${data.changed ?? 0} changed. ${
-          (data.results ?? []).filter((r) => r.error).length
-        } listing(s) could not be read.`,
+        `Checked ${(data.results ?? []).length} listing(s). ${data.changed ?? 0} price change(s)${
+          endedCount ? ` · ${endedCount} auction(s) ended → marked Unavailable` : ""
+        }. ${(data.results ?? []).filter((r) => r.error).length} could not be read.`,
       );
       router.refresh();
     } finally {
@@ -973,7 +991,8 @@ export function AdminDashboard({
             </p>
             <p className="mt-1 text-xs text-ink/65">
               Reads the current bid from Catawiki and the current price from your eBay store, and updates the shop.
-              Runs automatically every 30 minutes once the site is published — or press the button now.
+              If an auction has <strong>ended</strong>, the piece is automatically marked <strong>Unavailable</strong>
+              (price hidden). Runs once a day — or press the button now.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
@@ -1007,7 +1026,15 @@ export function AdminDashboard({
                         <td className="py-1.5 pr-2 text-ink/60">{r.channel}</td>
                         <td className="py-1.5 pr-2 text-ink/60">€{(r.previousCents / 100).toFixed(0)}</td>
                         <td className="py-1.5">
-                          {r.currentCents === null ? (
+                          {r.status === "sold" || r.status === "ended" ? (
+                            <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] uppercase tracking-wider text-parchment">
+                              Sold → Archive
+                            </span>
+                          ) : r.status === "unsold" ? (
+                            <span className="rounded-full bg-sea px-2 py-0.5 text-[10px] uppercase tracking-wider text-parchment">
+                              Unsold → Site Only €{((r.currentCents ?? 0) / 100).toFixed(0)}
+                            </span>
+                          ) : r.currentCents === null ? (
                             <span className="text-terracotta">{r.error ?? "not read"}</span>
                           ) : (
                             <span className={r.currentCents !== r.previousCents ? "font-semibold text-sea" : "text-ink/60"}>
@@ -1335,6 +1362,17 @@ export function AdminDashboard({
                   />
                 </div>
                 <div>
+                  <label className={labelClass}>When in Site Only — price (EUR €)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editing.siteOnlyPriceDollars}
+                    onChange={(e) => setEditing({ ...editing, siteOnlyPriceDollars: e.target.value })}
+                    placeholder="Used if the auction ends unsold"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
                   <label className={labelClass}>Stock Quantity (0 = unavailable)</label>
                   <input
                     type="number"
@@ -1409,6 +1447,15 @@ export function AdminDashboard({
                       className="h-4 w-4 accent-sea"
                     />
                     Feature on Home Page
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-3 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={editing.archived}
+                      onChange={(e) => setEditing({ ...editing, archived: e.target.checked })}
+                      className="h-4 w-4 accent-brass"
+                    />
+                    Show in public archive (sold pieces, no price)
                   </label>
                   <label className="flex cursor-pointer items-center gap-3 text-sm text-ink">
                     <input

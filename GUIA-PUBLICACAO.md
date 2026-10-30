@@ -122,5 +122,58 @@ qualquer peça criada depois do backup fica intacta.
 - O catálogo vive em `src/lib/seed-data.ts` e os textos em `src/lib/seed-settings.ts`.
   Tudo o que alterar no back-office tem de ser capturado para esses ficheiros antes
   de um novo deploy, senão é reposto.
-- O automático dos preços corre de 30 em 30 minutos (`vercel.json`).
+- O automático dos preços corre **uma vez por dia às 06:00** (`vercel.json`). O plano
+  gratuito da Vercel (Hobby) só permite um cron diário. Para mais frequência:
+  - **Plano Pro da Vercel** (~20 €/mês): mude `"schedule"` para `"*/30 * * * *"`.
+  - **Ou um agendador externo gratuito** (cron-job.org, UptimeRobot): chame de X em X
+    minutos o endereço `https://shop.mediterranic.com/api/cron/refresh-prices?secret=A_SUA_CRON_SECRET`.
+  - O botão **"Check prices now"** no back-office funciona sempre, de imediato.
 - As fotografias estão em `public/images/` e são servidas directamente.
+
+---
+
+## 9. Como pedir alterações a partir de agora
+
+Passa a funcionar assim: por cada pedido, o programador diz-lhe se basta
+**substituir alguns ficheiros** ou se convém **renovar o zip todo**.
+
+### Regra de ouro (antes de qualquer push)
+
+1. Entrar em `/admin`
+2. **"⬇ Download backup"** e guardar o ficheiro
+
+Isto não é porque o push apague dados — **não apaga**. O catálogo, os preços e os
+textos vivem na base de dados (Neon) e o código novo nunca toca numa base de
+dados que já tenha peças. O backup é só a sua rede de segurança.
+
+### Caminho A — só alguns ficheiros (o mais frequente)
+
+Mudanças de textos fixos no código, ajustes de CSS, pequenas correcções.
+
+1. Descarregar os ficheiros indicados
+2. Copiar para `Documentos/GitHub/mediterranic`, substituindo os que têm o
+   mesmo nome (e o mesmo caminho — ex.: `src/components/...`)
+3. GitHub Desktop → **Commit** → **Push origin**
+4. A Vercel publica sozinha em ~1 minuto
+
+### Caminho B — zip completo
+
+Alterações de estrutura, de base de dados (novas colunas), de muitas páginas
+ao mesmo tempo, ou do comportamento do back-office.
+
+1. Descarregar o zip → descompactar
+2. Copiar **o conteúdo** da pasta para `Documentos/GitHub/mediterranic`,
+   substituindo tudo
+3. GitHub Desktop → **Commit** → **Push origin**
+4. A Vercel publica sozinha em ~1 minuto
+
+### O que NUNCA é preciso fazer
+
+- Não é preciso voltar a criar o projeto na Vercel.
+- Não é preciso mexer nas Environment Variables (só se o programador disser).
+- Não é preciso voltar a ligar o domínio.
+
+### As suas peças estão seguras
+
+O código só preenche a base de dados se ela estiver **vazia**. Como a sua já
+tem peças, qualquer deploy novo deixa peças, preços, fotos e textos intactos.

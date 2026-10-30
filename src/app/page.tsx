@@ -19,14 +19,15 @@ export default async function HomePage() {
   ]);
 
   const featuredAll = products.filter((p) => p.featured);
-  const featured = (featuredAll.length > 0 ? featuredAll : products).slice(0, 4);
+  const featured = (featuredAll.length > 0 ? featuredAll : products).filter((p) => !p.archived).slice(0, 4);
   const collections = COLLECTIONS.map((c) => ({
     ...c,
     count: products.filter((p) => collectionsOf(p).includes(c.slug)).length,
   }));
   // The provenance panel always shows the whole seafloor plate.
   const story = products.find((p) => p.slug === "sandblasted-mortality-the-sandblasted-patriarch") ?? products[0];
-  const directCount = products.filter((p) => (p.listingChannel ?? "direct") === "direct").length;
+  const archivePieces = products.filter((p) => p.archived);
+  const directCount = products.filter((p) => p.listingChannel === "direct").length;
   const ebayCount = products.filter((p) => p.listingChannel === "ebay").length;
   const catawikiCount = products.filter((p) => p.listingChannel === "catawiki").length;
 
@@ -292,7 +293,8 @@ export default async function HomePage() {
           {collections.map((c, i) => (
             <Reveal key={c.slug} delay={i * 0.12}>
               <Link
-                href={`/shop?collection=${c.slug}`}
+                href={c.externalUrl ?? `/shop?collection=${c.slug}`}
+                {...(c.externalUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className="group relative block aspect-[3/4] overflow-hidden rounded-sm bg-midnight text-parchment"
               >
                 <Image
@@ -637,13 +639,53 @@ export default async function HomePage() {
             >
               Shop the collection
             </Link>
-            <Link
-              href="/shop?collection=cambrian-dawn"
+            <a
+              href="https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex h-14 items-center rounded-full border border-ink/25 px-9 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:border-ink"
             >
-              The Cambrian Dawn
+              Souss Lagerstätte
+            </a>
+            <Link
+              href="/archive"
+              className="inline-flex h-14 items-center rounded-full border border-ink/25 px-9 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:border-ink"
+            >
+              The Archive
             </Link>
           </div>
+
+          {archivePieces.length > 0 && (
+            <div className="mt-16 text-left">
+              <div className="mb-6 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.32em] text-brass">From the archive</p>
+                  <h3 className="mt-2 font-display text-3xl text-ink">Pieces that found their collectors</h3>
+                </div>
+                <Link href="/archive" className="text-[11px] uppercase tracking-[0.2em] text-ink/60 hover:text-terracotta">
+                  View all →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {archivePieces.slice(0, 4).map((p) => (
+                  <Link key={p.slug} href={`/shop/${p.slug}`} className="group block">
+                    <div className="relative aspect-square overflow-hidden rounded-sm bg-bone">
+                      {p.images[0] && (
+                        <Image
+                          src={p.images[0].src}
+                          alt={p.images[0].alt}
+                          fill
+                          sizes="(min-width: 768px) 22vw, 46vw"
+                          className="object-cover transition-transform duration-[1.2s] group-hover:scale-[1.05]"
+                        />
+                      )}
+                    </div>
+                    <p className="mt-3 font-display text-lg leading-tight text-ink">{p.name}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mt-12 flex flex-col items-center justify-center gap-4 border-t border-ink/10 pt-8 sm:flex-row">
             <span className="text-[11px] uppercase tracking-[0.24em] text-ink/45">Also on</span>

@@ -6,16 +6,16 @@ import { AnimatePresence, motion } from "motion/react";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { selectItemCount, useCart, useHydrated } from "@/lib/cart-store";
+import type { SiteContent } from "@/lib/site-content";
 
-const NAV = [
-  { href: "/shop", label: "Shop all" },
-  { href: "/shop?channel=direct", label: "Only on Site" },
-  { href: "/shop?channel=ebay", label: "Live on eBay" },
-  { href: "/shop?channel=catawiki", label: "Live on Catawiki" },
-  { href: "/shop?collection=the-connoisseur", label: "Connoisseur" },
-];
-
-export function SiteHeader() {
+export function SiteHeader({ content }: { content: SiteContent["header"] }) {
+  const NAV = [
+    { href: "/shop", label: content.navShopAll },
+    { href: "/shop?channel=direct", label: content.navSiteOnly },
+    { href: "/shop?channel=ebay", label: content.navEbay },
+    { href: "/shop?channel=catawiki", label: content.navCatawiki },
+    { href: "/shop?collection=the-connoisseur", label: content.navConnoisseur },
+  ];
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const openCart = useCart((s) => s.open);
@@ -27,22 +27,39 @@ export function SiteHeader() {
       {/* Customer-facing trust bar (no admin links here) */}
       <div className="bg-ink text-parchment">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-1 px-5 py-2 text-center text-[10px] uppercase tracking-[0.22em] lg:px-8">
-          <span className="text-brass">23 Years in the Field</span>
+          <span className="text-brass">{content.trustBar[0]}</span>
           <span className="hidden text-parchment/30 sm:inline">·</span>
-          <span className="text-parchment/70">eBay &amp; Catawiki Verified</span>
+          <span className="text-parchment/70">{content.trustBar[1]}</span>
           <span className="hidden text-parchment/30 sm:inline">·</span>
           <Link href="/shipping" className="text-parchment/70 underline-offset-4 transition hover:text-brass hover:underline">
-            Insured Worldwide Shipping
+            {content.trustBar[2]}
           </Link>
         </div>
       </div>
 
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-5 lg:px-8">
-        <Link href="/" className="group flex flex-col leading-none" onClick={() => setMobileOpen(false)}>
-          <span className="font-display text-[1.65rem] uppercase tracking-[0.22em] text-ink transition-colors group-hover:text-sea">
-            Mediterranic
+        <Link href="/" className="group flex items-center gap-3.5 leading-none" onClick={() => setMobileOpen(false)}>
+          {content.logoImage && (
+            <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-midnight ring-1 ring-brass/45 transition group-hover:ring-brass">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={
+                  content.logoImage === "/images/logo-mediterranic.png"
+                    ? "/images/icon-mediterranic.png"
+                    : content.logoImage
+                }
+                alt=""
+                aria-hidden="true"
+                className="h-11 w-11 scale-110 object-cover transition duration-300 group-hover:scale-115"
+              />
+            </span>
+          )}
+          <span className="flex flex-col leading-none">
+            <span className="font-display text-[1.65rem] uppercase tracking-[0.22em] text-ink transition-colors group-hover:text-sea">
+              Mediterranic
+            </span>
+            <span className="mt-1.5 text-[9px] uppercase tracking-[0.42em] text-brass">Moroccan Trilobites</span>
           </span>
-          <span className="mt-1.5 text-[9px] uppercase tracking-[0.42em] text-brass">Moroccan Trilobites</span>
         </Link>
 
         <nav aria-label="Primary" className="hidden items-center gap-7 lg:flex">

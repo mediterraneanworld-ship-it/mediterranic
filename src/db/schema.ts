@@ -94,6 +94,10 @@ export const orders = pgTable("orders", {
   shippingCents: integer("shipping_cents").notNull(),
   totalCents: integer("total_cents").notNull(),
   status: text("status").notNull().default("confirmed"),
+  /** "direct" (placed on the site) or "paypal". */
+  paymentMethod: text("payment_method").notNull().default("direct"),
+  /** PayPal order id, set once the buyer approves the payment. */
+  paypalOrderId: text("paypal_order_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -134,6 +138,12 @@ export const siteSettings = pgTable("site_settings", {
   whatsappPhone: text("whatsapp_phone").notNull().default(""),
   provenanceImage: text("provenance_image").notNull().default(""),
   heroImage: text("hero_image").notNull().default("/images/hero.jpg"),
+  /**
+   * Every other editable text and photograph of the storefront, as one jsonb
+   * document (see src/lib/site-content.ts). Stored values are merged over the
+   * defaults in code, so a missing key never blanks a page.
+   */
+  content: jsonb("content").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

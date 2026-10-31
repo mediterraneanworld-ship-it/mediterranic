@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * is listed so search engines find new specimens as soon as they appear.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://shop.mediterranic.com").replace(/\/$/, "");
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mediterranic.com").replace(/\/$/, "");
   const now = new Date();
   const products = await getAllProducts();
 

@@ -8,6 +8,7 @@ import { ProductCard } from "@/components/product-card";
 import { COLLECTIONS, getCollection } from "@/lib/collections";
 import type { ProductWithStats } from "@/lib/catalog";
 import { collectionsOf } from "@/lib/product-collections";
+import type { SiteContent } from "@/lib/site-content";
 
 type Category = "all" | "specimen" | "accessory";
 type Period = "all" | "Cambrian" | "Ordovician" | "Devonian";
@@ -75,10 +76,12 @@ export function ShopExplorer({
   products,
   initialCollection,
   initialChannel = "all",
+  copy,
 }: {
   products: ProductWithStats[];
   initialCollection: string;
   initialChannel?: string;
+  copy: SiteContent["shop"];
 }) {
   const validInitialChannel: Channel =
     initialChannel === "direct" || initialChannel === "catawiki" || initialChannel === "ebay"
@@ -134,7 +137,8 @@ export function ShopExplorer({
       }
       if (filters.category !== "all" && p.category !== filters.category) return false;
       if (filters.period !== "all" && p.period !== filters.period) return false;
-      if (!matchesPrice(p.priceCents, filters.price)) return false;
+      // A piece without a public price (unavailable) never matches a price band.
+      if (filters.price !== "all" && (!p.priceCents || !matchesPrice(p.priceCents, filters.price))) return false;
       if (filters.inStockOnly && p.stock <= 0) return false;
       if (q) {
         const haystack = `${p.name} ${p.species} ${p.locality} ${p.period ?? ""}`.toLowerCase();
@@ -146,7 +150,8 @@ export function ShopExplorer({
     const sorted = [...filtered];
     switch (sort) {
       case "price-asc":
-        sorted.sort((a, b) => a.priceCents - b.priceCents);
+        // Pieces without a price (unavailable) always sit at the end.
+        sorted.sort((a, b) => (a.priceCents || Infinity) - (b.priceCents || Infinity));
         break;
       case "price-desc":
         sorted.sort((a, b) => b.priceCents - a.priceCents);
@@ -195,15 +200,15 @@ export function ShopExplorer({
       <header className="mb-10 grid gap-8 border-b border-ink/10 pb-10 md:grid-cols-[1fr_auto] md:items-end">
         <div>
           <p className="text-[11px] uppercase tracking-[0.32em] text-brass">
-            {activeCollection ? "Collection" : "The collection"}
+            {activeCollection ? "Collection" : copy.eyebrow}
           </p>
           <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">
-            {activeCollection ? activeCollection.title : "Specimens & instruments"}
+            {activeCollection ? activeCollection.title : copy.title}
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink/65">
             {activeCollection
               ? activeCollection.description
-              : "Every specimen is clearly badged by where it is currently offered: exclusively here on Mediterranic, or live on auction on eBay or Catawiki."}
+              : copy.description}
           </p>
         </div>
         <p className="font-display text-xl italic text-ink/55 md:text-right">
@@ -353,10 +358,8 @@ export function ShopExplorer({
 
           {results.length === 0 ? (
             <div className="rounded-sm border border-dashed border-ink/20 px-8 py-20 text-center">
-              <p className="font-display text-4xl text-ink">Nothing matches just yet</p>
-              <p className="mx-auto mt-4 max-w-md text-sm text-ink/60">
-                Try widening the price band or removing a period filter. New specimens are logged regularly.
-              </p>
+              <p className="font-display text-4xl text-ink">{copy.emptyTitle}</p>
+              <p className="mx-auto mt-4 max-w-md text-sm text-ink/60">{copy.emptyText}</p>
               <button
                 type="button"
                 onClick={reset}

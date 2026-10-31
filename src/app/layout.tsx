@@ -5,24 +5,39 @@ import { CartDrawer } from "@/components/cart-drawer";
 import { MotionProvider } from "@/components/motion-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { getSiteContent } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-  title: {
-    default: "Mediterranic · Moroccan Trilobites for Collectors",
-    template: "%s · Mediterranic",
-  },
-  description:
-    "Museum-grade Moroccan trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Certified, documented and delivered insured to collectors in North America, Europe and Japan.",
-  openGraph: {
-    title: "Mediterranic · Moroccan Trilobites",
+/**
+ * Icons come from the back-office ("Brand · logo & favicon"), so the curator
+ * can upload their own favicon. Defaults live in /public.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getSiteContent();
+  const favicon = content.site.favicon.trim() || "/favicon.svg";
+  const faviconType = favicon.endsWith(".svg") ? "image/svg+xml" : favicon.endsWith(".png") ? "image/png" : "image/x-icon";
+  return {
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    title: {
+      default: "Mediterranic · Moroccan Trilobites for Collectors",
+      template: "%s · Mediterranic",
+    },
     description:
-      "Museum-grade Moroccan trilobites — Cambrian, Ordovician and Devonian. Nearly 23 years of specialist curatorship, verified on eBay and Catawiki.",
-    type: "website",
-  },
-};
+      "Museum-grade Moroccan trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Certified, documented and delivered insured to collectors in North America, Europe and Japan.",
+    icons: {
+      icon: [{ url: favicon, type: faviconType }],
+      shortcut: [{ url: favicon, type: faviconType }],
+      apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    },
+    openGraph: {
+      title: "Mediterranic · Moroccan Trilobites",
+      description:
+        "Museum-grade Moroccan trilobites — Cambrian, Ordovician and Devonian. Nearly 23 years of specialist curatorship, verified on eBay and Catawiki.",
+      type: "website",
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#0b2030",
@@ -30,7 +45,9 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const content = await getSiteContent();
+
   return (
     <html lang="en" translate="yes">
       <head>
@@ -43,11 +60,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-svh bg-parchment font-sans text-ink antialiased">
         <MotionProvider>
-          <SiteHeader />
+          <SiteHeader content={content.header} />
           <main className="min-h-[70svh]">{children}</main>
           <SiteFooter />
           <CartDrawer />
         </MotionProvider>
+        {content.analytics.bodyScripts.trim() !== "" && (
+          <div
+            aria-hidden
+            suppressHydrationWarning
+            dangerouslySetInnerHTML={{ __html: content.analytics.bodyScripts }}
+          />
+        )}
       </body>
     </html>
   );

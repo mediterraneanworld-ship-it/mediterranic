@@ -8,6 +8,8 @@ import type { SiteSettings } from "@/lib/catalog";
  */
 export const SEED_SETTINGS: Omit<SiteSettings, "updatedAt"> = {
   id: 1,
+  // Page texts & photographs: empty means "use the defaults in src/lib/site-content.ts".
+  content: {},
   heroEyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
   heroTitle: "Five hundred million years,",
   heroTitleItalic: "in your keeping.",

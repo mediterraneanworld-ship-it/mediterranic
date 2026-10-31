@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { selectItemCount, selectSubtotal, useCart, useHydrated } from "@/lib/cart-store";
 import { formatPrice } from "@/lib/format";
 import {
@@ -40,8 +40,54 @@ export function CheckoutForm() {
   const [method, setMethod] = useState<ShippingMethodId>("standard");
   const [country, setCountry] = useState("US");
   const [submitting, setSubmitting] = useState(false);
+  const [paypalBusy, setPaypalBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [paypalNote, setPaypalNote] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const paypalHandledRef = useRef(false);
+
+  // Return from PayPal: capture the approved payment and finish the order once.
+  useEffect(() => {
+    const action = searchParams.get("paypal");
+    const orderId = searchParams.get("order");
+    const token = searchParams.get("token");
+    if (!action || !orderId || paypalHandledRef.current) return;
+
+    if (action === "return" && token) {
+      paypalHandledRef.current = true;
+      setPaypalBusy(true);
+      (async () => {
+        try {
+          const res = await fetch("/api/paypal/capture", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, paypalOrderId: token }),
+          });
+          const data = (await res.json().catch(() => ({}))) as { ok?: boolean; orderId?: string; error?: string };
+          if (res.ok && data.ok && data.orderId) {
+            setOrderPlaced(true);
+            clear();
+            router.push(`/orders/${data.orderId}`);
+          } else {
+            setError(data.error ?? "The payment could not be confirmed. Nothing was charged.");
+            setPaypalBusy(false);
+          }
+        } catch {
+          setError("Network error while confirming the payment. Nothing was charged.");
+          setPaypalBusy(false);
+        }
+      })();
+    } else if (action === "cancel") {
+      paypalHandledRef.current = true;
+      fetch("/api/paypal/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      }).catch(() => {});
+      setPaypalNote("Payment cancelled on PayPal — nothing was charged. Your cabinet is unchanged.");
+    }
+  }, [searchParams, clear, router]);
 
   if (!hydrated) {
     return (
@@ -52,10 +98,10 @@ export function CheckoutForm() {
     );
   }
 
-  if (items.length === 0 && orderPlaced) {
+  if ((items.length === 0 && orderPlaced) || (searchParams.get("paypal") === "return" && paypalBusy)) {
     return (
       <div className="py-24 text-center">
-        <p className="font-display text-4xl text-ink">Confirming your order…</p>
+        <p className="font-display text-4xl text-ink">Confirming your PayPal payment…</p>
       </div>
     );
   }
@@ -83,29 +129,76 @@ export function CheckoutForm() {
   const total = subtotal + shipping;
   const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD_CENTS - subtotal);
 
+  function collectPayload(data: FormData) {
+    return {
+      email: data.get("email"),
+      phone: data.get("phone"),
+      firstName: data.get("firstName"),
+      lastName: data.get("lastName"),
+      country,
+      addressLine1: data.get("addressLine1"),
+      addressLine2: data.get("addressLine2"),
+      city: data.get("city"),
+      postalCode: data.get("postalCode"),
+      shippingMethod: method,
+      items: items.map((i) => ({ slug: i.slug, quantity: i.quantity })),
+    };
+  }
+
+  /** Real PayPal: create the order on our server, then send the buyer to approve it. */
+  async function onPaypal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setPaypalNote(null);
+    const data = new FormData(event.currentTarget);
+    if (!data.get("email") || !data.get("firstName") || !data.get("lastName") || !data.get("addressLine1") || !data.get("city") || !data.get("postalCode")) {
+      setError("Please fill in the contact and delivery details above first.");
+      return;
+    }
+    setPaypalBusy(true);
+    try {
+      const response = await fetch("/api/paypal/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(collectPayload(data)),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        approveUrl?: string;
+        error?: string;
+        code?: string;
+      };
+      if (!response.ok || !payload.approveUrl) {
+        if (payload.code === "PAYPAL_NOT_CONFIGURED") {
+          setError("Online payment is not enabled yet — please use the button below to place the order by invoice.");
+        } else {
+          setError(payload.error ?? "Could not start the PayPal payment. Please try again.");
+        }
+        setPaypalBusy(false);
+        return;
+      }
+      window.location.href = payload.approveUrl;
+    } catch {
+      setError("Network error. Please check your connection and try again.");
+      setPaypalBusy(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     const data = new FormData(event.currentTarget);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    if (submitter?.value === "paypal") {
+      await onPaypal(event);
+      return;
+    }
 
     setSubmitting(true);
     try {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: data.get("email"),
-          phone: data.get("phone"),
-          firstName: data.get("firstName"),
-          lastName: data.get("lastName"),
-          country,
-          addressLine1: data.get("addressLine1"),
-          addressLine2: data.get("addressLine2"),
-          city: data.get("city"),
-          postalCode: data.get("postalCode"),
-          shippingMethod: method,
-          items: items.map((i) => ({ slug: i.slug, quantity: i.quantity })),
-        }),
+        body: JSON.stringify(collectPayload(data)),
       });
       const payload = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
 
@@ -243,8 +336,8 @@ export function CheckoutForm() {
             </div>
             <p className="flex items-start gap-2 text-xs leading-relaxed text-ink/60">
               <Lock size={13} strokeWidth={1.6} className="mt-0.5 shrink-0" />
-              Demo checkout: PayPal is not yet connected to a live account, so no money is taken and no card is
-              charged. Enquiries and invoices are still sent to you by email.
+              You will be redirected to PayPal to approve the payment. The order is only confirmed after PayPal
+              confirms the capture — if you cancel, nothing is charged.
             </p>
           </div>
         </Section>
@@ -255,14 +348,30 @@ export function CheckoutForm() {
           </p>
         )}
 
+        {paypalNote && (
+          <p role="status" className="rounded-sm border border-sea/30 bg-sea/5 px-5 py-4 text-sm text-sea">
+            {paypalNote}
+          </p>
+        )}
         <div className="space-y-4 border-t border-ink/10 pt-10">
           <button
             type="submit"
-            disabled={submitting}
-            className="group inline-flex h-16 w-full items-center justify-center gap-3 rounded-full bg-ink text-[13px] uppercase tracking-[0.22em] text-parchment transition hover:bg-terracotta disabled:cursor-wait disabled:opacity-70"
+            name="payment"
+            value="paypal"
+            disabled={paypalBusy || submitting}
+            className="group inline-flex h-16 w-full items-center justify-center gap-3 rounded-full bg-[#ffc439] text-[13px] font-semibold uppercase tracking-[0.18em] text-[#003087] transition hover:brightness-95 disabled:cursor-wait disabled:opacity-70"
           >
-            {submitting ? "Redirecting to PayPal…" : `Continue to PayPal · ${formatPrice(total)}`}
-            {!submitting && <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />}
+            {paypalBusy ? "Redirecting to PayPal…" : `Pay ${formatPrice(total)} with PayPal`}
+            {!paypalBusy && <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />}
+          </button>
+          <button
+            type="submit"
+            name="payment"
+            value="invoice"
+            disabled={submitting || paypalBusy}
+            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-ink/25 text-[12px] uppercase tracking-[0.2em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
+          >
+            {submitting ? "Placing order…" : "Place order by invoice (email)"}
           </button>
           <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
             <ShieldCheck size={14} strokeWidth={1.5} />

@@ -137,22 +137,30 @@ export async function POST(request: Request) {
           label: String(img.label || (idx === 0 ? "Full specimen" : `Angle ${idx + 1}`)).trim(),
           ...(img.zoom ? { zoom: img.zoom } : {}),
         }))
-      : [
-          {
-            src: "/images/products/drotops-armatus.jpg",
-            alt: `${name}, full specimen`,
-            label: "Full specimen",
-          },
-        ];
+      : [];
 
   if (!name) {
     return Response.json({ error: "Please enter at least a title for the specimen." }, { status: 400 });
   }
-  if (priceCents <= 0 && published) {
-    return Response.json(
-      { error: "Please enter a price in euro so the piece can be published." },
-      { status: 400 },
-    );
+
+  // A published piece must be complete: price, at least one photograph and a
+  // description. Saving an incomplete piece as a draft is fine; publishing it
+  // would put an empty card on the storefront, so it is refused with a list of
+  // exactly what is missing.
+  if (published) {
+    const missing: string[] = [];
+    if (priceCents <= 0) missing.push("a price in euro");
+    if (images.length === 0) missing.push("at least one photograph");
+    if (!shortDescription && !description) missing.push("a description");
+    if (missing.length > 0) {
+      return Response.json(
+        {
+          error: `This piece cannot be published yet: it needs ${missing.join(", ")}. Add the missing part, or untick Publish to keep it as a draft.`,
+          missing,
+        },
+        { status: 400 },
+      );
+    }
   }
 
   // Imported listings are often partial: fill sensible defaults instead of blocking.

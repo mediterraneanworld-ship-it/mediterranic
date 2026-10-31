@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { siteSettings } from "@/db/schema";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/catalog";
+import { mergeContent } from "@/lib/site-content";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ export async function GET() {
     return Response.json({ error: "Unauthorized." }, { status: 401 });
   }
   const existing = await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1);
-  return Response.json({ settings: existing[0] ?? { ...DEFAULT_SITE_SETTINGS, updatedAt: new Date() } });
+  const row = existing[0] ?? { ...DEFAULT_SITE_SETTINGS, updatedAt: new Date() };
+  // The editor always receives a complete document, defaults included.
+  return Response.json({ settings: { ...row, content: mergeContent(row.content) } });
 }
 
 export async function PUT(request: Request) {
@@ -50,10 +53,40 @@ export async function PUT(request: Request) {
     whatsappPhone: String(body.whatsappPhone ?? DEFAULT_SITE_SETTINGS.whatsappPhone).trim(),
     provenanceImage: String(body.provenanceImage ?? DEFAULT_SITE_SETTINGS.provenanceImage).trim(),
     heroImage: String(body.heroImage ?? DEFAULT_SITE_SETTINGS.heroImage).trim(),
+    // Page texts & photographs: only known keys and correct types survive.
+    content: mergeContent(body.content),
     updatedAt: new Date(),
   };
 
   const existing = await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1);
+
+  // The hero and provenance blocks are edited from two places (this tab and
+  // "Page texts & photos"). Mirror them into the content document so the two
+  // editors can never disagree.
+  const baseContent = mergeContent(existing[0]?.content);
+  values.content = {
+    ...baseContent,
+    home: {
+      ...baseContent.home,
+      hero: {
+        ...baseContent.home.hero,
+        eyebrow: values.heroEyebrow,
+        title: values.heroTitle,
+        titleItalic: values.heroTitleItalic,
+        description: values.heroDescription,
+        image: values.heroImage,
+      },
+      provenance: {
+        ...baseContent.home.provenance,
+        eyebrow: values.provenanceEyebrow,
+        title: values.provenanceTitle,
+        titleItalic: values.provenanceTitleItalic,
+        body: values.provenanceBody,
+        image: values.provenanceImage,
+      },
+    },
+  };
+
   if (existing.length === 0) {
     const [inserted] = await db
       .insert(siteSettings)

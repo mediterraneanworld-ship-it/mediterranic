@@ -1,7 +1,8 @@
-import { db } from "@/db";
-import { uploadedImages } from "@/db/schema";
+import { storeRemoteImages } from "@/lib/listing-import";
+import { firstGalleryPhotos } from "@/lib/gallery-images";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { parseListingText } from "@/lib/parse-listing";
+import { EbayNotConfiguredError, getEbayItem, hasEbayCredentials } from "@/lib/ebay";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,6 +34,8 @@ function htmlToText(html: string): string {
 /** Direct fetch first, then a rendered-text reader when marketplaces block us. */
 async function readListing(url: string): Promise<{ text: string; via: string; images: string[] }> {
   const images = new Set<string>();
+  // The old SmugMug gallery is hosted on the custom mediterranic.com domain.
+  const isSmugMug = /(?:^https?:\/\/(?:www\.)?mediterranic\.com\/|smugmug\.com\/)/i.test(url);
 
   try {
     const res = await fetch(url, {
@@ -45,10 +48,19 @@ async function readListing(url: string): Promise<{ text: string; via: string; im
       for (const m of html.matchAll(/https:\/\/i\.ebayimg\.com\/images\/g\/[A-Za-z0-9_-]+\/s-l\d+\.(?:jpg|jpeg|png|webp)/gi)) {
         images.add(m[0].replace(/\/s-l\d+\./i, "/s-l1600."));
       }
+      // A SmugMug album has a real photo list, not just a single og:image.
+      // The function keeps the first occurrence of each image id in gallery
+      // order and chooses the first three — including the first page's photos.
+      if (isSmugMug) {
+        const gallery = firstGalleryPhotos(html);
+        if (gallery.length > 0) {
+          return { text: htmlToText(html), via: "direct", images: gallery };
+        }
+      }
       for (const m of html.matchAll(/<meta[^>]+(?:property|name)=["']og:image["'][^>]+content=["']([^"']+)["']/gi)) {
         images.add(m[1]);
       }
-      return { text: htmlToText(html), via: "direct", images: Array.from(images) };
+      return { text: htmlToText(html), via: "direct", images: Array.from(images).slice(0, 3) };
     }
   } catch {
     // fall through to the reader
@@ -65,6 +77,13 @@ async function readListing(url: string): Promise<{ text: string; via: string; im
     throw new Error("READER_FAILED");
   }
 
+  if (isSmugMug) {
+    const gallery = firstGalleryPhotos(readerText);
+    if (gallery.length > 0) {
+      return { text: readerText, via: "reader", images: gallery };
+    }
+  }
+
   for (const m of readerText.matchAll(
     /https:\/\/assets\.catawiki\.[a-z]+\/image\/cw_ldp_l\/plain\/assets\/catawiki\/assets\/[^\s)"'<>]+?\.(?:jpg|jpeg|png|webp)/gi,
   )) {
@@ -77,41 +96,9 @@ async function readListing(url: string): Promise<{ text: string; via: string; im
   return { text: readerText, via: "reader", images: Array.from(images).slice(0, 8) };
 }
 
-/** Stores marketplace photos in our own database so they never break. */
+/** Keep the gallery photos in the same database as the rest of the shop. */
 async function storeImages(urls: string[], label: string) {
-  const stored: { src: string; alt: string; label: string }[] = [];
-  for (const remote of urls.slice(0, 6)) {
-    try {
-      const res = await fetch(remote, {
-        headers: { "User-Agent": UA, Referer: "https://www.catawiki.com/" },
-        cache: "no-store",
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!res.ok) continue;
-      const type = res.headers.get("content-type") ?? "";
-      if (!type.startsWith("image/")) continue;
-      const buffer = Buffer.from(await res.arrayBuffer());
-      if (buffer.byteLength < 3_000 || buffer.byteLength > 8_000_000) continue;
-
-      const [row] = await db
-        .insert(uploadedImages)
-        .values({
-          filename: remote.split("/").pop() ?? "specimen.jpg",
-          mimeType: type.split(";")[0],
-          dataBase64: buffer.toString("base64"),
-        })
-        .returning({ id: uploadedImages.id });
-
-      stored.push({
-        src: `/api/uploads/${row.id}`,
-        alt: `${label} — photograph ${stored.length + 1}`,
-        label: stored.length === 0 ? "Full specimen" : `View ${stored.length + 1}`,
-      });
-    } catch {
-      // skip an image that fails; the rest still import
-    }
-  }
-  return stored;
+  return storeRemoteImages(urls.slice(0, 3), label);
 }
 
 export async function POST(request: Request) {
@@ -134,6 +121,44 @@ export async function POST(request: Request) {
   const lower = rawUrl.toLowerCase();
   const listingChannel = lower.includes("catawiki") ? "catawiki" : lower.includes("ebay") ? "ebay" : "direct";
 
+  // eBay first through the official API: eBay answers 403 to datacenter IPs,
+  // so page scraping is only a fallback and will often fail.
+  if (listingChannel === "ebay" && hasEbayCredentials()) {
+    try {
+      const item = await getEbayItem(rawUrl);
+      if (item?.title) {
+        const aspectText = Object.entries(item.aspects ?? {})
+          .map(([key, values]) => `${key}: ${values.join(", ")}`)
+          .join("\n");
+        const text = [item.title, item.description ?? "", aspectText].filter(Boolean).join("\n");
+        const parsed = parseListingText(text, rawUrl, "", (body.title ?? "").trim());
+        const photos = item.imageUrls.length > 0 ? await storeImages(item.imageUrls, item.title) : [];
+
+        return Response.json({
+          via: "ebay-api",
+          found: parsed.found,
+          missing: parsed.missing,
+          imported: {
+            ...parsed,
+            // The API values are authoritative.
+            name: item.title,
+            listingChannel,
+            externalListingUrl: item.itemWebUrl || rawUrl,
+            ...(item.priceCents ? { priceDollars: (item.priceCents / 100).toFixed(2) } : {}),
+            priceCents: item.priceCents ?? 0,
+            images: photos.length > 0 ? photos : parsed.images,
+            photosStored: photos.length,
+            videoUrl: "",
+          },
+        });
+      }
+    } catch (error) {
+      if (!(error instanceof EbayNotConfiguredError)) {
+        console.error("eBay API item read failed", error);
+      }
+    }
+  }
+
   try {
     const { text, via, images } = await readListing(rawUrl);
     const parsed = parseListingText(text, rawUrl, "", (body.title ?? "").trim());
@@ -150,10 +175,25 @@ export async function POST(request: Request) {
         // Prefer photographs we actually downloaded into our own storage.
         images: photos.length > 0 ? photos : parsed.images,
         photosStored: photos.length,
+        photoSource: /(?:mediterranic\.com|smugmug\.com)/i.test(rawUrl) ? "smugmug" : undefined,
+        photoWarning:
+          photos.length < 3 && /(?:mediterranic\.com|smugmug\.com)/i.test(rawUrl)
+            ? `SmugMug import needs the first 3 gallery photos: only ${photos.length} were saved. Re-run the import or add the missing photos manually before publishing.`
+            : undefined,
         videoUrl: "",
       },
     });
   } catch (error) {
+    if (listingChannel === "ebay") {
+      return Response.json(
+        {
+          error:
+            "eBay is refusing automated reading from the server (HTTP 403). Two ways forward: add EBAY_CLIENT_ID / EBAY_CLIENT_SECRET in Vercel to import through the official API, or press “Add manually” and fill in the title and price — usually 30 seconds.",
+          code: "EBAY_BLOCKED",
+        },
+        { status: 422 },
+      );
+    }
     if (error instanceof Error && error.message === "READER_FAILED") {
       return Response.json(
         {

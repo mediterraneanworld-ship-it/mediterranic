@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { newsletterSubscribers, orderItems, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
+import { mergeContent, type SiteContent } from "@/lib/site-content";
 
 export type Product = typeof products.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
@@ -14,6 +15,7 @@ export const DEFAULT_SITE_SETTINGS: Omit<SiteSettings, "updatedAt"> = SEED_SETTI
 
 export const UNUSED_DEFAULTS: Omit<SiteSettings, "updatedAt"> = {
   id: 1,
+  content: {},
   heroEyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
   heroTitle: "Five hundred million years,",
   heroTitleItalic: "in your keeping.",
@@ -170,6 +172,15 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   if (created) return created;
   const [fallback] = await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1);
   return fallback ?? { ...DEFAULT_SITE_SETTINGS, updatedAt: new Date() };
+}
+
+/**
+ * Every editable text and photograph of the storefront, with the values saved
+ * in the back-office merged over the defaults in src/lib/site-content.ts.
+ */
+export async function getSiteContent(): Promise<SiteContent> {
+  const settings = await getSiteSettings();
+  return mergeContent(settings.content);
 }
 
 export async function getAllOrdersWithItems() {

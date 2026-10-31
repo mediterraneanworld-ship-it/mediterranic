@@ -23,6 +23,8 @@ import type { ProductImage } from "@/db/schema";
 import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
+import { AdminContentEditor } from "@/components/admin-content-editor";
+import { readContent, type SiteContent } from "@/lib/site-content";
 
 type OrderEntry = {
   order: {
@@ -220,16 +222,18 @@ export function AdminDashboard({
   initialSettings,
   orders,
   initialSubscribers,
+  initialContent,
   onSignOut,
 }: {
   initialProducts: ProductWithStats[];
   initialSettings: SiteSettings;
   orders: OrderEntry[];
   initialSubscribers: NewsletterSubscriber[];
+  initialContent: SiteContent;
   onSignOut: () => void | Promise<void>;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"products" | "settings" | "orders" | "newsletter">("products");
+  const [tab, setTab] = useState<"products" | "settings" | "content" | "orders" | "newsletter">("products");
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>(initialSubscribers);
   const [editing, setEditing] = useState<EditableProduct | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
@@ -240,10 +244,15 @@ export function AdminDashboard({
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
   const [sellerUrl, setSellerUrl] = useState("https://www.catawiki.com/en/u/3881635-mediterranic");
   const [ebaySellerUrl, setEbaySellerUrl] = useState("https://www.ebay.com/str/mederranic");
-  const [sellerLots, setSellerLots] = useState<{ id: string; url: string; title: string }[] | null>(null);
+  const [sellerLots, setSellerLots] = useState<
+    { id: string; url: string; title: string; priceCents?: number | null }[] | null
+  >(null);
   const [sellerBusy, setSellerBusy] = useState(false);
   const [sellerProgress, setSellerProgress] = useState<string | null>(null);
   const [parsingText, setParsingText] = useState(false);
+  const [pastedText, setPastedText] = useState("");
+  const [pastedPhotos, setPastedPhotos] = useState("");
+  const [pastingBusy, setPastingBusy] = useState(false);
   const [customImageUrl, setCustomImageUrl] = useState("");
   const [customImageLabel, setCustomImageLabel] = useState("Dorsal view");
   const [provenanceUploading, setProvenanceUploading] = useState(false);
@@ -265,14 +274,14 @@ export function AdminDashboard({
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const [settingsForm, setSettingsForm] = useState({
-    heroEyebrow: initialSettings.heroEyebrow,
-    heroTitle: initialSettings.heroTitle,
-    heroTitleItalic: initialSettings.heroTitleItalic,
-    heroDescription: initialSettings.heroDescription,
-    provenanceEyebrow: initialSettings.provenanceEyebrow,
-    provenanceTitle: initialSettings.provenanceTitle,
-    provenanceTitleItalic: initialSettings.provenanceTitleItalic,
-    provenanceBody: initialSettings.provenanceBody,
+    heroEyebrow: String(readContent(initialContent, ["home","hero","eyebrow"]) ?? initialSettings.heroEyebrow),
+    heroTitle: String(readContent(initialContent, ["home","hero","title"]) ?? initialSettings.heroTitle),
+    heroTitleItalic: String(readContent(initialContent, ["home","hero","titleItalic"]) ?? initialSettings.heroTitleItalic),
+    heroDescription: String(readContent(initialContent, ["home","hero","description"]) ?? initialSettings.heroDescription),
+    provenanceEyebrow: String(readContent(initialContent, ["home","provenance","eyebrow"]) ?? initialSettings.provenanceEyebrow),
+    provenanceTitle: String(readContent(initialContent, ["home","provenance","title"]) ?? initialSettings.provenanceTitle),
+    provenanceTitleItalic: String(readContent(initialContent, ["home","provenance","titleItalic"]) ?? initialSettings.provenanceTitleItalic),
+    provenanceBody: String(readContent(initialContent, ["home","provenance","body"]) ?? initialSettings.provenanceBody),
     yearsExperience: String(initialSettings.yearsExperience),
     feedbacksLabel: initialSettings.feedbacksLabel,
     ebayUrl: initialSettings.ebayUrl,
@@ -284,8 +293,8 @@ export function AdminDashboard({
     trustamiRating: initialSettings.trustamiRating,
     trustamiRatings: initialSettings.trustamiRatings,
     whatsappPhone: initialSettings.whatsappPhone,
-    provenanceImage: initialSettings.provenanceImage,
-    heroImage: initialSettings.heroImage,
+    provenanceImage: String(readContent(initialContent, ["home","provenance","image"]) ?? initialSettings.provenanceImage),
+    heroImage: String(readContent(initialContent, ["home","hero","image"]) ?? initialSettings.heroImage),
   });
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -506,7 +515,7 @@ export function AdminDashboard({
         body: JSON.stringify({ url: importUrl.trim() }),
       });
       const data = (await res.json()) as {
-        imported?: Partial<EditableProduct> & { images?: ProductImage[] };
+        imported?: Partial<EditableProduct> & { images?: ProductImage[]; photoWarning?: string; photosStored?: number };
         error?: string;
       };
       if (!res.ok || !data.imported) {
@@ -538,7 +547,15 @@ export function AdminDashboard({
         images: imp.images && imp.images.length > 0 ? imp.images : [],
       };
 
-      // Publish immediately: the specimen must appear on the storefront without a second step.
+      // Never silently publish a partial gallery. SmugMug has the 3-first-photo
+      // rule; if any of them failed, keep the actual imported photos in the
+      // editor and ask for the missing ones instead of guessing or duplicating.
+      if (imp.photoWarning) {
+        setEditing({ ...draft, published: false });
+        notify(imp.photoWarning);
+        return;
+      }
+
       const saveRes = await fetch("/api/admin/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -553,7 +570,7 @@ export function AdminDashboard({
         return;
       }
 
-      const storedPhotos = (imp as { photosStored?: number }).photosStored ?? draft.images.length;
+      const storedPhotos = imp.photosStored ?? draft.images.length;
       setImportUrl("");
       setEditing(null);
       setPublishedSlug(saved.product.slug);
@@ -685,10 +702,18 @@ export function AdminDashboard({
     }
   }
 
-  async function importSellerLots(lots: { id: string; url: string; title: string }[]) {
+  async function importSellerLots(
+    lots: { id: string; url: string; title: string; priceCents?: number | null }[],
+    marketplace: "ebay" | "catawiki" = "ebay",
+  ) {
+    // `marketplace` only seeds the first pass; each lot is badged from its own URL.
+    void marketplace;
     setSellerBusy(true);
-    let ok = 0;
+    let live = 0;
+    let drafts = 0;
     let skipped = 0;
+    let failed = 0;
+    let lastError: string | null = null;
     try {
       for (const [index, lot] of lots.entries()) {
         if (alreadyImported(lot.url)) {
@@ -702,26 +727,147 @@ export function AdminDashboard({
           body: JSON.stringify({ url: lot.url, title: lot.title }),
         });
         const read = (await readRes.json()) as {
-          imported?: Record<string, unknown> & { images?: ProductImage[] };
+          imported?: Record<string, unknown> & { images?: ProductImage[]; priceCents?: number | string };
           error?: string;
         };
-        if (!readRes.ok || !read.imported) continue;
+        if (!readRes.ok || !read.imported) {
+          failed += 1;
+          lastError = read.error ?? lastError;
+          continue;
+        }
+
+        // Prefer the price the listing page gave us, then the price shown on the
+        // store page. With a price the piece can go live immediately.
+        // Which marketplace the lot actually comes from decides the badge.
+        const lotChannel = lot.url.includes("catawiki") ? "catawiki" : "ebay";
+        const fromListing = Number(read.imported.priceCents ?? 0);
+        const priceCents = fromListing > 0 ? Math.round(fromListing) : (lot.priceCents ?? 0);
+        const canPublish = priceCents > 0;
 
         const saveRes = await fetch("/api/admin/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...read.imported, stock: "1", published: false }),
+          body: JSON.stringify({
+            ...read.imported,
+            stock: "1",
+            listingChannel: lotChannel,
+            archived: false,
+            published: canPublish,
+            priceDollars: canPublish ? (priceCents / 100).toFixed(2) : "",
+            // If the auction ends unsold, the piece returns to Site Only at the
+            // same price instead of losing its value.
+            siteOnlyPriceDollars: canPublish ? (priceCents / 100).toFixed(2) : "",
+          }),
         });
-        if (saveRes.ok) ok += 1;
+        if (saveRes.ok) {
+          if (canPublish) live += 1;
+          else drafts += 1;
+        }
       }
       setSellerProgress(null);
+      const parts = [
+        live > 0
+          ? `${live} piece(s) imported and ALREADY LIVE on the site, badged with their marketplace`
+          : null,
+        drafts > 0
+          ? `${drafts} saved as draft(s) because no price was found — open each one, type the price and press Publish`
+          : null,
+        skipped > 0 ? `${skipped} already on the site` : null,
+        failed > 0 ? `${failed} could not be read` : null,
+      ].filter(Boolean);
       notify(
-        `Finished: ${ok} draft(s) created with photos, ${skipped} already on the site and skipped. Open a draft, set its price, then press Publish.`,
+        failed > 0 && lastError
+          ? `Finished. ${parts.join("; ")}. Reason: ${lastError}`
+          : `Finished. ${parts.join("; ")}.`,
       );
       router.refresh();
     } finally {
       setSellerBusy(false);
     }
+  }
+
+  /**
+   * eBay (and sometimes Catawiki) block servers, but never the curator's own
+   * browser. Copying the listing and pasting it here gives us the title, price,
+   * text and photo addresses — the images come from a CDN that is not blocked.
+   */
+  async function handlePastedListing() {
+    if (!pastedText.trim() && !pastedPhotos.trim()) {
+      notify("Paste the listing text or at least one photo address first.");
+      return;
+    }
+    setPastingBusy(true);
+    try {
+      const res = await fetch("/api/admin/import-pasted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: pastedText,
+          imageUrls: pastedPhotos.split(/[\s,]+/).filter(Boolean),
+          url: importUrl.trim(),
+        }),
+      });
+      const data = (await res.json()) as {
+        imported?: Partial<EditableProduct> & { images?: ProductImage[]; photosStored?: number; priceCents?: number };
+        missing?: string[];
+        error?: string;
+      };
+      if (!res.ok || !data.imported) {
+        notify(data.error ?? "Could not read the pasted listing.");
+        return;
+      }
+      const imp = data.imported;
+      setEditing({
+        ...EMPTY_PRODUCT,
+        name: imp.name || EMPTY_PRODUCT.name,
+        species: imp.species || EMPTY_PRODUCT.species,
+        listingChannel: "ebay",
+        externalListingUrl: imp.externalListingUrl || importUrl.trim(),
+        period: imp.period || EMPTY_PRODUCT.period,
+        collection: (imp as { collection?: string }).collection || EMPTY_PRODUCT.collection,
+        collections: ((imp as { collections?: string[] }).collections ?? []).filter((c) =>
+          COLLECTIONS.some((x) => x.slug === c),
+        ),
+        lengthMm: imp.lengthMm || "",
+        locality: imp.locality || EMPTY_PRODUCT.locality,
+        formation: imp.formation || "",
+        preparation: imp.preparation || EMPTY_PRODUCT.preparation,
+        priceDollars: imp.priceDollars || "",
+        siteOnlyPriceDollars: imp.priceDollars || "",
+        shortDescription: imp.shortDescription || "",
+        description: imp.description || "",
+        provenance: imp.provenance || EMPTY_PRODUCT.provenance,
+        images: imp.images ?? [],
+      });
+      const missing = data.missing ?? [];
+      notify(
+        missing.length > 0
+          ? `Read the listing. Still missing: ${missing.join(", ")}. Complete it in the form and press Save (it stays a draft until complete).`
+          : "Listing read in full — check the details and press Save to publish it.",
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      notify("Could not read the pasted listing. Please try again.");
+    } finally {
+      setPastingBusy(false);
+    }
+  }
+
+  /** Last-resort path: pre-fill the form from the link when eBay blocks reading. */
+  function addLotManually(lot: { url: string; title: string; priceCents?: number | null }) {
+    const price = lot.priceCents && lot.priceCents > 0 ? (lot.priceCents / 100).toFixed(2) : "";
+    setEditing({
+      ...EMPTY_PRODUCT,
+      name: lot.title.slice(0, 140),
+      listingChannel: "ebay",
+      externalListingUrl: lot.url,
+      priceDollars: price,
+      siteOnlyPriceDollars: price,
+      stock: "1",
+      images: [],
+    });
+    notify("Form ready — add the photos, check the price and press Save. The piece is already set to Live on eBay.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function copyForMarketplace() {
@@ -954,6 +1100,15 @@ export function AdminDashboard({
         >
           <Mail size={15} /> 4. Newsletter ({subscribers.length})
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("content")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "content" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Edit3 size={15} /> 5. Page texts &amp; photos
+        </button>
       </div>
 
       {/* TAB 1: PRODUCTS */}
@@ -1029,7 +1184,8 @@ export function AdminDashboard({
                 {refreshing ? "Checking listings…" : "Check prices now"}
               </button>
               <span className="text-[11px] text-ink/55">
-                Only pieces still in stock are checked.
+                Only pieces that are <strong>already on the site</strong> are checked. A brand-new listing is brought in by{" "}
+              <strong>“Find my eBay listings”</strong> below, not by this button.
               </span>
             </div>
 
@@ -1082,7 +1238,9 @@ export function AdminDashboard({
             </p>
             <p className="mt-1 text-xs text-ink/65">
               Paste your eBay store link. Only trilobites are listed — seashells and minerals are filtered out
-              automatically. Each listing is saved as a draft with its photograph.
+              automatically. Each listing comes in with its photograph <strong>and goes live straight away</strong> at
+              the eBay price, marked “Live on eBay”. If eBay did not show a price, the piece is saved as a draft for
+              you to complete.
             </p>
             <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
               <input
@@ -1100,6 +1258,40 @@ export function AdminDashboard({
                 {sellerBusy ? "Working…" : "Find my eBay listings"}
               </button>
             </div>
+
+            {/* Always works: the curator's browser can see what the server cannot. */}
+            <details className="mt-3 rounded-sm border border-ink/15 bg-white/80 p-3">
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-ink">
+                eBay blocking? Paste the listing here — no keys needed
+              </summary>
+              <p className="mt-2 text-xs text-ink/65">
+                Open the listing in your browser, select everything (<kbd>Ctrl</kbd>+<kbd>A</kbd>), copy and paste it
+                below. Right-click the main photo → <em>Copy image address</em> and paste it in the second box. We read
+                the title, price, description and keep the photos in the shop database.
+              </p>
+              <textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                rows={5}
+                placeholder="Paste the listing text (or the page source) here…"
+                className="mt-3 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-xs outline-none focus:border-sea"
+              />
+              <textarea
+                value={pastedPhotos}
+                onChange={(e) => setPastedPhotos(e.target.value)}
+                rows={2}
+                placeholder="Photo addresses, one per line — https://i.ebayimg.com/images/g/…"
+                className="mt-2 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-xs outline-none focus:border-sea"
+              />
+              <button
+                type="button"
+                onClick={handlePastedListing}
+                disabled={pastingBusy}
+                className="mt-2 inline-flex h-9 items-center justify-center rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-terracotta disabled:opacity-50"
+              >
+                {pastingBusy ? "Reading…" : "Read pasted listing"}
+              </button>
+            </details>
           </div>
 
           {/* Catawiki seller sync */}
@@ -1131,7 +1323,7 @@ export function AdminDashboard({
               <button
                 type="button"
                 disabled={!sellerLots || sellerBusy || sellerLots.length === 0}
-                onClick={() => sellerLots && importSellerLots(sellerLots)}
+                onClick={() => sellerLots && importSellerLots(sellerLots, "catawiki")}
                 className="inline-flex h-9 items-center justify-center rounded-full bg-terracotta px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-ink disabled:opacity-40"
               >
                 Import all new
@@ -1156,14 +1348,23 @@ export function AdminDashboard({
                             Already on site
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            disabled={sellerBusy}
-                            onClick={() => importSellerLots([lot])}
-                            className="rounded-full border border-ink/20 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-ink hover:border-ink disabled:opacity-40"
-                          >
-                            Import this
-                          </button>
+                          <span className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={sellerBusy}
+                              onClick={() => importSellerLots([lot])}
+                              className="rounded-full border border-ink/20 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-ink hover:border-ink disabled:opacity-40"
+                            >
+                              Import this
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => addLotManually(lot)}
+                              className="rounded-full border border-ink/20 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-ink/70 hover:border-ink"
+                            >
+                              Add manually
+                            </button>
+                          </span>
                         )}
                       </li>
                     );
@@ -2239,6 +2440,13 @@ export function AdminDashboard({
             </button>
           </div>
         </form>
+      )}
+
+      {/* TAB 5: PAGE TEXTS & PHOTOGRAPHS */}
+      {tab === "content" && (
+        <div className="mt-10">
+          <AdminContentEditor initialContent={initialContent} notify={notify} />
+        </div>
       )}
 
       {/* TAB 3: ORDERS */}

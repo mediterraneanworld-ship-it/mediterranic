@@ -1,18 +1,20 @@
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { COLLECTIONS } from "@/lib/collections";
-import { getSiteSettings } from "@/lib/catalog";
+import { getSiteContent, getSiteSettings } from "@/lib/catalog";
 import { NewsletterForm } from "@/components/newsletter-form";
 
+const CARE_LINKS = ["/shipping#rates", "/shipping#returns", "/shipping#packing", "/shipping"];
+
 export async function SiteFooter() {
-  const settings = await getSiteSettings();
+  const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  const footer = content.footer;
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "Mediterranic",
     email: settings.contactEmail,
-    description:
-      "Moroccan trilobites — Cambrian, Ordovician and Devonian. Specialist curatorship for collectors, verified on eBay and Catawiki.",
+    description: footer.tagline,
     sameAs: [settings.ebayUrl, settings.catawikiUrl, settings.instagramUrl, settings.facebookUrl, settings.trustamiUrl]
       .filter(Boolean)
       .filter((value, index, list) => list.indexOf(value) === index),
@@ -20,19 +22,13 @@ export async function SiteFooter() {
 
   return (
     <footer className="mt-32 bg-midnight text-parchment/80">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div className="space-y-5 lg:col-span-1">
           <p className="font-display text-3xl uppercase tracking-[0.2em] text-parchment">Mediterranic</p>
-          <p className="max-w-xs text-sm leading-relaxed text-parchment/65">
-            Museum-grade Moroccan trilobites, documented from quarry to study. Sourced under licence, prepared by
-            specialists, delivered insured.
-          </p>
+          <p className="max-w-xs text-sm leading-relaxed text-parchment/65">{footer.tagline}</p>
           <div className="pt-4">
-            <NewsletterForm />
+            <NewsletterForm title={footer.newsletterTitle} copy={footer.newsletterCopy} />
           </div>
         </div>
 
@@ -52,26 +48,13 @@ export async function SiteFooter() {
         <div>
           <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">Client care</h3>
           <ul className="space-y-3 text-sm">
-            <li>
-              <Link href="/shipping#rates" className="transition hover:text-parchment">
-                Insured worldwide delivery
-              </Link>
-            </li>
-            <li>
-              <Link href="/shipping#returns" className="transition hover:text-parchment">
-                30-day considered returns
-              </Link>
-            </li>
-            <li>
-              <Link href="/shipping#packing" className="transition hover:text-parchment">
-                Certificate of authenticity
-              </Link>
-            </li>
-            <li>
-              <Link href="/shipping" className="transition hover:text-parchment">
-                Shipping &amp; returns
-              </Link>
-            </li>
+            {footer.clientCare.map((item, i) => (
+              <li key={item}>
+                <Link href={CARE_LINKS[i] ?? "/shipping"} className="transition hover:text-parchment">
+                  {item}
+                </Link>
+              </li>
+            ))}
             <li>
               <Link href="/archive" className="transition hover:text-parchment">
                 The archive
@@ -88,12 +71,12 @@ export async function SiteFooter() {
                 {settings.contactEmail}
               </a>
             </li>
-            <li>23 years · eBay &amp; Catawiki verified</li>
-            <li>All prices in euro (EUR)</li>
-            <li>Ships insured to North America, Europe &amp; Japan</li>
+            {footer.correspondence.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
           </ul>
 
-          <h3 className="mb-4 mt-8 text-[11px] uppercase tracking-[0.3em] text-brass">Our marketplaces</h3>
+          <h3 className="mb-4 mt-8 text-[11px] uppercase tracking-[0.3em] text-brass">{footer.marketplacesTitle}</h3>
           <ul className="space-y-2.5 text-sm">
             {settings.ebayUrl && (
               <li>
@@ -148,7 +131,9 @@ export async function SiteFooter() {
       </div>
       <div className="border-t border-parchment/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-6 text-xs text-parchment/50 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-          <p>© {new Date().getFullYear()} Mediterranic. Every specimen ships with full documentation.</p>
+          <p>
+            © {new Date().getFullYear()} Mediterranic. {footer.bottomLine}
+          </p>
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <Link href="/shop" className="transition hover:text-parchment">
               Shop
@@ -163,7 +148,7 @@ export async function SiteFooter() {
               Contact
             </a>
           </nav>
-          <p>Fossils are natural objects sourced under Moroccan regulations for private collecting.</p>
+          <p>{footer.legalNote}</p>
         </div>
       </div>
     </footer>

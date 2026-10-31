@@ -144,6 +144,16 @@ CREATE TABLE IF NOT EXISTS "newsletter_subscribers" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "newsletter_subscribers_email_unique" UNIQUE("email")
 );
+
+-- Editable page texts & photographs. One jsonb document; the code merges it
+-- over the defaults, so adding the column never blanks an existing page and
+-- nothing already written in the back-office is overwritten.
+ALTER TABLE "site_settings" ADD COLUMN IF NOT EXISTS "content" jsonb DEFAULT '{}'::jsonb NOT NULL;
+
+-- PayPal: how the order was paid and the PayPal order reference. New columns
+-- only; existing orders keep their default values and are never rewritten.
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "payment_method" text DEFAULT 'direct' NOT NULL;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paypal_order_id" text;
 `;
 
 let migrated: Promise<void> | null = null;

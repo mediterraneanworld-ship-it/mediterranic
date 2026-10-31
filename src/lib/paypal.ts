@@ -1,0 +1,183 @@
+/**
+ * PayPal integration through the official Orders v2 API (server-side only).
+ *
+ * Configure in the Vercel project (Settings → Environment Variables):
+ *   PAYPAL_CLIENT_ID      — Client ID from developer.paypal.com (REST app)
+ *   PAYPAL_CLIENT_SECRET  — Client Secret (never expose to the browser)
+ *   PAYPAL_ENVIRONMENT    — "sandbox" (default) or "live"
+ *   PAYPAL_MERCHANT_EMAIL — optional, shown for reference; the receiving
+ *                           account is the one the keys belong to
+ *                           (mediterranean.world@gmail.com)
+ *
+ * The receiving account is the PayPal account that owns the Client ID/Secret.
+ * Use the keys from the Business account mediterranean.world@gmail.com:
+ * developer.paypal.com → My Apps & Credentials → create a REST app there.
+ */
+
+function readPaypalClientId(): string {
+  return (
+    process.env.PAYPAL_CLIENT_ID?.trim() ||
+    process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID?.trim() ||
+    ""
+  );
+}
+
+function readPaypalSecret(): string {
+  return (
+    process.env.PAYPAL_CLIENT_SECRET?.trim() ||
+    process.env.PAYPAL_SECRET?.trim() ||
+    ""
+  );
+}
+
+export function isPaypalConfigured(): boolean {
+  return Boolean(readPaypalClientId() && readPaypalSecret());
+}
+
+export function paypalEnvironment(): "sandbox" | "live" {
+  const raw = (process.env.PAYPAL_ENVIRONMENT ?? process.env.PAYPAL_ENV ?? "").trim().toLowerCase();
+  return raw === "live" || raw === "production" || raw === "prod" ? "live" : "sandbox";
+}
+
+function paypalApiBase(): string {
+  return paypalEnvironment() === "live"
+    ? "https://api-m.paypal.com"
+    : "https://api-m.sandbox.paypal.com";
+}
+
+type CachedToken = { token: string; expiresAt: number };
+const globalForPaypal = globalThis as typeof globalThis & { __paypalToken?: CachedToken };
+
+export class PaypalNotConfiguredError extends Error {
+  constructor() {
+    super("PAYPAL_NOT_CONFIGURED");
+  }
+}
+
+async function getAccessToken(): Promise<string> {
+  if (!isPaypalConfigured()) throw new PaypalNotConfiguredError();
+
+  const cached = globalForPaypal.__paypalToken;
+  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
+
+  const basic = Buffer.from(
+    `${readPaypalClientId()}:${readPaypalSecret()}`,
+  ).toString("base64");
+
+  const res = await fetch(`${paypalApiBase()}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basic}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`PayPal token failed (${res.status}): ${detail.slice(0, 200)}`);
+  }
+
+  const data = (await res.json()) as { access_token: string; expires_in?: number };
+  globalForPaypal.__paypalToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + Math.max(60, data.expires_in ?? 32_400) * 1_000,
+  };
+  return data.access_token;
+}
+
+async function paypalRequest<T>(
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const token = await getAccessToken();
+  const res = await fetch(`${paypalApiBase()}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  const text = await res.text();
+  let data: unknown = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!res.ok) {
+    const message =
+      (data as { message?: string; details?: { description?: string }[] }).message ??
+      (data as { details?: { description?: string }[] }).details?.[0]?.description ??
+      `PayPal API error (${res.status})`;
+    throw new Error(message);
+  }
+  return data as T;
+}
+
+export type PaypalOrderLink = { rel: string; href: string };
+
+export type PaypalCreatedOrder = {
+  id: string;
+  status: string;
+  links: PaypalOrderLink[];
+};
+
+/**
+ * Creates a PayPal order for `totalCents` EUR. `returnUrl` / `cancelUrl` must
+ * be absolute URLs on our own site; PayPal appends `?token=<orderId>`.
+ */
+export async function createPaypalOrder(input: {
+  totalCents: number;
+  description: string;
+  returnUrl: string;
+  cancelUrl: string;
+  referenceId: string;
+}): Promise<PaypalCreatedOrder> {
+  const value = (input.totalCents / 100).toFixed(2);
+  return paypalRequest<PaypalCreatedOrder>("POST", "/v2/checkout/orders", {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        reference_id: input.referenceId,
+        description: input.description.slice(0, 127),
+        invoice_id: input.referenceId.slice(0, 127),
+        amount: { currency_code: "EUR", value },
+        items: undefined,
+      },
+    ],
+    application_context: {
+      brand_name: "Mediterranic",
+      landing_page: "NO_PREFERENCE",
+      user_action: "PAY_NOW",
+      return_url: input.returnUrl,
+      cancel_url: input.cancelUrl,
+    },
+  });
+}
+
+export type PaypalCapture = {
+  id: string;
+  status: string;
+  purchase_units?: {
+    payments?: {
+      captures?: { id: string; status: string; amount?: { value: string; currency_code: string } }[];
+    };
+  }[];
+};
+
+export function capturePaypalOrder(orderId: string): Promise<PaypalCapture> {
+  return paypalRequest<PaypalCapture>("POST", `/v2/checkout/orders/${orderId}/capture`, {});
+}
+
+export function getPaypalOrder(orderId: string): Promise<PaypalCreatedOrder> {
+  return paypalRequest<PaypalCreatedOrder>("GET", `/v2/checkout/orders/${orderId}`);
+}

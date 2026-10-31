@@ -4,6 +4,7 @@ import {
   getAllOrdersWithItems,
   getAllProducts,
   getNewsletterSubscribers,
+  getSiteContent,
   getSiteSettings,
 } from "@/lib/catalog";
 
@@ -15,11 +16,12 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  const [products, settings, orders, subscribers] = await Promise.all([
+  const [products, settings, orders, subscribers, content] = await Promise.all([
     getAllProducts({ includeDrafts: true }),
     getSiteSettings(),
     getAllOrdersWithItems(),
     getNewsletterSubscribers(2000),
+    getSiteContent(),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export default async function AdminPage() {
       settings={settings}
       orders={orders}
       subscribers={subscribers}
+      content={content}
     />
   );
 }

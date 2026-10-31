@@ -1,0 +1,206 @@
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { orderItems, orders, products } from "@/db/schema";
+import { ensureSeeded } from "@/lib/seed";
+import { calculateShipping, getCountry, type ShippingMethodId } from "@/lib/shipping";
+
+export class OrderError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const METHODS: ShippingMethodId[] = ["standard", "express"];
+
+function text(value: unknown, max: number): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
+export type OrderInput = {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  country: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  postalCode: string;
+  shippingMethod: ShippingMethodId;
+  items: { slug: string; quantity: number }[];
+};
+
+export function parseOrderInput(body: Record<string, unknown>): OrderInput {
+  const email = text(body.email, 200).toLowerCase();
+  const firstName = text(body.firstName, 80);
+  const lastName = text(body.lastName, 80);
+  const phone = text(body.phone, 40) || null;
+  const country = text(body.country, 2).toUpperCase();
+  const addressLine1 = text(body.addressLine1, 160);
+  const addressLine2 = text(body.addressLine2, 160) || null;
+  const city = text(body.city, 80);
+  const postalCode = text(body.postalCode, 20);
+  const method = text(body.shippingMethod, 20) as ShippingMethodId;
+
+  if (!EMAIL.test(email)) throw new OrderError("Please enter a valid email address.", 400);
+  if (!firstName || !lastName) throw new OrderError("Please enter your full name.", 400);
+  if (!getCountry(country)) throw new OrderError("We do not ship to that country yet.", 400);
+  if (addressLine1.length < 4) throw new OrderError("Please enter your street address.", 400);
+  if (!city) throw new OrderError("Please enter your city.", 400);
+  if (postalCode.length < 3) throw new OrderError("Please enter your postal code.", 400);
+  if (!METHODS.includes(method)) throw new OrderError("Choose a delivery method.", 400);
+
+  const rawItems = Array.isArray(body.items) ? (body.items as { slug?: unknown; quantity?: unknown }[]) : [];
+  const items = rawItems.map((i) => ({ slug: text(i.slug, 120), quantity: Number(i.quantity) }));
+  if (items.length === 0 || items.length > 25) throw new OrderError("Your cart is empty.", 400);
+  const slugs = items.map((i) => i.slug);
+  if (new Set(slugs).size !== slugs.length) throw new OrderError("Duplicate items in cart.", 400);
+  if (items.some((i) => !i.slug || !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > 10)) {
+    throw new OrderError("Invalid quantities in cart.", 400);
+  }
+
+  return {
+    email,
+    firstName,
+    lastName,
+    phone,
+    country,
+    addressLine1,
+    addressLine2,
+    city,
+    postalCode,
+    shippingMethod: method,
+    items,
+  };
+}
+
+export type BuiltOrder = {
+  subtotalCents: number;
+  shippingCents: number;
+  totalCents: number;
+  lines: {
+    productId: number;
+    productName: string;
+    productSlug: string;
+    unitPriceCents: number;
+    quantity: number;
+  }[];
+};
+
+/**
+ * Validates the cart against the database and prices everything server-side.
+ * Never trusts prices sent by the browser. Checks stock but does NOT decrement
+ * it — that happens in `confirmOrder` once payment is certain.
+ */
+export async function buildOrder(input: OrderInput): Promise<BuiltOrder> {
+  await ensureSeeded();
+  const slugs = input.items.map((i) => i.slug);
+  const rows = await db.select().from(products).where(inArray(products.slug, slugs));
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+
+  let subtotal = 0;
+  const lines = input.items.map((item) => {
+    const product = bySlug.get(item.slug);
+    if (!product) throw new OrderError("One of the specimens in your cart is no longer available.", 409);
+    if (!product.listingChannel || product.archived) {
+      throw new OrderError(`${product.name} is not available for direct purchase right now.`, 409);
+    }
+    if (product.stock < item.quantity) {
+      throw new OrderError(
+        product.stock <= 0
+          ? `${product.name} has just sold out. Please remove it to continue.`
+          : `Only ${product.stock} of ${product.name} remain. Please update your cart.`,
+        409,
+      );
+    }
+    subtotal += product.priceCents * item.quantity;
+    return {
+      productId: product.id,
+      productName: product.name,
+      productSlug: product.slug,
+      unitPriceCents: product.priceCents,
+      quantity: item.quantity,
+    };
+  });
+
+  const shipping = calculateShipping(input.country, input.shippingMethod, subtotal);
+  if (shipping === null) throw new OrderError("We could not calculate shipping for that address.", 400);
+
+  return { subtotalCents: subtotal, shippingCents: shipping, totalCents: subtotal + shipping, lines };
+}
+
+/** Inserts the order + items with the given status. Returns the order id. */
+export async function insertOrder(
+  input: OrderInput,
+  built: BuiltOrder,
+  extra: { status: string; paymentMethod: string; paypalOrderId?: string | null },
+): Promise<string> {
+  const [order] = await db
+    .insert(orders)
+    .values({
+      email: input.email,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      phone: input.phone,
+      country: input.country,
+      addressLine1: input.addressLine1,
+      addressLine2: input.addressLine2,
+      city: input.city,
+      postalCode: input.postalCode,
+      shippingMethod: input.shippingMethod,
+      subtotalCents: built.subtotalCents,
+      shippingCents: built.shippingCents,
+      totalCents: built.totalCents,
+      status: extra.status,
+      paymentMethod: extra.paymentMethod,
+      paypalOrderId: extra.paypalOrderId ?? null,
+    })
+    .returning({ id: orders.id });
+
+  await db.insert(orderItems).values(built.lines.map((line) => ({ ...line, orderId: order.id })));
+  return order.id;
+}
+
+/**
+ * Confirms a pending order: decrements stock atomically and flips the status.
+ * Used after a successful PayPal capture.
+ */
+export async function confirmOrder(orderId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (!order) throw new OrderError("Order not found.", 404);
+    if (order.status === "confirmed") return;
+    if (order.status !== "pending_payment") {
+      throw new OrderError("This order is no longer awaiting payment.", 409);
+    }
+
+    const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+    for (const line of items) {
+      const updated = await tx
+        .update(products)
+        .set({ stock: sql`${products.stock} - ${line.quantity}` })
+        .where(and(eq(products.id, line.productId), gte(products.stock, line.quantity)))
+        .returning({ id: products.id });
+      if (updated.length === 0) {
+        throw new OrderError(`${line.productName} has just sold out. Please contact us.`, 409);
+      }
+    }
+
+    await tx.update(orders).set({ status: "confirmed" }).where(eq(orders.id, orderId));
+  });
+}
+
+export async function markOrderStatus(
+  orderId: string,
+  status: string,
+  paypalOrderId?: string | null,
+): Promise<void> {
+  await db
+    .update(orders)
+    .set({ status, ...(paypalOrderId !== undefined ? { paypalOrderId } : {}) })
+    .where(eq(orders.id, orderId));
+}

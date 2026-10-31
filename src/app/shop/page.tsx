@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ShopExplorer } from "@/components/shop-explorer";
-import { getAllProducts } from "@/lib/catalog";
+import { getAllProducts, getSiteContent } from "@/lib/catalog";
+import { publicProducts } from "@/lib/product-visibility";
 import { getCollection } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +21,16 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 export default async function ShopPage({ searchParams }: Props) {
   const { collection, channel } = await searchParams;
-  const products = (await getAllProducts()).filter((p) => !p.archived);
+  const [products, content] = await Promise.all([getAllProducts(), getSiteContent()]);
+  // Unavailable pieces lose their price before reaching the browser.
+  const visible = publicProducts(products.filter((p) => !p.archived));
 
   return (
     <ShopExplorer
-      products={products}
+      products={visible}
       initialCollection={collection ?? "all"}
       initialChannel={channel ?? "all"}
+      copy={content.shop}
     />
   );
 }

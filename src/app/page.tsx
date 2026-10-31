@@ -6,20 +6,40 @@ import { Reveal } from "@/components/reveal";
 import { StarRating } from "@/components/star-rating";
 import { COLLECTIONS } from "@/lib/collections";
 import { collectionsOf } from "@/lib/product-collections";
-import { getAllProducts, getSiteSettings, getStoreStats, getTopReviews } from "@/lib/catalog";
+import {
+  getAllProducts,
+  getSiteContent,
+  getSiteSettings,
+  getStoreStats,
+  getTopReviews,
+} from "@/lib/catalog";
+import { isAvailable } from "@/lib/product-visibility";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [products, stats, testimonials, settings] = await Promise.all([
+  const [products, stats, testimonials, settings, content] = await Promise.all([
     getAllProducts(),
     getStoreStats(),
     getTopReviews(3),
     getSiteSettings(),
+    getSiteContent(),
   ]);
+  const c = content.home;
+  const covers: Record<string, string> = {
+    "devonian-crown": c.collections.covers.devonianCrown,
+    "ordovician-mariners": c.collections.covers.ordovicianMariners,
+    "cambrian-dawn": c.collections.covers.cambrianDawn,
+    "the-connoisseur": c.collections.covers.connoisseur,
+  };
 
-  const featuredAll = products.filter((p) => p.featured);
-  const featured = (featuredAll.length > 0 ? featuredAll : products).filter((p) => !p.archived).slice(0, 4);
+  // Only pieces genuinely on sale: in stock, not archived and offered somewhere.
+  // Catalogue entries (archive, unavailable) never count in these figures.
+  const forSale = products.filter(isAvailable);
+  const erasOffered = new Set(forSale.map((p) => p.period).filter(Boolean)).size;
+
+  const featuredPool = products.filter((p) => p.featured && isAvailable(p));
+  const featured = (featuredPool.length > 0 ? featuredPool : forSale).slice(0, 4);
   const collections = COLLECTIONS.map((c) => ({
     ...c,
     count: products.filter((p) => collectionsOf(p).includes(c.slug)).length,
@@ -42,34 +62,34 @@ export default async function HomePage() {
           {/* Copy */}
           <div className="max-w-2xl">
             <p className="animate-fade-up text-[11px] uppercase tracking-[0.42em] text-brass">
-              {settings.heroEyebrow}
+              {c.hero.eyebrow}
             </p>
             <h1
               className="animate-fade-up mt-6 font-display text-[clamp(3rem,6.5vw,6.5rem)] leading-[0.94] text-parchment"
               style={{ animationDelay: "0.15s" }}
             >
-              {settings.heroTitle}{" "}
-              <em className="font-normal italic text-brass">{settings.heroTitleItalic}</em>
+              {c.hero.title}{" "}
+              <em className="font-normal italic text-brass">{c.hero.titleItalic}</em>
             </h1>
             <p
               className="animate-fade-up mt-8 max-w-xl text-base leading-relaxed text-parchment/75 md:text-lg"
               style={{ animationDelay: "0.3s" }}
             >
-              {settings.heroDescription}
+              {c.hero.description}
             </p>
             <div className="animate-fade-up mt-10 flex flex-wrap gap-4" style={{ animationDelay: "0.45s" }}>
               <Link
                 href="/shop"
                 className="group inline-flex h-14 items-center gap-3 rounded-full bg-parchment px-8 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:bg-brass"
               >
-                Explore the collection
+                {c.hero.primaryCta}
                 <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
               </Link>
               <a
                 href="#provenance"
                 className="inline-flex h-14 items-center rounded-full border border-parchment/30 px-8 text-[12px] uppercase tracking-[0.22em] text-parchment transition hover:border-parchment hover:bg-parchment/5"
               >
-                {settings.yearsExperience} years of provenance
+                {c.hero.secondaryCta}
               </a>
             </div>
 
@@ -95,11 +115,11 @@ export default async function HomePage() {
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">Specimens</dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{stats.productCount}</dd>
+                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{forSale.length}</dd>
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">Eras offered</dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">3</dd>
+                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{erasOffered}</dd>
               </div>
             </dl>
           </div>
@@ -132,7 +152,7 @@ export default async function HomePage() {
               }}
             >
               <Image
-                src={settings.heroImage || "/images/hero.jpg"}
+                src={c.hero.image || "/images/hero.jpg"}
                 alt="A hand-prepared Moroccan trilobite, photographed in detail"
                 fill
                 priority
@@ -149,7 +169,7 @@ export default async function HomePage() {
             />
 
             <p className="relative mt-8 text-center text-[10px] uppercase tracking-[0.26em] text-parchment/55">
-              Hand-prepared · Anti-Atlas, Morocco
+              {c.hero.caption}
             </p>
           </div>
         </div>
@@ -159,26 +179,10 @@ export default async function HomePage() {
       <section className="border-b border-ink/10 bg-bone/70">
         <ul className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
           {[
-            {
-              icon: Award,
-              title: `${settings.yearsExperience} years · eBay & Catawiki`,
-              text: `${settings.feedbacksLabel} verified feedbacks from worldwide collectors`,
-            },
-            {
-              icon: Truck,
-              title: "23 years of shipping mastery",
-              text: "Custom crating & insured delivery to USA, Europe & Japan",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Certificate of authenticity",
-              text: "Every piece ships with signed geological documentation",
-            },
-            {
-              icon: RotateCcw,
-              title: "30-day considered returns",
-              text: "Examine in your study with complete peace of mind",
-            },
+            { icon: Award, ...c.trust.items[0] },
+            { icon: Truck, ...c.trust.items[1] },
+            { icon: ShieldCheck, ...c.trust.items[2] },
+            { icon: RotateCcw, ...c.trust.items[3] },
           ].map((item) => (
             <li key={item.title} className="flex items-start gap-4">
               <item.icon size={22} strokeWidth={1.4} className="mt-0.5 shrink-0 text-sea" />
@@ -196,14 +200,13 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.32em] text-brass">Where to acquire our specimens</p>
+              <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.channels.eyebrow}</p>
               <h2 className="mt-2 font-display text-4xl text-ink md:text-5xl">
-                Three live channels — one single standard
+                {c.channels.title}
               </h2>
             </div>
             <p className="max-w-md text-sm text-ink/65">
-              We keep 20 to 40 curated pieces active at a time. Some are exclusively available here; others are
-              currently on live auction on eBay or Catawiki and return here if unsold.
+              {c.channels.description}
             </p>
           </div>
 
@@ -215,18 +218,17 @@ export default async function HomePage() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-2 rounded-full bg-ink px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-parchment">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brass" /> Only on This Site
+                    <span className="h-1.5 w-1.5 rounded-full bg-brass" /> {c.channels.directBadge}
                   </span>
                   <span className="font-display text-3xl text-ink">{directCount}</span>
                 </div>
-                <h3 className="mt-4 font-display text-2xl text-ink">Direct Storefront Exclusives</h3>
+                <h3 className="mt-4 font-display text-2xl text-ink">{c.channels.directTitle}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/65">
-                  Available for immediate acquisition right here on Mediterranic, with no auction wait and no third-party
-                  buyer premiums.
+                  {c.channels.directText}
                 </p>
               </div>
               <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-sea group-hover:translate-x-1 transition-transform">
-                Browse Site Exclusives <ArrowRight size={13} />
+                {c.channels.directCta} <ArrowRight size={13} />
               </span>
             </Link>
 
@@ -237,18 +239,17 @@ export default async function HomePage() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-2 rounded-full bg-sea px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-parchment">
-                    <span className="h-1.5 w-1.5 rounded-full bg-parchment animate-pulse" /> Live on eBay
+                    <span className="h-1.5 w-1.5 rounded-full bg-parchment animate-pulse" /> {c.channels.ebayBadge}
                   </span>
                   <span className="font-display text-3xl text-ink">{ebayCount}</span>
                 </div>
-                <h3 className="mt-4 font-display text-2xl text-ink">Currently Listed on eBay</h3>
+                <h3 className="mt-4 font-display text-2xl text-ink">{c.channels.ebayTitle}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/65">
-                  Specimens currently active in our verified eBay store. Direct website checkout is paused while live;
-                  unsold pieces return exclusively to this site.
+                  {c.channels.ebayText}
                 </p>
               </div>
               <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-sea group-hover:translate-x-1 transition-transform">
-                View eBay Specimens <ArrowRight size={13} />
+                {c.channels.ebayCta} <ArrowRight size={13} />
               </span>
             </Link>
 
@@ -259,18 +260,17 @@ export default async function HomePage() {
               <div>
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-2 rounded-full bg-brass px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink">
-                    <span className="h-1.5 w-1.5 rounded-full bg-ink animate-pulse" /> Live on Catawiki
+                    <span className="h-1.5 w-1.5 rounded-full bg-ink animate-pulse" /> {c.channels.catawikiBadge}
                   </span>
                   <span className="font-display text-3xl text-ink">{catawikiCount}</span>
                 </div>
-                <h3 className="mt-4 font-display text-2xl text-ink">Currently on Catawiki Auction</h3>
+                <h3 className="mt-4 font-display text-2xl text-ink">{c.channels.catawikiTitle}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/65">
-                  Featured in curated Catawiki Natural History auctions. Follow the live bidding link, or acquire here
-                  if the reserve is not met.
+                  {c.channels.catawikiText}
                 </p>
               </div>
               <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-sea group-hover:translate-x-1 transition-transform">
-                View Catawiki Lots <ArrowRight size={13} />
+                {c.channels.catawikiCta} <ArrowRight size={13} />
               </span>
             </Link>
           </div>
@@ -280,12 +280,12 @@ export default async function HomePage() {
       {/* Collections */}
       <section className="mx-auto max-w-7xl px-5 py-28 lg:px-8">
         <Reveal>
-          <p className="text-[11px] uppercase tracking-[0.32em] text-brass">Curated collections</p>
+          <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.collections.eyebrow}</p>
           <h2 className="mt-4 max-w-2xl font-display text-5xl leading-[1.02] text-ink md:text-6xl">
-            Four ways into deep time
+            {c.collections.title}
           </h2>
           <p className="mt-4 text-[11px] uppercase tracking-[0.24em] text-ink/50">
-            Cambrian · Ordovician · Devonian · Museum grade
+            {c.collections.subtitle}
           </p>
         </Reveal>
 
@@ -298,7 +298,7 @@ export default async function HomePage() {
                 className="group relative block aspect-[3/4] overflow-hidden rounded-sm bg-midnight text-parchment"
               >
                 <Image
-                  src={c.cover}
+                  src={covers[c.slug] ?? c.cover}
                   alt={c.title}
                   fill
                   sizes="(min-width: 768px) 33vw, 100vw"
@@ -327,16 +327,16 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.32em] text-brass">Most collected</p>
+              <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.featured.eyebrow}</p>
               <h2 className="mt-4 font-display text-5xl leading-[1.02] text-ink md:text-6xl">
-                Pieces our collectors keep returning to
+                {c.featured.title}
               </h2>
             </div>
             <Link
               href="/shop"
               className="group inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.22em] text-ink hover:text-terracotta"
             >
-              View all specimens
+              {c.featured.cta}
               <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
             </Link>
           </Reveal>
@@ -357,7 +357,7 @@ export default async function HomePage() {
           <Reveal>
             <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-bone">
               <Image
-                src={settings.provenanceImage || story?.images[0]?.src || "/images/seafloor-plate.jpg"}
+                src={c.provenance.image || story?.images[0]?.src || "/images/seafloor-plate.jpg"}
                 alt="A whole seafloor sealed in stone"
                 fill
                 sizes="(min-width: 1024px) 40vw, 100vw"
@@ -365,26 +365,25 @@ export default async function HomePage() {
               />
               <div className="absolute bottom-5 left-5 right-5 rounded-sm bg-parchment/95 p-5 backdrop-blur">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-brass">
-                  Established reputation · {settings.yearsExperience} years
+                  {c.provenance.badge}
                 </p>
                 <p className="mt-2 font-display text-2xl leading-snug text-ink">
-                  &ldquo;A whole seafloor, sealed in stone. Packed by hands that have shipped thousands of delicate
-                  specimens across the Northern Hemisphere.&rdquo;
+                  &ldquo;{c.provenance.quote}&rdquo;
                 </p>
               </div>
               <span className="absolute right-4 top-4 rounded-full bg-ink/80 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-parchment backdrop-blur">
-                Whole plate · top view
+                {c.provenance.imageBadge}
               </span>
             </div>
           </Reveal>
 
           <Reveal delay={0.15}>
-            <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{settings.provenanceEyebrow}</p>
+            <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.provenance.eyebrow}</p>
             <h2 className="mt-4 font-display text-5xl leading-[1.02] text-ink md:text-6xl">
-              {settings.provenanceTitle}{" "}
-              <em className="italic text-sea">{settings.provenanceTitleItalic}</em>
+              {c.provenance.title}{" "}
+              <em className="italic text-sea">{c.provenance.titleItalic}</em>
             </h2>
-            <p className="mt-8 max-w-xl text-base leading-relaxed text-ink/70">{settings.provenanceBody}</p>
+            <p className="mt-8 max-w-xl text-base leading-relaxed text-ink/70">{c.provenance.body}</p>
 
             {/* Verified Marketplaces & Social Proof */}
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -432,21 +431,9 @@ export default async function HomePage() {
 
             <ol className="mt-12 space-y-8">
               {[
-                {
-                  n: "01",
-                  title: "Licensed at source in Morocco",
-                  text: "Every specimen is acquired directly from trusted quarry families in the Tafilalt and Anti-Atlas, traceable to a named locality and formation.",
-                },
-                {
-                  n: "02",
-                  title: "Prepared with collector honesty",
-                  text: "Cleaned under magnification with full transparency regarding matrix and restoration — the standard that earned us thousands of five-star feedbacks.",
-                },
-                {
-                  n: "03",
-                  title: "Battle-tested international shipping",
-                  text: "Nearly 23 years of custom suspension-packing ensures fragile spines and matrix slabs arrive intact in the US, UK, EU, Switzerland, Canada and Japan.",
-                },
+                { n: "01", ...c.provenance.steps[0] },
+                { n: "02", ...c.provenance.steps[1] },
+                { n: "03", ...c.provenance.steps[2] },
               ].map((item) => (
                 <li key={item.n} className="grid grid-cols-[auto_1fr] gap-6">
                   <span className="font-display text-3xl text-brass">{item.n}</span>
@@ -467,10 +454,10 @@ export default async function HomePage() {
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal>
             <p className="text-center text-[11px] uppercase tracking-[0.32em] text-brass">
-              {settings.feedbacksLabel} verified feedbacks across eBay, Catawiki &amp; direct clients
+              {c.testimonials.eyebrow}
             </p>
             <h2 className="mx-auto mt-4 max-w-2xl text-center font-display text-5xl leading-[1.02] md:text-6xl">
-              From collectors who have been where you are
+              {c.testimonials.title}
             </h2>
           </Reveal>
 
@@ -504,13 +491,12 @@ export default async function HomePage() {
       <section id="links" className="border-t border-ink/10 bg-bone/50 py-24">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="text-center">
-            <p className="text-[11px] uppercase tracking-[0.32em] text-brass">Everywhere we are</p>
+            <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.links.eyebrow}</p>
             <h2 className="mx-auto mt-4 max-w-2xl font-display text-5xl leading-[1.02] text-ink md:text-6xl">
-              One catalogue, many places to find us
+              {c.links.title}
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-sm leading-relaxed text-ink/65">
-              The same specimens are also listed on eBay and Catawiki. Choose where you prefer to buy — the price and the
-              certificate are identical.
+              {c.links.description}
             </p>
           </div>
 
@@ -602,18 +588,7 @@ export default async function HomePage() {
             )}
           </div>
 
-          <p className="mt-10 text-center text-sm text-ink/60">
-            Scientific references for our Cambrian and Ordovician material are published on our{" "}
-            <a
-              href={settings.catawikiUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline decoration-brass underline-offset-4 hover:text-ink"
-            >
-              Catawiki seller page
-            </a>
-            .
-          </p>
+          <p className="mt-10 text-center text-sm text-ink/60">{c.links.footnote}</p>
         </div>
       </section>
 
@@ -622,11 +597,10 @@ export default async function HomePage() {
         <Reveal>
           <div className="hairline mx-auto mb-12 w-40" />
           <h2 className="mx-auto max-w-3xl font-display text-5xl leading-[1.02] text-ink md:text-7xl">
-            Begin with one specimen, <em className="italic text-terracotta">or a whole shelf.</em>
+            {c.closing.titleLead} <em className="italic text-terracotta">{c.closing.titleItalic}</em>
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink/65">
-            From a Miniature for the desk to a Museum-scale monarch, every piece arrives documented, insured and ready
-            to be lived with. Direct enquiries welcome at{" "}
+            {c.closing.text}{" "}
             <a href={`mailto:${settings.contactEmail}`} className="underline underline-offset-4 hover:text-terracotta">
               {settings.contactEmail}
             </a>
@@ -637,7 +611,7 @@ export default async function HomePage() {
               href="/shop"
               className="inline-flex h-14 items-center rounded-full bg-ink px-9 text-[12px] uppercase tracking-[0.22em] text-parchment transition hover:bg-terracotta"
             >
-              Shop the collection
+              {c.closing.ctaShop}
             </Link>
             <a
               href="https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site"
@@ -651,7 +625,7 @@ export default async function HomePage() {
               href="/archive"
               className="inline-flex h-14 items-center rounded-full border border-ink/25 px-9 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:border-ink"
             >
-              The Archive
+              {c.closing.ctaArchive}
             </Link>
           </div>
 
@@ -659,11 +633,11 @@ export default async function HomePage() {
             <div className="mt-16 text-left">
               <div className="mb-6 flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.32em] text-brass">From the archive</p>
-                  <h3 className="mt-2 font-display text-3xl text-ink">Pieces that found their collectors</h3>
+                  <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.closing.archiveEyebrow}</p>
+                  <h3 className="mt-2 font-display text-3xl text-ink">{c.closing.archiveTitle}</h3>
                 </div>
                 <Link href="/archive" className="text-[11px] uppercase tracking-[0.2em] text-ink/60 hover:text-terracotta">
-                  View all →
+                  {c.closing.archiveCta}
                 </Link>
               </div>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

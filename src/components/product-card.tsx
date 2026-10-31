@@ -3,11 +3,13 @@ import Link from "next/link";
 import { ChannelPill, normalizeChannel } from "@/components/channel-badge";
 import { StarRating } from "@/components/star-rating";
 import type { ProductWithStats } from "@/lib/catalog";
+import { isAvailable } from "@/lib/product-visibility";
 import { formatPrice } from "@/lib/format";
 
 export function ProductCard({ product, priority = false }: { product: ProductWithStats; priority?: boolean }) {
-  const soldOut = product.stock <= 0;
-  const onSale = product.compareAtCents && product.compareAtCents > product.priceCents;
+  // Not for sale: archived, out of stock, or offered on no channel at all.
+  const soldOut = !isAvailable(product);
+  const onSale = !soldOut && product.compareAtCents && product.compareAtCents > product.priceCents;
   const channel = normalizeChannel(product.listingChannel);
 
   return (

@@ -22,7 +22,8 @@ export function AddToCart({ product }: { product: CartableProduct }) {
   const addItem = useCart((s) => s.addItem);
 
   const maxQuantity = Math.min(product.stock, 10);
-  const soldOut = product.stock <= 0;
+  // No channel means the piece is not offered anywhere — treat it as unavailable.
+  const soldOut = product.stock <= 0 || !product.listingChannel;
   const channel = product.listingChannel; // undefined/null = not offered anywhere
 
   const handleAdd = () => {

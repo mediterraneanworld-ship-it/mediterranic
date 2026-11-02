@@ -141,6 +141,10 @@ export type SiteContent = {
     /** Raw <script> HTML pasted in the back-office (e.g. Statcounter), injected at the end of <body>. */
     bodyScripts: string;
   };
+  commerce: {
+    /** When on, every order ships free and no other delivery option is offered. */
+    freeShipping: boolean;
+  };
   site: {
     /** Favicon URL shown in the browser tab. Uploadable in the back-office. */
     favicon: string;
@@ -149,8 +153,8 @@ export type SiteContent = {
 
 export const DEFAULT_CONTENT: SiteContent = {
   header: {
-    trustBar: ["23 Years in the Field", "eBay & Catawiki Verified", "Insured Worldwide Shipping"],
-    logoImage: "/images/icon-mediterranic.png",
+    trustBar: ["23 Years in the Field", "eBay & Catawiki Verified", "Safe Worldwide Shipping"],
+    logoImage: "/images/logo-m-emblem.png",
     navShopAll: "Shop all",
     navSiteOnly: "Only on Site",
     navEbay: "Live on eBay",
@@ -159,12 +163,12 @@ export const DEFAULT_CONTENT: SiteContent = {
   },
   footer: {
     tagline:
-      "Museum-grade Moroccan trilobites, documented from quarry to study. Sourced under licence, prepared by specialists, delivered insured.",
+      "Museum-grade Moroccan trilobites, documented from quarry to study. Sourced under licence, prepared by specialists, delivered with care.",
     newsletterTitle: "Field notes",
     newsletterCopy:
       "New specimens, preparation stories and auction dates. About once a month, never more.",
     clientCare: [
-      "Insured worldwide delivery",
+      "Worldwide delivery",
       "30-day considered returns",
       "Certificate of authenticity",
       "Private viewings by appointment",
@@ -172,7 +176,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     correspondence: [
       "23 years · eBay & Catawiki verified",
       "All prices in euro (EUR)",
-      "Ships insured to North America, Europe & Japan",
+      "Ships safely to North America, Europe & Japan",
     ],
     marketplacesTitle: "Our marketplaces",
     bottomLine: "Every specimen ships with full documentation.",
@@ -185,7 +189,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       title: "Five hundred million years,",
       titleItalic: "in your keeping.",
       description:
-        "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with insured worldwide shipping.",
+        "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with safe worldwide shipping.",
       image: "/images/hero-morocco.jpg",
       caption: "Hand-prepared · Anti-Atlas, Morocco",
       primaryCta: "Explore the collection",
@@ -199,7 +203,7 @@ export const DEFAULT_CONTENT: SiteContent = {
         },
         {
           title: "23 years of shipping mastery",
-          text: "Custom crating & insured delivery to USA, Europe & Japan",
+          text: "Custom crating & safe delivery to USA, Europe & Japan",
         },
         {
           title: "Certificate of authenticity",
@@ -288,7 +292,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     closing: {
       titleLead: "Begin with one specimen,",
       titleItalic: "or a whole shelf.",
-      text: "From a Miniature for the desk to a Museum-scale monarch, every piece arrives documented, insured and ready to be lived with. Direct enquiries welcome at",
+      text: "From a Miniature for the desk to a Museum-scale monarch, every piece arrives documented, safely packed and ready to be lived with. Direct enquiries welcome at",
       ctaShop: "Shop the collection",
       ctaArchive: "The Archive",
       archiveEyebrow: "From the archive",
@@ -317,7 +321,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     eyebrow: "Client care",
     title: "Shipping & Returns",
     intro:
-      "Every specimen travels insured, packed to museum standard and documented. Here is exactly what that means, what it costs, and what happens if a piece is not right for your collection.",
+      "Every specimen travels carefully packed, documented to museum standard. Here is exactly what that means, what it costs, and what happens if a piece is not right for your collection.",
     dispatch: {
       title: "Dispatch times",
       items: [
@@ -338,10 +342,10 @@ export const DEFAULT_CONTENT: SiteContent = {
       ],
     },
     rates: {
-      title: "Insured delivery rates",
+      title: "Safe delivery rates",
       items: [
-        "Rates below are per order, not per piece, and include full transit insurance and tracking. Orders over €450 ship free of charge on the insured standard service.",
-        "Countries outside these zones: write to us with the destination and the specimen reference, and we will quote an insured route before you commit to anything.",
+        "Rates below are per order, not per piece, and include careful packing and tracking.",
+        "Countries outside these zones: write to us with the destination and the specimen reference, and we will quote a delivery route before you commit to anything.",
       ],
     },
     customs: {
@@ -366,7 +370,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     damaged: {
       title: "If a piece arrives damaged",
       items: [
-        "It is rare, and it is insured. Please follow this order so the claim can be filed straight away:",
+        "It is rare, and we handle it directly. Please follow this order so the case can be opened straight away:",
         "Photograph the outer box before opening it if the packaging is visibly crushed, pierced or wet, and note any damage with the carrier at the door.",
         "Photograph the specimen and the packing exactly as you found it. Do not discard anything, including the foam cradle and fragments — insurers ask for them.",
         "Email us within 48 hours of delivery with the order reference and the photographs.",
@@ -399,8 +403,11 @@ export const DEFAULT_CONTENT: SiteContent = {
   analytics: {
     bodyScripts: "",
   },
+  commerce: {
+    freeShipping: true,
+  },
   site: {
-    favicon: "/favicon.svg",
+    favicon: "/images/favicon-m-caribbean.png",
   },
   notFound: {
     title: "This specimen has not been found yet",
@@ -445,6 +452,12 @@ function mergeValue<T>(base: T, override: unknown): T {
   if (typeof base === "string") {
     return (typeof override === "string" ? override : base) as T;
   }
+  if (typeof base === "boolean") {
+    return (typeof override === "boolean" ? override : base) as T;
+  }
+  if (typeof base === "number") {
+    return (typeof override === "number" && Number.isFinite(override) ? override : base) as T;
+  }
   return base;
 }
 
@@ -479,7 +492,7 @@ export function writeContent(content: SiteContent, path: string[], value: unknow
 /* Back-office schema: drives the "Page texts & photos" tab            */
 /* ------------------------------------------------------------------ */
 
-export type ContentFieldType = "text" | "textarea" | "image" | "lines" | "pairs";
+export type ContentFieldType = "text" | "textarea" | "image" | "lines" | "pairs" | "toggle";
 
 export type ContentField = {
   path: string[];
@@ -730,6 +743,19 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     fields: [
       { path: ["header", "logoImage"], label: "Header emblem / logo (optional, shown next to MEDITERRANIC)", type: "image" },
       { path: ["site", "favicon"], label: "Favicon (browser tab icon)", type: "image" },
+    ],
+  },
+  {
+    id: "commerce",
+    label: "Shipping & payment",
+    note: "Free shipping is the normal case. While it is on, the checkout offers no other delivery option. Switch it off to charge one rate per zone.",
+    fields: [
+      {
+        path: ["commerce", "freeShipping"],
+        label: "Free shipping on every order",
+        type: "toggle",
+        hint: "On = only “Free shipping” at checkout. Off = one rate for the destination zone (5 zones).",
+      },
     ],
   },
   {

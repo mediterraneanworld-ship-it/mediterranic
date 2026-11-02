@@ -84,9 +84,9 @@ export async function SiteFooter() {
                   href={settings.ebayUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 transition hover:text-parchment"
+                  className="inline-flex items-center gap-2 font-medium text-[#4d94ff] transition hover:text-white"
                 >
-                  eBay store <ExternalLink size={11} className="text-brass" />
+                  eBay store <ExternalLink size={11} className="text-[#4d94ff]" />
                 </a>
               </li>
             )}
@@ -96,9 +96,9 @@ export async function SiteFooter() {
                   href={settings.catawikiUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 transition hover:text-parchment"
+                  className="inline-flex items-center gap-2 font-medium text-[#5b8cff] transition hover:text-white"
                 >
-                  Catawiki seller page <ExternalLink size={11} className="text-brass" />
+                  Catawiki seller page <ExternalLink size={11} className="text-[#5b8cff]" />
                 </a>
               </li>
             )}

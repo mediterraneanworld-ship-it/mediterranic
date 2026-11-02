@@ -20,7 +20,7 @@ export const UNUSED_DEFAULTS: Omit<SiteSettings, "updatedAt"> = {
   heroTitle: "Five hundred million years,",
   heroTitleItalic: "in your keeping.",
   heroDescription:
-    "Museum-grade trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Direct from nearly 23 years of specialist work, backed by thousands of verified feedbacks on eBay and Catawiki and battle-tested insured worldwide shipping.",
+    "Museum-grade trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Direct from nearly 23 years of specialist work, backed by thousands of verified feedbacks on eBay and Catawiki and battle-tested protected worldwide shipping.",
   provenanceEyebrow: "Nearly 23 Years in the Field",
   provenanceTitle: "Known by collectors.",
   provenanceTitleItalic: "Proven across thousands of shipments.",

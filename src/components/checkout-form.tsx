@@ -7,13 +7,7 @@ import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { selectItemCount, selectSubtotal, useCart, useHydrated } from "@/lib/cart-store";
 import { formatPrice } from "@/lib/format";
-import {
-  calculateShipping,
-  COUNTRIES,
-  FREE_SHIPPING_THRESHOLD_CENTS,
-  SHIPPING_METHODS,
-  type ShippingMethodId,
-} from "@/lib/shipping";
+import { calculateShipping, COUNTRIES, getZone, shippingMethodId, zoneOf } from "@/lib/shipping";
 
 const field =
   "w-full rounded-sm border border-ink/15 bg-white/70 px-4 py-3.5 text-[15px] outline-none transition placeholder:text-ink/35 focus:border-sea focus:ring-2 focus:ring-sea/15";
@@ -32,12 +26,11 @@ function Section({ number, title, children }: { number: string; title: string; c
   );
 }
 
-export function CheckoutForm() {
+export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
-  const [method, setMethod] = useState<ShippingMethodId>("standard");
   const [country, setCountry] = useState("US");
   const [submitting, setSubmitting] = useState(false);
   const [paypalBusy, setPaypalBusy] = useState(false);
@@ -125,9 +118,13 @@ export function CheckoutForm() {
 
   const subtotal = selectSubtotal(items);
   const count = selectItemCount(items);
-  const shipping = calculateShipping(country, method, subtotal) ?? 0;
+  // One delivery option only: free (the normal case) or the rate of the
+  // destination zone. No standard/express upsell any more.
+  const method = shippingMethodId(freeShipping);
+  const zone = zoneOf(country);
+  const zoneInfo = zone ? getZone(zone) : null;
+  const shipping = calculateShipping(country, freeShipping) ?? 0;
   const total = subtotal + shipping;
-  const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD_CENTS - subtotal);
 
   function collectPayload(data: FormData) {
     return {
@@ -279,45 +276,27 @@ export function CheckoutForm() {
         </Section>
 
         <Section number="03" title="Delivery method">
-          <div className="grid gap-4 md:grid-cols-2">
-            {SHIPPING_METHODS.map((m) => {
-              const cost = calculateShipping(country, m.id, subtotal) ?? 0;
-              const selected = method === m.id;
-              return (
-                <label
-                  key={m.id}
-                  className={`relative flex cursor-pointer flex-col gap-3 rounded-sm border p-6 transition ${
-                    selected ? "border-ink bg-white shadow-[0_12px_30px_rgba(11,32,48,0.08)]" : "border-ink/15 hover:border-ink/40"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="shippingMethod"
-                    value={m.id}
-                    checked={selected}
-                    onChange={() => setMethod(m.id)}
-                    className="sr-only"
-                  />
-                  <span className="flex items-center justify-between">
-                    <span className="font-medium text-ink">{m.label}</span>
-                    <span
-                      className={`grid h-5 w-5 place-items-center rounded-full border ${
-                        selected ? "border-ink bg-ink text-parchment" : "border-ink/30"
-                      }`}
-                    >
-                      {selected && <Check size={12} />}
-                    </span>
-                  </span>
-                  <span className="text-sm text-ink/60">{m.detail}</span>
-                  <span className="font-display text-2xl text-ink">
-                    {cost === 0 ? "Complimentary" : formatPrice(cost)}
-                  </span>
-                </label>
-              );
-            })}
+          <div className="rounded-sm border border-ink/15 bg-white/80 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium text-ink">
+                  {freeShipping ? "Free shipping" : "Safe delivery"}
+                  {!freeShipping && zoneInfo ? ` · ${zoneInfo.label}` : ""}
+                </p>
+                <p className="mt-1 text-sm text-ink/60">
+                  {freeShipping
+                    ? "Complimentary, carefully packed and tracked. The only option we offer."
+                    : `${zoneInfo?.days ?? "Carefully packed and tracked"} · carefully packed and tracked.`}
+                </p>
+              </div>
+              <span className="font-display text-2xl text-ink">
+                {shipping === 0 ? "Free" : formatPrice(shipping)}
+              </span>
+            </div>
+            <input type="hidden" name="shippingMethod" value={method} />
           </div>
           <p className="text-xs text-ink/55">
-            Every shipment is fully insured. Duties and local taxes are confirmed by the carrier before dispatch.
+            Every shipment is packed for safe transit. Duties and local taxes are confirmed by the carrier before dispatch.
           </p>
         </Section>
 
@@ -411,13 +390,8 @@ export function CheckoutForm() {
             </div>
             <div className="flex justify-between text-ink/70">
               <dt>Shipping</dt>
-              <dd>{shipping === 0 ? "Complimentary" : formatPrice(shipping)}</dd>
+              <dd>{shipping === 0 ? "Free shipping" : formatPrice(shipping)}</dd>
             </div>
-            {remaining > 0 && method === "standard" && (
-              <p className="text-xs text-sea">
-                Add {formatPrice(remaining)} to unlock complimentary standard shipping.
-              </p>
-            )}
             <div className="flex items-baseline justify-between border-t border-ink/10 pt-4">
               <dt className="text-ink">Total (EUR)</dt>
               <dd className="font-display text-4xl text-ink">{formatPrice(total)}</dd>

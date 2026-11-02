@@ -2,7 +2,8 @@ import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orders, products } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
-import { calculateShipping, getCountry, type ShippingMethodId } from "@/lib/shipping";
+import { calculateShipping, getCountry, shippingMethodId } from "@/lib/shipping";
+import { getSiteContent } from "@/lib/catalog";
 
 export class OrderError extends Error {
   constructor(
@@ -14,7 +15,6 @@ export class OrderError extends Error {
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const METHODS: ShippingMethodId[] = ["standard", "express"];
 
 function text(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -30,7 +30,7 @@ export type OrderInput = {
   addressLine2: string | null;
   city: string;
   postalCode: string;
-  shippingMethod: ShippingMethodId;
+  shippingMethod: string;
   items: { slug: string; quantity: number }[];
 };
 
@@ -44,7 +44,8 @@ export function parseOrderInput(body: Record<string, unknown>): OrderInput {
   const addressLine2 = text(body.addressLine2, 160) || null;
   const city = text(body.city, 80);
   const postalCode = text(body.postalCode, 20);
-  const method = text(body.shippingMethod, 20) as ShippingMethodId;
+  // The delivery option is decided by the shop, not by the browser.
+  const method = text(body.shippingMethod, 20) || "free";
 
   if (!EMAIL.test(email)) throw new OrderError("Please enter a valid email address.", 400);
   if (!firstName || !lastName) throw new OrderError("Please enter your full name.", 400);
@@ -52,7 +53,6 @@ export function parseOrderInput(body: Record<string, unknown>): OrderInput {
   if (addressLine1.length < 4) throw new OrderError("Please enter your street address.", 400);
   if (!city) throw new OrderError("Please enter your city.", 400);
   if (postalCode.length < 3) throw new OrderError("Please enter your postal code.", 400);
-  if (!METHODS.includes(method)) throw new OrderError("Choose a delivery method.", 400);
 
   const rawItems = Array.isArray(body.items) ? (body.items as { slug?: unknown; quantity?: unknown }[]) : [];
   const items = rawItems.map((i) => ({ slug: text(i.slug, 120), quantity: Number(i.quantity) }));
@@ -82,6 +82,8 @@ export type BuiltOrder = {
   subtotalCents: number;
   shippingCents: number;
   totalCents: number;
+  /** "free" or "protected", decided by the back-office setting. */
+  shippingMethod: string;
   lines: {
     productId: number;
     productName: string;
@@ -127,10 +129,17 @@ export async function buildOrder(input: OrderInput): Promise<BuiltOrder> {
     };
   });
 
-  const shipping = calculateShipping(input.country, input.shippingMethod, subtotal);
+  const { commerce } = await getSiteContent();
+  const shipping = calculateShipping(input.country, commerce.freeShipping);
   if (shipping === null) throw new OrderError("We could not calculate shipping for that address.", 400);
 
-  return { subtotalCents: subtotal, shippingCents: shipping, totalCents: subtotal + shipping, lines };
+  return {
+    subtotalCents: subtotal,
+    shippingCents: shipping,
+    totalCents: subtotal + shipping,
+    shippingMethod: shippingMethodId(commerce.freeShipping),
+    lines,
+  };
 }
 
 /** Inserts the order + items with the given status. Returns the order id. */
@@ -151,7 +160,7 @@ export async function insertOrder(
       addressLine2: input.addressLine2,
       city: input.city,
       postalCode: input.postalCode,
-      shippingMethod: input.shippingMethod,
+      shippingMethod: built.shippingMethod,
       subtotalCents: built.subtotalCents,
       shippingCents: built.shippingCents,
       totalCents: built.totalCents,

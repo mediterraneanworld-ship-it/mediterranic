@@ -26,7 +26,7 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-parchment/90 backdrop-blur-xl">
       {/* Customer-facing trust bar (no admin links here) */}
       <div className="bg-ink text-parchment">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-6 gap-y-1 px-5 py-2 text-center text-[10px] uppercase tracking-[0.22em] lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-2 text-center text-[9px] uppercase tracking-[0.14em] sm:gap-x-6 sm:px-5 sm:text-[10px] sm:tracking-[0.22em] lg:px-8">
           <span className="text-brass">{content.trustBar[0]}</span>
           <span className="hidden text-parchment/30 sm:inline">·</span>
           <span className="text-parchment/70">{content.trustBar[1]}</span>
@@ -37,10 +37,10 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
         </div>
       </div>
 
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-5 lg:px-8">
-        <Link href="/" className="group flex items-center gap-3.5 leading-none" onClick={() => setMobileOpen(false)}>
+      <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-3 px-3 sm:h-20 sm:gap-6 sm:px-5 lg:px-8">
+        <Link href="/" className="group flex min-w-0 items-center gap-2.5 leading-none sm:gap-3.5" onClick={() => setMobileOpen(false)}>
           {content.logoImage && (
-            <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-midnight ring-1 ring-brass/45 transition group-hover:ring-brass">
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-midnight ring-1 ring-brass/45 transition group-hover:ring-brass sm:h-11 sm:w-11">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={
@@ -50,15 +50,17 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
                 }
                 alt=""
                 aria-hidden="true"
-                className="h-11 w-11 scale-110 object-cover transition duration-300 group-hover:scale-115"
+                className="h-9 w-9 scale-110 object-cover transition duration-300 group-hover:scale-115 sm:h-11 sm:w-11"
               />
             </span>
           )}
-          <span className="flex flex-col leading-none">
-            <span className="font-display text-[1.65rem] uppercase tracking-[0.22em] text-ink transition-colors group-hover:text-sea">
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="font-display text-[1.15rem] uppercase tracking-[0.12em] text-ink transition-colors group-hover:text-sea sm:text-[1.55rem] sm:tracking-[0.22em] lg:text-[1.65rem]">
               Mediterranic
             </span>
-            <span className="mt-1.5 text-[9px] uppercase tracking-[0.42em] text-brass">Moroccan Trilobites</span>
+            <span className="mt-1 text-[8px] uppercase tracking-[0.28em] text-brass sm:mt-1.5 sm:text-[9px] sm:tracking-[0.42em]">
+              Moroccan Trilobites
+            </span>
           </span>
         </Link>
 

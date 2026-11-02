@@ -13,7 +13,7 @@ export const SEED_SETTINGS: Omit<SiteSettings, "updatedAt"> = {
   heroEyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
   heroTitle: "Five hundred million years,",
   heroTitleItalic: "in your keeping.",
-  heroDescription: "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with insured worldwide shipping.",
+  heroDescription: "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with safe worldwide shipping.",
   provenanceEyebrow: "Nearly 23 Years in the Field",
   provenanceTitle: "Known by collectors.",
   provenanceTitleItalic: "Proven across thousands of shipments.",

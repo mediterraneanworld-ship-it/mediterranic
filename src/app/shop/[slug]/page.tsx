@@ -319,7 +319,7 @@ export default async function ProductPage({ params }: Props) {
             )}
             <li className="flex items-start gap-3">
               <Truck size={18} strokeWidth={1.4} className="mt-0.5 shrink-0 text-sea" />
-              Fully insured delivery. Complimentary standard shipping over €450
+              Safe, tracked delivery
             </li>
             <li className="flex items-start gap-3">
               <RotateCcw size={18} strokeWidth={1.4} className="mt-0.5 shrink-0 text-sea" />

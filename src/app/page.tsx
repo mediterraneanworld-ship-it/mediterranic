@@ -213,12 +213,12 @@ export default async function HomePage() {
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             <Link
               href="/shop?channel=direct"
-              className="group flex flex-col justify-between rounded-sm border border-ink/15 bg-white/80 p-6 transition hover:border-ink hover:shadow-md"
+              className="group flex flex-col justify-between rounded-sm border border-[#ff9f3d]/45 bg-white/80 p-6 transition hover:border-[#ff9f3d] hover:shadow-md"
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-ink px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-parchment">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brass" /> {c.channels.directBadge}
+                  <span className="site-only inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-ink" /> {c.channels.directBadge}
                   </span>
                   <span className="font-display text-3xl text-ink">{directCount}</span>
                 </div>
@@ -227,19 +227,19 @@ export default async function HomePage() {
                   {c.channels.directText}
                 </p>
               </div>
-              <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-sea group-hover:translate-x-1 transition-transform">
+              <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[#c9721f] group-hover:translate-x-1 transition-transform">
                 {c.channels.directCta} <ArrowRight size={13} />
               </span>
             </Link>
 
             <Link
               href="/shop?channel=ebay"
-              className="group flex flex-col justify-between rounded-sm border border-ink/15 bg-white/80 p-6 transition hover:border-ink hover:shadow-md"
+              className="group flex flex-col justify-between rounded-sm border border-[#E53238]/30 bg-white/80 p-6 transition hover:border-[#E53238] hover:shadow-md"
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-sea px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-parchment">
-                    <span className="h-1.5 w-1.5 rounded-full bg-parchment animate-pulse" /> {c.channels.ebayBadge}
+                  <span className="inline-flex items-center gap-2 rounded-full ebay-quad px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> {c.channels.ebayBadge}
                   </span>
                   <span className="font-display text-3xl text-ink">{ebayCount}</span>
                 </div>
@@ -248,19 +248,19 @@ export default async function HomePage() {
                   {c.channels.ebayText}
                 </p>
               </div>
-              <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-sea group-hover:translate-x-1 transition-transform">
+              <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[#E53238] group-hover:translate-x-1 transition-transform">
                 {c.channels.ebayCta} <ArrowRight size={13} />
               </span>
             </Link>
 
             <Link
               href="/shop?channel=catawiki"
-              className="group flex flex-col justify-between rounded-sm border border-ink/15 bg-white/80 p-6 transition hover:border-ink hover:shadow-md"
+              className="group flex flex-col justify-between rounded-sm border border-[#0033FF]/30 bg-white/80 p-6 transition hover:border-[#0033FF] hover:shadow-md"
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-brass px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink">
-                    <span className="h-1.5 w-1.5 rounded-full bg-ink animate-pulse" /> {c.channels.catawikiBadge}
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[#0033FF] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> {c.channels.catawikiBadge}
                   </span>
                   <span className="font-display text-3xl text-ink">{catawikiCount}</span>
                 </div>
@@ -269,7 +269,7 @@ export default async function HomePage() {
                   {c.channels.catawikiText}
                 </p>
               </div>
-              <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-sea group-hover:translate-x-1 transition-transform">
+              <span className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[#0033FF] group-hover:translate-x-1 transition-transform">
                 {c.channels.catawikiCta} <ArrowRight size={13} />
               </span>
             </Link>
@@ -505,28 +505,30 @@ export default async function HomePage() {
               href={settings.ebayUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/15 bg-white/90 p-6 transition hover:border-ink hover:shadow-md"
+              style={{ backgroundImage: "linear-gradient(90deg, #E53238 0 25%, #0064D2 25% 50%, #F5AF02 50% 75%, #86B817 75% 100%)" }}
+              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-brass">Marketplace</p>
-                <p className="mt-2 font-display text-3xl text-ink">eBay store</p>
-                <p className="mt-1 text-sm text-ink/60">Fixed prices and best offers</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Marketplace</p>
+                <p className="mt-2 font-display text-3xl text-white">eBay store</p>
+                <p className="mt-1 text-sm text-white/85">Fixed prices and best offers</p>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
+              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
             </a>
 
             <a
               href={settings.catawikiUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/15 bg-white/90 p-6 transition hover:border-ink hover:shadow-md"
+              style={{ backgroundImage: "linear-gradient(135deg, #0033FF 0%, #2b5cff 100%)" }}
+              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-brass">Auctions</p>
-                <p className="mt-2 font-display text-3xl text-ink">Catawiki</p>
-                <p className="mt-1 text-sm text-ink/60">Weekly Natural History auctions</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Auctions</p>
+                <p className="mt-2 font-display text-3xl text-white">Catawiki</p>
+                <p className="mt-1 text-sm text-white/85">Weekly Natural History auctions</p>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
+              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
             </a>
 
             <a
@@ -547,28 +549,30 @@ export default async function HomePage() {
               href={settings.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/15 bg-white/90 p-6 transition hover:border-ink hover:shadow-md"
+              style={{ backgroundImage: "linear-gradient(45deg, #FCAF45 0%, #E1306C 45%, #833AB4 100%)" }}
+              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-brass">Photography</p>
-                <p className="mt-2 font-display text-3xl text-ink">Instagram</p>
-                <p className="mt-1 text-sm text-ink/60">New arrivals and macro detail</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Photography</p>
+                <p className="mt-2 font-display text-3xl text-white">Instagram</p>
+                <p className="mt-1 text-sm text-white/85">New arrivals and macro detail</p>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
+              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
             </a>
 
             <a
               href={settings.facebookUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/15 bg-white/90 p-6 transition hover:border-ink hover:shadow-md"
+              style={{ backgroundImage: "linear-gradient(135deg, #1877F2 0%, #0a5dc2 100%)" }}
+              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-brass">Community</p>
-                <p className="mt-2 font-display text-3xl text-ink">Facebook</p>
-                <p className="mt-1 text-sm text-ink/60">Fossils from Morocco</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Community</p>
+                <p className="mt-2 font-display text-3xl text-white">Facebook</p>
+                <p className="mt-1 text-sm text-white/85">Fossils from Morocco</p>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
+              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
             </a>
 
             {settings.whatsappPhone && (
@@ -576,14 +580,15 @@ export default async function HomePage() {
                 href={`https://wa.me/${settings.whatsappPhone.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex items-center justify-between gap-4 rounded-sm border border-sea/40 bg-sea/5 p-6 transition hover:border-sea hover:shadow-md"
+                style={{ backgroundImage: "linear-gradient(135deg, #25D366 0%, #128C4A 100%)" }}
+                className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
               >
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-brass">Direct</p>
-                  <p className="mt-2 font-display text-3xl text-ink">WhatsApp</p>
-                  <p className="mt-1 text-sm text-ink/60">Ask for photos or a shipping quote</p>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Direct</p>
+                  <p className="mt-2 font-display text-3xl text-white">WhatsApp</p>
+                  <p className="mt-1 text-sm text-white/85">Ask for photos or a shipping quote</p>
                 </div>
-                <ExternalLink size={18} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
+                <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </a>
             )}
           </div>

@@ -7,7 +7,6 @@ import { Minus, Plus, ShieldCheck, ShoppingBag, Trash2, Truck, X } from "lucide-
 import { useEffect } from "react";
 import { formatPrice } from "@/lib/format";
 import { selectItemCount, selectSubtotal, useCart, useHydrated } from "@/lib/cart-store";
-import { FREE_SHIPPING_THRESHOLD_CENTS } from "@/lib/shipping";
 
 export function CartDrawer() {
   const isOpen = useCart((s) => s.isOpen);
@@ -34,8 +33,6 @@ export function CartDrawer() {
   const visibleItems = hydrated ? items : [];
   const subtotal = selectSubtotal(visibleItems);
   const count = selectItemCount(visibleItems);
-  const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD_CENTS - subtotal);
-  const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD_CENTS) * 100);
 
   return (
     <AnimatePresence>
@@ -168,18 +165,8 @@ export function CartDrawer() {
                     <div className="mb-2 flex items-center justify-between text-xs text-ink/70">
                       <span className="flex items-center gap-2">
                         <Truck size={14} strokeWidth={1.5} />
-                        {remaining > 0
-                          ? `Add ${formatPrice(remaining)} for complimentary insured shipping`
-                          : "Complimentary insured shipping unlocked"}
+                        Free shipping
                       </span>
-                    </div>
-                    <div className="h-1 overflow-hidden rounded-full bg-ink/10">
-                      <motion.div
-                        className="h-full rounded-full bg-brass"
-                        initial={false}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                      />
                     </div>
                   </div>
 

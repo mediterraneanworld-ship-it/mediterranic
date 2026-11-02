@@ -154,6 +154,18 @@ ALTER TABLE "site_settings" ADD COLUMN IF NOT EXISTS "content" jsonb DEFAULT '{}
 -- only; existing orders keep their default values and are never rewritten.
 ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "payment_method" text DEFAULT 'direct' NOT NULL;
 ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paypal_order_id" text;
+
+-- Log of price refreshes (cron + manual). New table only; never touches data.
+CREATE TABLE IF NOT EXISTS "price_refresh_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source" text DEFAULT 'manual' NOT NULL,
+	"ok" boolean DEFAULT true NOT NULL,
+	"checked" integer DEFAULT 0 NOT NULL,
+	"changed" integer DEFAULT 0 NOT NULL,
+	"ended" integer DEFAULT 0 NOT NULL,
+	"summary" text DEFAULT '' NOT NULL,
+	"ran_at" timestamp with time zone DEFAULT now() NOT NULL
+);
 `;
 
 let migrated: Promise<void> | null = null;

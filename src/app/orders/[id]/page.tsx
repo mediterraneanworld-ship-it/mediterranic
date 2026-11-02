@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, Mail, Truck } from "lucide-react";
 import { getOrderWithItems } from "@/lib/catalog";
-import { getCountry, SHIPPING_METHODS } from "@/lib/shipping";
+import { getCountry, shippingLabel } from "@/lib/shipping";
 import { formatDate, formatPrice } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
   if (!data) notFound();
 
   const { order, items } = data;
-  const method = SHIPPING_METHODS.find((m) => m.id === order.shippingMethod);
+  const methodLabel = shippingLabel(order.country, order.shippingMethod === "insured" ? "protected" : order.shippingMethod);
   const countryName = getCountry(order.country)?.name ?? order.country;
   const reference = `MED-${order.id.slice(0, 8).toUpperCase()}`;
 
@@ -39,7 +39,7 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
           Thank you, {order.firstName}.
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink/70">
-          Your specimens are being packed by hand and insured for transit. Your certificate of authenticity and a
+          Your specimens are being packed by hand for safe transit. Your certificate of authenticity and a
           tracking number will follow to <span className="text-ink">{order.email}</span>.
         </p>
       </div>
@@ -93,8 +93,10 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <Truck size={18} strokeWidth={1.5} />
               <h2 className="font-display text-2xl text-ink">Delivery</h2>
             </div>
-            <p className="mt-4 text-sm font-medium">{method?.label ?? "Insured delivery"}</p>
-            <p className="text-sm text-ink/60">{method?.detail}</p>
+            <p className="mt-4 text-sm font-medium">{methodLabel}</p>
+            <p className="text-sm text-ink/60">
+              {order.shippingCents === 0 ? "Complimentary and protected" : "Carefully packed and tracked"}
+            </p>
             <address className="mt-5 text-sm not-italic leading-relaxed text-ink/75">
               {order.firstName} {order.lastName}
               <br />
@@ -119,7 +121,7 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
             </div>
             <ol className="mt-5 space-y-4 text-sm leading-relaxed text-parchment/75">
               <li>1. Specialists verify each specimen and prepare its documentation.</li>
-              <li>2. Your piece is packed in archival materials and insured.</li>
+              <li>2. Your piece is packed in archival materials for safe transit.</li>
               <li>3. A tracking link arrives by email on dispatch.</li>
             </ol>
           </section>

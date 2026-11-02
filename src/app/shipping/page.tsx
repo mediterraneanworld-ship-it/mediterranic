@@ -3,14 +3,7 @@ import Link from "next/link";
 import { BadgeCheck, Clock, Globe2, PackageCheck, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { formatPrice } from "@/lib/format";
-import {
-  FREE_SHIPPING_THRESHOLD_CENTS,
-  SHIPPING_METHODS,
-  ZONE_LABELS,
-  ZONE_ORDER,
-  countriesInZone,
-  getZoneRates,
-} from "@/lib/shipping";
+import { ZONES, countriesInZone } from "@/lib/shipping";
 import { getSiteContent, getSiteSettings } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Shipping & Returns",
   description:
-    "Insured worldwide delivery for Moroccan trilobites, museum-level packing, delivery times by zone, customs notes and 30-day considered returns.",
+    "Worldwide delivery for Moroccan trilobites, museum-level packing, delivery times by zone, customs notes and 30-day considered returns.",
 };
 
 function Section({
@@ -57,6 +50,7 @@ function Section({
 export default async function ShippingPage() {
   const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
   const copy = content.shipping;
+  const freeShipping = content.commerce.freeShipping;
 
   return (
     <div className="bg-parchment">
@@ -69,7 +63,7 @@ export default async function ShippingPage() {
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-parchment/70">{copy.intro}</p>
           <div className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-[11px] uppercase tracking-[0.2em] text-parchment/55">
             <span className="inline-flex items-center gap-2">
-              <ShieldCheck size={14} className="text-brass" /> Fully insured in transit
+              <ShieldCheck size={14} className="text-brass" /> Carefully packed in transit
             </span>
             <span className="inline-flex items-center gap-2">
               <Truck size={14} className="text-brass" /> Worldwide delivery
@@ -106,44 +100,54 @@ export default async function ShippingPage() {
                 ))}
               </ul>
               <p className="mt-3 text-sm text-ink/60">
-                Orders over <strong className="text-ink">{formatPrice(FREE_SHIPPING_THRESHOLD_CENTS)}</strong> ship free
-                on the insured standard service.
+                {freeShipping ? (
+                  <>
+                    <strong className="text-ink">Free shipping on every order</strong> — carefully packed and tracked,
+                    whichever zone you are in.
+                  </>
+                ) : (
+                  <>
+                    One rate per zone, charged at checkout according to the delivery country. Nothing else is
+                    added.
+                  </>
+                )}
               </p>
               <div className="mt-4 overflow-x-auto rounded-sm border border-ink/12 bg-white/70">
-                <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[420px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-ink/12 bg-bone/60 text-[11px] uppercase tracking-[0.18em] text-ink/70">
                       <th scope="col" className="px-4 py-3 font-medium">
                         Zone
                       </th>
-                      {SHIPPING_METHODS.map((m) => (
-                        <th key={m.id} scope="col" className="px-4 py-3 font-medium">
-                          {m.label}
-                          <span className="ml-2 normal-case tracking-normal text-ink/45">{m.detail}</span>
-                        </th>
-                      ))}
+                      <th scope="col" className="px-4 py-3 font-medium">
+                        Transit
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">
+                        Safe delivery
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ZONE_ORDER.map((zone) => {
-                      const rates = getZoneRates(zone);
-                      return (
-                        <tr key={zone} className="border-b border-ink/8 align-top last:border-0">
-                          <th scope="row" className="px-4 py-4 text-left font-normal">
-                            <span className="block text-ink">{ZONE_LABELS[zone]}</span>
-                            <span className="mt-1 block text-xs text-ink/50">{countriesInZone(zone).join(" · ")}</span>
-                          </th>
-                          {SHIPPING_METHODS.map((m) => (
-                            <td key={m.id} className="px-4 py-4 text-ink">
-                              {formatPrice(rates[m.id])}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
+                    {ZONES.map((zone) => (
+                      <tr key={zone.id} className="border-b border-ink/8 align-top last:border-0">
+                        <th scope="row" className="px-4 py-4 text-left font-normal">
+                          <span className="block text-ink">{zone.label}</span>
+                          <span className="mt-1 block text-xs text-ink/50">{countriesInZone(zone.id).join(" · ")}</span>
+                        </th>
+                        <td className="px-4 py-4 text-ink/70">{zone.days}</td>
+                        <td className="px-4 py-4 text-right font-medium text-ink">
+                          {freeShipping ? "Free" : formatPrice(zone.rateCents)}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
+              {freeShipping && (
+                <p className="mt-2 text-xs text-ink/55">
+                  Free shipping is currently active, so no delivery options are shown at checkout.
+                </p>
+              )}
             </div>
           </div>
         </section>

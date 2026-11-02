@@ -67,8 +67,8 @@ export function AddToCart({ product }: { product: CartableProduct }) {
       <div className="space-y-4 rounded-sm border border-brass/50 bg-bone/70 p-6">
         <div className="flex items-center justify-between gap-3">
           <span
-            className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
-              channel === "catawiki" ? "bg-brass text-ink" : "bg-sea text-parchment"
+            className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white ${
+              channel === "catawiki" ? "cw-grad" : "ebay-quad"
             }`}
           >
             Currently Live on {platformName}
@@ -85,7 +85,9 @@ export function AddToCart({ product }: { product: CartableProduct }) {
             href={targetUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-13 flex-1 items-center justify-center gap-2 rounded-full bg-ink px-7 text-[12px] uppercase tracking-[0.22em] text-parchment transition hover:bg-terracotta"
+            className={`inline-flex h-13 flex-1 items-center justify-center gap-2 rounded-full px-7 text-[12px] uppercase tracking-[0.22em] text-white transition hover:brightness-110 ${
+              channel === "catawiki" ? "cw-grad" : "ebay-quad"
+            }`}
           >
             View Live Listing on {platformName} <ExternalLink size={15} />
           </a>
@@ -126,7 +128,7 @@ export function AddToCart({ product }: { product: CartableProduct }) {
           onClick={handleAdd}
           whileTap={{ scale: 0.98 }}
           className={`relative inline-flex h-14 flex-1 items-center justify-center gap-3 overflow-hidden rounded-full text-[12px] uppercase tracking-[0.22em] transition-colors ${
-            justAdded ? "bg-sea text-parchment" : "bg-ink text-parchment hover:bg-terracotta"
+            justAdded ? "bg-sea text-parchment" : "site-only font-semibold hover:brightness-95"
           }`}
         >
           <AnimatePresence mode="wait" initial={false}>

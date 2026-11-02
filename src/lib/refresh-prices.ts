@@ -1,6 +1,7 @@
 import { and, eq, isNotNull, gt } from "drizzle-orm";
 import { db } from "@/db";
-import { products } from "@/db/schema";
+import { priceRefreshRuns, products } from "@/db/schema";
+import { getEbayItem, hasEbayCredentials } from "@/lib/ebay";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -77,10 +78,28 @@ async function readCatawikiPrice(
   return { cents: null, status };
 }
 
-/** Reads the current price of an eBay item from the store page it is listed on. */
+/**
+ * Reads the current price of an eBay item.
+ *
+ * With EBAY_CLIENT_ID / EBAY_CLIENT_SECRET set, the official Browse API is used
+ * (reliable from any server). Without them, the store page is scraped — eBay
+ * answers HTTP 403 to datacenter IPs, so that path usually returns null and the
+ * piece is simply left untouched.
+ */
 async function readEbayPrice(itemUrl: string, storeUrl: string): Promise<number | "ended" | null> {
   const itemId = itemUrl.match(/\/itm\/(\d{6,13})/)?.[1];
   if (!itemId) return null;
+
+  if (hasEbayCredentials()) {
+    try {
+      const item = await getEbayItem(itemId);
+      // The API returns null for a listing that no longer exists (sold/ended).
+      if (!item) return "ended";
+      return item.priceCents ?? null;
+    } catch {
+      // fall through to the page read below
+    }
+  }
 
   const res = await fetch(storeUrl, {
     headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
@@ -210,14 +229,11 @@ export async function refreshMarketplacePrices(
       continue;
     }
 
-    // Live auction: keep the price current and the right marketplace badge.
-    const restoreChannel = status === "live" && marketplace !== null && channel !== marketplace;
-    const changed = currentCents !== p.priceCents || restoreChannel;
+    // Live auction: keep the price current. The channel is NEVER changed here —
+    // if the owner moved a piece to Site Only by hand, that decision stands.
+    const changed = onMarketplace && currentCents !== p.priceCents;
     if (changed) {
-      await db
-        .update(products)
-        .set({ priceCents: currentCents, ...(restoreChannel ? { listingChannel: marketplace } : {}) })
-        .where(eq(products.id, p.id));
+      await db.update(products).set({ priceCents: currentCents }).where(eq(products.id, p.id));
     }
     await db
       .update(products)
@@ -241,4 +257,27 @@ export async function refreshMarketplacePrices(
     changed: results.filter((r) => r.changed).length,
     ended: results.filter((r) => r.changed && (r.status === "sold" || r.status === "unsold")).length,
   };
+}
+
+/** Writes one line to the run log so the back-office can show when it last ran. */
+export async function logPriceRefreshRun(input: {
+  source: "cron" | "manual";
+  ok: boolean;
+  checked?: number;
+  changed?: number;
+  ended?: number;
+  summary: string;
+}): Promise<void> {
+  try {
+    await db.insert(priceRefreshRuns).values({
+      source: input.source,
+      ok: input.ok,
+      checked: input.checked ?? 0,
+      changed: input.changed ?? 0,
+      ended: input.ended ?? 0,
+      summary: input.summary.slice(0, 2000),
+    });
+  } catch (error) {
+    console.error("could not log price refresh run", error);
+  }
 }

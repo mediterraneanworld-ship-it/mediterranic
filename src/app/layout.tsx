@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export async function generateMetadata(): Promise<Metadata> {
   const content = await getSiteContent();
-  const favicon = content.site.favicon.trim() || "/favicon.svg";
+  const favicon = content.site.favicon.trim() || "/images/favicon-m-caribbean.png";
   const faviconType = favicon.endsWith(".svg") ? "image/svg+xml" : favicon.endsWith(".png") ? "image/png" : "image/x-icon";
   return {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
@@ -24,9 +24,12 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s · Mediterranic",
     },
     description:
-      "Museum-grade Moroccan trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Certified, documented and delivered insured to collectors in North America, Europe and Japan.",
+      "Museum-grade Moroccan trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Certified, documented and delivered with care to collectors in North America, Europe and Japan.",
     icons: {
-      icon: [{ url: favicon, type: faviconType }],
+      icon: [
+        { url: favicon, type: faviconType },
+        { url: "/favicon-m-caribbean.svg", type: "image/svg+xml" },
+      ],
       shortcut: [{ url: favicon, type: faviconType }],
       apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
     },

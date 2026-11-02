@@ -396,7 +396,7 @@ export function parseListingText(raw: string, sourceUrl = "", fallbackPrice = ""
   const provenance = [
     `Sourced in ${locality || "Morocco"} through our licensed quarry network of nearly 23 years.`,
     formation ? `Stratigraphy: ${formation}.` : "",
-    "Delivered fully insured with museum-grade packing to North America, Europe and Japan.",
+    "Delivered with museum-grade packing to North America, Europe and Japan.",
     "Verified seller on eBay and Catawiki with thousands of positive feedbacks.",
   ]
     .filter(Boolean)

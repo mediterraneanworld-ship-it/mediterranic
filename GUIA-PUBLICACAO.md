@@ -565,7 +565,8 @@ botão mostra um aviso e o botão de fatura continua a funcionar.
   (upload PNG/SVG). Vazio = texto.
 - **Favicon (separador do browser):** o mesmo grupo, campo **Favicon**
   (upload). É aplicado via metadata dinâmica em todas as páginas.
-  Por omissão: `/favicon.svg` + `/icon.png` + `/apple-icon.png` em `public/`.
+  Por omissão: o "M" dourado sobre azul (`/images/logo-m-icon.png`), que também
+  serve de `icon.png` e `apple-icon.png` para telemóveis e apps instaladas.
 - **Países no checkout:** a lista passou a ser **todos os países ISO 3166-1
   (229), por ordem alfabética**, em `src/lib/shipping.ts`. As zonas de
   portes ganhou "Rest of the world" (€75 / €150), e a página /shipping mostra
@@ -584,3 +585,154 @@ cuja **moeda e país** correspondem à loja real:
 
 Regra prática: **sandbox ES para testar, produção (live) com as chaves da
 conta mediterranean.world@gmail.com quando estiver tudo aprovado.**
+
+---
+
+## 21. Cores das marcas nos mercados (em todo o site)
+
+As ligações e etiquetas dos mercados usam as **cores oficiais das marcas** em todo
+o site (cabeçalhos de canal, cartões da home, botões de compra externa, rodapé,
+loja e página de peça):
+
+| Marca | Cor | Onde se vê |
+|---|---|---|
+| **WhatsApp** | verde `#25D366` | cartão "Direct" (fundo verde) |
+| **Facebook** | azul `#1877F2` | cartão "Community" (fundo azul) |
+| **Instagram** | gradiente `#FCAF45→#E1306C→#833AB4` | cartão "Photography" (fundo gradiente) |
+| **Catawiki** | azul `#0033FF` | etiqueta "Live on Catawiki", cartão, botão "View Live Listing", rodapé |
+| **eBay** | quatro cores `#E53238`+`#0064D2`+`#F5AF02`+`#86B817` (1/4 cada) | etiqueta "Live on eBay", cartão, botão "View Live Listing", rodapé |
+
+**Nota eBay:** o logótipo do eBay é multicolor (e=vermelho, b=azul, a=amarelo,
+y=verde). As quatro cores aparecem agora em faixas iguais (`.ebay-quad` em
+`globals.css`), com um leve escurecimento para o texto branco continuar legível.
+No cartão do eBay os acentos usam o **vermelho eBay** (`#E53238`), para o azul
+ficar reservado ao Catawiki.
+
+**Cor de fundo das caixas:** os cartões de cada rede/plataforma ("Everywhere we
+are") têm a **cor de fundo** da marca, com texto branco.
+
+No fundo escuro do rodapé as cores aparecem em tons mais claros (`#4d94ff` eBay,
+`#5b8cff` Catawiki) para continuarem legíveis. Não estão presas em `theme`: se
+alguma vez quiseres mudar uma cor, é só trocar o valor hexadecimal nas classes
+(`bg-[#0033FF]`, `text-[#0064D2]`, etc.).
+
+
+---
+
+## 22. Cor do canal "Only on This Site"
+
+O canal **Site Only / Only on This Site** passou a usar o laranja `#ff9f3d` em
+**todas as páginas**:
+
+- etiqueta "Site Exclusive" nos cartões de peça e na página da peça;
+- barra "Available Only on Mediterranic";
+- botão **Add to cart** (compra directa);
+- etiqueta e borda do cartão "Only on This Site" na página inicial;
+- ponto indicador no filtro de canais da loja.
+
+Classe única em `src/app/globals.css`: `.site-only`. Para o texto sobre laranja
+usar tinta escura (`#0c1b26`), e para texto laranja sobre fundo claro usar
+`#c9721f` (mais escuro, legível). O eBay mantém as quatro cores e o Catawiki o
+azul — os três canais nunca se confundem.
+
+
+---
+
+## 23. Etiquetas fora das imagens e envios (5 zonas + envio grátis)
+
+### 23.1 Etiquetas das peças
+
+As etiquetas (**Período**, **Site Exclusive / Live on eBay / Live on Catawiki /
+Unavailable**, e a etiqueta **Archive**) saíram de dentro das fotografias e
+passaram para **uma linha acima da imagem**. No telemóvel deixaram de tapar a
+peça. A faixa de "View details" que aparecia sobre a fotografia foi removida.
+
+### 23.2 Envio grátis (o caso normal)
+
+`/admin` → **5. Page texts & photos** → grupo **Shipping & payment** →
+interruptor **Free shipping on every order** (ligado por omissão).
+
+- **Ligado:** o checkout mostra **uma única opção — Free shipping**, sem
+  alternativas. Não há *insured standard* nem *insured express*.
+- **Desligado:** o checkout mostra **uma única opção — insured delivery**, ao
+  preço da zona do país de destino.
+
+O preço é sempre calculado no servidor (nunca vem do browser) e a encomenda
+guarda o método (`free` ou `insured`).
+
+### 23.3 As cinco zonas
+
+| Zona | Envio segurado |
+|---|---|
+| Europe | €54 |
+| Americas | €48 |
+| Asia & Middle East | €60 |
+| Africa | €72 |
+| Oceania | €85 |
+
+Cada um dos 229 países está atribuído a uma destas cinco zonas, em
+`src/lib/shipping.ts`. A tabela em `/shipping` mostra as cinco zonas, o tempo de
+trânsito e o preço (ou "Free", quando o envio grátis está ligado).
+
+
+---
+
+## 24. "Site Exclusive" a laranja e remoção da palavra "insured"
+
+- A etiqueta **Site Exclusive** usa exactamente `#ff9f3d` com tinta escura
+  (`#0c1b26`) nas etiquetas, botões e cartões.
+- A palavra **insured** foi retirada de todo o site: textos, etiquetas, checkout,
+  página de envios, descrições das peças e metadados. Onde fazia sentido passou a
+  **"Safe delivery"**, "carefully packed and tracked" ou "protected".
+- O método de envio na base de dados passou a `free` / `protected`. Encomendas
+  antigas com o valor antigo (`insured`) continuam a mostrar a etiqueta correcta.
+- Nos textos editáveis que já estavam gravados na base de dados, a substituição
+  foi feita directamente (sem perder o resto do conteúdo). Nos textos por
+  omissão no código também.
+
+
+---
+
+## 25. Porque o cron da manhã não correu — e como ver isso no admin
+
+### Diagnóstico
+
+O endereço do cron online responde **401 Unauthorized**. Isto significa que a
+Vercel chama a rota todas as manhãs (06:00 UTC = 07:00 Lisboa no Inverno,
+08:00 no Verão), mas a rota recusa porque:
+
+1. **`CRON_SECRET` não existe nas Environment Variables** da Vercel, **ou**
+2. foi alterado e o deploy que está no ar ainda tem o valor antigo.
+
+Além disso, mesmo quando corre, as peças do **eBay** não eram actualizadas porque
+o eBay bloqueia a leitura da página a partir de servidores (HTTP 403). Com as
+chaves `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` o cron passa a usar a API oficial.
+
+### O que mudou no código
+
+- **Registo de cada execução** (tabela nova `price_refresh_runs`, criada sozinha):
+  quem chamou (cron ou botão manual), se correu, quantas peças verificou e o
+  motivo exacto quando é recusado.
+- **Painel "Did the daily job run?"** no admin, dentro do cartão *Refresh
+  marketplace prices*: mostra se `CRON_SECRET` e as chaves eBay estão definidas,
+  a hora da última execução agendada e as últimas 10 tentativas.
+- **eBay via API** no refresh de preços quando há chaves; sem chaves a peça fica
+  intocada (nunca é marcada como vendida por não conseguir ler).
+- **O cron já não devolve ao leilão uma peça que puseste em Site Only.** Antes,
+  se a leitura dissesse "live", o canal era forçado de volta a Catawiki/eBay.
+  Agora a tua decisão manual no admin prevalece; o cron só actualiza preço e só
+  arquiva/devolve a Site Only quando o leilão **terminou** (vendido/não vendido).
+
+### O que tens de fazer na Vercel (2 minutos)
+
+1. **Settings → Environment Variables** → verifica se existe `CRON_SECRET`.
+   - Se não existir: **Add** → Key `CRON_SECRET`, Value uma frase longa aleatória
+     (20+ caracteres), ambientes *Production* (+ Preview). **Save**.
+   - Se existir: deixa estar.
+2. **Deployments → ⋯ → Redeploy** (as variáveis só entram num deploy novo).
+3. No dia seguinte, `/admin` → cartão *Refresh marketplace prices* → o painel
+   mostra "Last scheduled run: <hora> — Checked N…".
+
+Para testar já, sem esperar pela manhã:
+`https://mediterranic.vercel.app/api/cron/refresh-prices?secret=O_TEU_CRON_SECRET`
+(responde com o relatório em JSON e fica registado no painel como "cron").

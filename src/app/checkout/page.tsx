@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 
 export default async function CheckoutPage() {
   const content = await getSiteContent();
+  const freeShipping = content.commerce.freeShipping;
   return (
     <div className="mx-auto max-w-7xl px-5 pb-28 pt-14 lg:px-8">
       <header className="mb-14 border-b border-ink/10 pb-10">
@@ -17,7 +18,7 @@ export default async function CheckoutPage() {
         <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">{content.checkout.title}</h1>
       </header>
       <Suspense fallback={<div className="skeleton h-[60vh] rounded-sm" />}>
-        <CheckoutForm />
+        <CheckoutForm freeShipping={freeShipping} />
       </Suspense>
     </div>
   );

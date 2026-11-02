@@ -239,6 +239,9 @@ export function ShopExplorer({
                     : "bg-parchment/80 text-ink/75 hover:bg-parchment hover:text-ink"
                 }`}
               >
+                {tab.id === "direct" && <span className="h-2 w-2 rounded-full bg-[#ff9f3d]" />}
+                {tab.id === "ebay" && <span className="h-2 w-2 rounded-full bg-[#0064D2]" />}
+                {tab.id === "catawiki" && <span className="h-2 w-2 rounded-full bg-[#0033FF]" />}
                 <span>{tab.label}</span>
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${

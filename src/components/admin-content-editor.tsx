@@ -151,6 +151,36 @@ export function AdminContentEditor({
               const key = field.path.join(".");
               const value = readContent(content, field.path);
 
+              if (field.type === "toggle") {
+                const on = Boolean(value);
+                return (
+                  <div key={key} className="md:col-span-2">
+                    <span className={labelClass}>{field.label}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      onClick={() => update(field.path, !on)}
+                      className={`mt-2 inline-flex h-11 items-center gap-3 rounded-full border px-4 text-sm transition ${
+                        on ? "border-sea bg-sea/10 text-ink" : "border-ink/20 bg-white text-ink/60"
+                      }`}
+                    >
+                      <span
+                        className={`relative h-6 w-11 rounded-full transition ${on ? "bg-sea" : "bg-ink/20"}`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                            on ? "left-[1.4rem]" : "left-0.5"
+                          }`}
+                        />
+                      </span>
+                      {on ? "On" : "Off"}
+                    </button>
+                    {field.hint && <p className="mt-2 text-[11px] text-ink/45">{field.hint}</p>}
+                  </div>
+                );
+              }
+
               if (field.type === "pairs") {
                 const items = (Array.isArray(value) ? value : []) as ContentPair[];
                 return (

@@ -169,6 +169,23 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * One row per scheduled/manual price refresh, so the back-office can show
+ * whether the daily job actually ran and what it found.
+ */
+export const priceRefreshRuns = pgTable("price_refresh_runs", {
+  id: serial("id").primaryKey(),
+  /** "cron" (Vercel schedule / external scheduler) or "manual" (admin button). */
+  source: text("source").notNull().default("manual"),
+  ok: boolean("ok").notNull().default(true),
+  checked: integer("checked").notNull().default(0),
+  changed: integer("changed").notNull().default(0),
+  ended: integer("ended").notNull().default(0),
+  /** Human-readable summary or the error message. */
+  summary: text("summary").notNull().default(""),
+  ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const productsRelations = relations(products, ({ many }) => ({
   reviews: many(reviews),
 }));

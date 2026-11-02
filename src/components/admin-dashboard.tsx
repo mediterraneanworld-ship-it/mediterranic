@@ -24,6 +24,7 @@ import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib
 import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
 import { AdminContentEditor } from "@/components/admin-content-editor";
+import { AdminCronStatus } from "@/components/admin-cron-status";
 import { readContent, type SiteContent } from "@/lib/site-content";
 
 type OrderEntry = {
@@ -259,6 +260,7 @@ export function AdminDashboard({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [cronStatusKey, setCronStatusKey] = useState(0);
   const [restoring, setRestoring] = useState(false);
   const [priceReport, setPriceReport] = useState<
     {
@@ -429,6 +431,7 @@ export function AdminDashboard({
       router.refresh();
     } finally {
       setRefreshing(false);
+      setCronStatusKey((k) => k + 1);
     }
   }
 
@@ -1188,6 +1191,8 @@ export function AdminDashboard({
               <strong>“Find my eBay listings”</strong> below, not by this button.
               </span>
             </div>
+
+            <AdminCronStatus refreshKey={cronStatusKey} />
 
             {priceReport && (
               <div className="mt-4 max-h-64 overflow-y-auto rounded-sm border border-ink/15 bg-white/85 p-3">

@@ -30,6 +30,15 @@ export default async function ArchivePage() {
         <div className="grid grid-cols-2 gap-x-4 gap-y-12 lg:grid-cols-4">
           {pieces.map((p) => (
             <Link key={p.slug} href={`/shop/${p.slug}`} className="group block">
+              {/* Above the photograph, so it never hides the specimen on a phone. */}
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="rounded-full bg-bone px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-ink/70">
+                  {copy.badge}
+                </span>
+                {p.period ? (
+                  <span className="text-[10px] uppercase tracking-[0.16em] text-ink/45">{p.period}</span>
+                ) : null}
+              </div>
               <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-bone">
                 {p.images[0] && (
                   <Image
@@ -40,9 +49,6 @@ export default async function ArchivePage() {
                     className="object-cover transition-transform duration-[1.2s] group-hover:scale-[1.05]"
                   />
                 )}
-                <span className="absolute right-3 top-3 rounded-full bg-ink/85 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-parchment">
-                  {copy.badge}
-                </span>
               </div>
               <h3 className="mt-4 font-display text-2xl leading-tight text-ink">{p.name}</h3>
               <p className="text-sm italic text-ink/60">{p.period ?? p.species}</p>

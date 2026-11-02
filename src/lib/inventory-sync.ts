@@ -3,11 +3,11 @@ import { db } from "@/db";
 import { inventorySyncState, products } from "@/db/schema";
 import { ensureSchema } from "@/lib/schema-migrate";
 import type { SiteSettings } from "@/lib/catalog";
-import { EbayApiError, ebayErrorMessage, ebaySellerFromUrl, getEbayItem, hasEbayCredentials, listEbaySellerItems, searchEbaySellerItems, type EbayItem } from "@/lib/ebay";
+import { EbayApiError, ebayErrorMessage, ebayMarketplace, ebaySellerFromUrl, getEbayItem, hasEbayCredentials, listEbaySellerItems, searchEbaySellerItems, type EbayItem } from "@/lib/ebay";
 import { discoverCatawikiInventory, parseCatawikiIdentity, readFreshMarketplaceText } from "@/lib/catawiki-inventory";
 import { canonicalListing, extractSpecimenReference, listingKey, matchListing, rememberListing, rememberedLinks, savedListing, specimenReferenceOf } from "@/lib/marketplace-links";
 import { attachMarketplaceListing } from "@/lib/marketplace-service";
-import { inventoryCounts, planInventoryReconciliation, type InventorySource, type InventorySyncReport, type RemoteListing } from "@/lib/inventory-rules";
+import { describeCatawikiMarketplace, describeEbayMarketplace, describeListingMarketplace, inventoryCounts, planInventoryReconciliation, type InventorySource, type InventorySyncReport, type RemoteListing } from "@/lib/inventory-rules";
 import { storeRemoteImages } from "@/lib/listing-import";
 import { parseListingText } from "@/lib/parse-listing";
 import { listingIdentityTokens } from "@/lib/marketplace-identity";
@@ -162,8 +162,13 @@ export async function synchronizeInventory(settings: SiteSettings, options: {
       linked: 0, created: 0, drafts: 0, held: 0, referencesLearned: 0, issues: [], counts: inventoryCounts([]), message: "Another synchronization is running.",
     }, hints };
   }
+  const ebayMarket = describeEbayMarketplace(ebayMarketplace()).label;
+  const catawikiMarket = describeCatawikiMarketplace(settings.catawikiUrl).label;
   const report: InventorySyncReport = { status: "running", startedAt, finishedAt: null,
-    sources: { ebay: { ok: false, complete: false, count: null }, catawiki: { ok: false, complete: false, count: null } },
+    sources: {
+      ebay: { ok: false, complete: false, count: null, marketplace: ebayMarket },
+      catawiki: { ok: false, complete: false, count: null, marketplace: catawikiMarket },
+    },
     linked: 0, created: 0, drafts: 0, held: 0, referencesLearned: 0, issues: [], counts: inventoryCounts([]) };
   try {
     const original = scope(await db.select().from(products));
@@ -180,14 +185,22 @@ export async function synchronizeInventory(settings: SiteSettings, options: {
     const catchSource = async (task: () => Promise<InventorySource>, name: string) => {
       try { return await task(); } catch (error) { return unavailable(name === "eBay" ? ebayErrorMessage(error) : error instanceof Error ? error.message : `${name} inventory could not be read.`); }
     };
-    const [ebay, catawiki] = await Promise.all([
+    const [rawEbay, rawCatawiki] = await Promise.all([
       options.sources ? Promise.resolve(options.sources.ebay) : catchSource(() => discoverEbay(settings, original, signal), "eBay"),
       options.sources ? Promise.resolve(options.sources.catawiki) : catchSource(() => discoverCatawikiInventory(settings.catawikiUrl, signal), "Catawiki"),
       loadIdentities(),
     ]);
+    const ebay: InventorySource = { ...rawEbay, marketplace: rawEbay.marketplace || ebayMarket };
+    const catawiki: InventorySource = { ...rawCatawiki, marketplace: rawCatawiki.marketplace || catawikiMarket };
     const sources: Sources = { ebay, catawiki };
     for (const [channel, source] of Object.entries(sources)) {
-      report.sources[channel as "ebay" | "catawiki"] = { ok: source.ok, complete: source.complete, count: source.count, ...(source.error ? { error: source.error } : {}) };
+      report.sources[channel as "ebay" | "catawiki"] = {
+        ok: source.ok,
+        complete: source.complete,
+        count: source.count,
+        marketplace: source.marketplace,
+        ...(source.error ? { error: source.error } : {}),
+      };
       for (const listing of source.listings) hints.set(listing.url, { cents: listing.priceCents, status: "live" });
     }
     // Bootstrap stable catalogue IDs from the previously saved Catawiki page;
@@ -232,7 +245,16 @@ export async function synchronizeInventory(settings: SiteSettings, options: {
         await attachMarketplaceListing({ productId: entry.productId, channel: entry.listing.channel, url: entry.listing.url, priceCents: entry.listing.priceCents, identityTokens: entry.listing.identityTokens,
           expected: { listingChannel: before.listingChannel, priceCents: before.priceCents, externalListingUrl: before.externalListingUrl } });
         report.linked++;
-      } catch (error) { report.issues.push({ url: entry.listing.url, title: entry.listing.title, channel: entry.listing.channel, candidateIds: [entry.productId], message: error instanceof Error ? error.message : "The link could not be reconciled." }); }
+      } catch (error) {
+        report.issues.push({
+          url: entry.listing.url,
+          title: entry.listing.title,
+          channel: entry.listing.channel,
+          marketplace: describeListingMarketplace(entry.listing.url, entry.listing.channel, sources[entry.listing.channel].marketplace),
+          candidateIds: [entry.productId],
+          message: error instanceof Error ? error.message : "The link could not be reconciled.",
+        });
+      }
     }
     for (const hold of plan.holds) {
       const before = original.find((p) => p.id === hold.productId)!;
@@ -270,11 +292,17 @@ export async function synchronizeInventory(settings: SiteSettings, options: {
     }
 
     for (const listing of plan.imports) {
-      if (signal.aborted) { report.issues.push({ url: listing.url, title: listing.title, channel: listing.channel, candidateIds: [], message: "Automatic import deferred by the run time limit; it will be retried." }); continue; }
+      const market = describeListingMarketplace(listing.url, listing.channel, sources[listing.channel].marketplace);
+      if (signal.aborted) {
+        report.issues.push({ url: listing.url, title: listing.title, channel: listing.channel, marketplace: market, candidateIds: [], message: "Automatic import deferred by the run time limit; it will be retried." });
+        continue;
+      }
       try {
         const imported = await importNewListing(listing, signal);
         if (imported.created) { if (imported.productId) allowedIds?.add(imported.productId); if (imported.draft) report.drafts++; else report.created++; }
-      } catch (error) { report.issues.push({ url: listing.url, title: listing.title, channel: listing.channel, candidateIds: [], message: error instanceof Error ? error.message : "Automatic import could not finish." }); }
+      } catch (error) {
+        report.issues.push({ url: listing.url, title: listing.title, channel: listing.channel, marketplace: market, candidateIds: [], message: error instanceof Error ? error.message : "Automatic import could not finish." });
+      }
     }
     report.counts = inventoryCounts(scope(await db.select().from(products)));
     report.status = Object.values(sources).every((source) => source.ok && source.complete && !source.error) && !report.issues.length && !report.drafts && !signal.aborted ? "complete" : "partial";

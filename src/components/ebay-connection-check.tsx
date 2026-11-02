@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatPrice } from "@/lib/format";
+import { describeEbayMarketplace } from "@/lib/inventory-rules";
 
 type Probe = {
   ok?: boolean;
@@ -87,11 +88,11 @@ export function EbayConnectionCheck({ onSellerDetected }: { onSellerDetected?: (
         )}
       </p>
 
-      {configured && (
+      {config && (
         <dl className="mt-3 space-y-1 rounded-sm bg-bone/50 p-3 text-ink/75">
           <div>
-            <dt className="inline font-medium">Marketplace: </dt>
-            <dd className="inline">{config?.marketplace ?? "—"}</dd>
+            <dt className="inline font-medium">Country / Marketplace: </dt>
+            <dd className="inline">{describeEbayMarketplace(config.marketplace).label}</dd>
           </div>
           <div>
             <dt className="inline font-medium">Seller name used: </dt>
@@ -101,10 +102,10 @@ export function EbayConnectionCheck({ onSellerDetected }: { onSellerDetected?: (
                 : "not resolved — set EBAY_SELLER_USERNAME or paste a live listing URL below"}
             </dd>
           </div>
-          {config?.sellerUsernameOverride && (
+          {config.sellerUsernameOverride && (
             <div className="text-sea">EBAY_SELLER_USERNAME override is set.</div>
           )}
-          {!config?.sellerUsernameOverride && storeSeller && (
+          {!config.sellerUsernameOverride && storeSeller && (
             <div className="text-ink/55">
               Taken from the store URL. A store name is not guaranteed to be the seller account name.
             </div>

@@ -359,15 +359,22 @@ export default async function HomePage() {
       <section id="provenance" className="scroll-mt-24 mx-auto max-w-7xl px-5 py-28 lg:px-8">
         <div className="grid items-center gap-16 lg:grid-cols-2">
           <Reveal>
-            <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-bone">
-              <Image
-                src={c.provenance.image || story?.images[0]?.src || "/images/seafloor-plate.jpg"}
-                alt="A whole seafloor sealed in stone"
-                fill
-                sizes="(min-width: 1024px) 40vw, 100vw"
-                className="object-cover"
-              />
-              <div className="absolute bottom-5 left-5 right-5 rounded-sm bg-parchment/95 p-5 backdrop-blur">
+            <div className="relative">
+              <div className="relative aspect-[4/5] overflow-hidden rounded-sm bg-bone">
+                <Image
+                  src={c.provenance.image || story?.images[0]?.src || "/images/seafloor-plate.jpg"}
+                  alt="A whole seafloor sealed in stone"
+                  fill
+                  sizes="(min-width: 1024px) 40vw, 100vw"
+                  className="object-cover"
+                />
+                <span className="absolute right-4 top-4 rounded-full bg-ink/80 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-parchment backdrop-blur">
+                  {c.provenance.imageBadge}
+                </span>
+              </div>
+              {/* Normal-flow card: translating by -15% of its own height leaves
+                  exactly 85% of the quote below the photograph, including mobile. */}
+              <div className="relative z-10 mx-4 -translate-y-[15%] rounded-sm border border-ink/10 bg-parchment p-5 shadow-[0_18px_45px_-30px_rgba(12,27,38,0.55)] sm:mx-5">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-brass">
                   {c.provenance.badge}
                 </p>
@@ -375,9 +382,6 @@ export default async function HomePage() {
                   &ldquo;{c.provenance.quote}&rdquo;
                 </p>
               </div>
-              <span className="absolute right-4 top-4 rounded-full bg-ink/80 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-parchment backdrop-blur">
-                {c.provenance.imageBadge}
-              </span>
             </div>
           </Reveal>
 
@@ -525,9 +529,15 @@ export default async function HomePage() {
               rel="noopener noreferrer"
               className="cw-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Auctions</p>
-                <p className="mt-2 font-display text-3xl text-white">Catawiki</p>
+                <Image
+                  src="/images/catawiki-logo-white.svg"
+                  alt="Catawiki"
+                  width={195}
+                  height={65}
+                  className="mt-3 h-12 w-auto max-w-full object-contain object-left"
+                />
                 <p className="mt-1 text-sm text-white/85">Weekly Natural History auctions</p>
               </div>
               <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />

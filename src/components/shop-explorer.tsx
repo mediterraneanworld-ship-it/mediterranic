@@ -9,12 +9,13 @@ import { COLLECTIONS, getCollection } from "@/lib/collections";
 import type { ProductWithStats } from "@/lib/catalog";
 import { collectionsOf } from "@/lib/product-collections";
 import { inventoryCounts, offeredSpecimen } from "@/lib/inventory-rules";
+import { normalizeShopChannel, normalizeShopPeriod, SHOP_PERIODS, shopPeriodFromLabel, type ShopChannel, type ShopPeriod } from "@/lib/shop-links";
 import type { SiteContent } from "@/lib/site-content";
 
 type Category = "all" | "specimen" | "accessory";
-type Period = "all" | "Cambrian" | "Ordovician" | "Devonian";
+type Period = "all" | ShopPeriod;
 type PriceBand = "all" | "under-500" | "500-1500" | "over-1500";
-type Channel = "all" | "direct" | "catawiki" | "ebay";
+type Channel = "all" | ShopChannel;
 type Sort = "featured" | "price-asc" | "price-desc" | "rating" | "name";
 
 type Filters = {
@@ -77,42 +78,41 @@ export function ShopExplorer({
   products,
   initialCollection,
   initialChannel = "all",
+  initialPeriod = "all",
   copy,
   inventoryStatus,
 }: {
   products: ProductWithStats[];
   initialCollection: string;
   initialChannel?: string;
+  initialPeriod?: string;
   copy: SiteContent["shop"];
   inventoryStatus?: ReactNode;
 }) {
-  const validInitialChannel: Channel =
-    initialChannel === "direct" || initialChannel === "catawiki" || initialChannel === "ebay"
-      ? initialChannel
-      : "all";
+  const validInitialChannel: Channel = normalizeShopChannel(initialChannel);
+  const validInitialPeriod = normalizeShopPeriod(initialPeriod);
 
   const [filters, setFilters] = useState<Filters>({
     ...DEFAULT_FILTERS,
     collection: getCollection(initialCollection) ? initialCollection : "all",
     channel: validInitialChannel,
+    period: validInitialPeriod,
   });
   const [sort, setSort] = useState<Sort>("featured");
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Header links change the URL while this component stays mounted
-  // (e.g. /shop -> /shop?channel=ebay). Follow the URL so every link works.
+  // Header and specimen-label links change the URL while this component stays
+  // mounted (e.g. /shop -> /shop?period=Cambrian). Follow every category link.
   useEffect(() => {
     const collection = getCollection(initialCollection) ? initialCollection : "all";
-    const channel: Channel =
-      initialChannel === "direct" || initialChannel === "catawiki" || initialChannel === "ebay"
-        ? initialChannel
-        : "all";
+    const channel: Channel = normalizeShopChannel(initialChannel);
+    const period = normalizeShopPeriod(initialPeriod);
     setFilters((prev) =>
-      prev.collection === collection && prev.channel === channel
+      prev.collection === collection && prev.channel === channel && prev.period === period
         ? prev
-        : { ...DEFAULT_FILTERS, collection, channel },
+        : { ...DEFAULT_FILTERS, collection, channel, period },
     );
-  }, [initialCollection, initialChannel]);
+  }, [initialCollection, initialChannel, initialPeriod]);
 
   const update = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((f) => ({ ...f, [key]: value }));
@@ -140,7 +140,7 @@ export function ShopExplorer({
         } else if (pieceChannel !== filters.channel) return false;
       }
       if (filters.category !== "all" && p.category !== filters.category) return false;
-      if (filters.period !== "all" && p.period !== filters.period) return false;
+      if (filters.period !== "all" && shopPeriodFromLabel(p.period) !== filters.period) return false;
       // A piece without a public price (unavailable) never matches a price band.
       if (filters.price !== "all" && (!p.priceCents || !matchesPrice(p.priceCents, filters.price))) return false;
       if (filters.inStockOnly && p.stock <= 0) return false;
@@ -572,7 +572,7 @@ function FilterPanel({
       </FilterGroup>
 
       <FilterGroup title="Geological period">
-        {(["all", "Cambrian", "Ordovician", "Devonian"] as Period[]).map((value) => (
+        {(["all", ...SHOP_PERIODS] as Period[]).map((value) => (
           <Option
             key={value}
             name="period"

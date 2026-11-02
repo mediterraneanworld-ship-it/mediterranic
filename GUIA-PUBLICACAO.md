@@ -32,6 +32,13 @@ ficheiro é ainda mais completo (inclui campos privados como "When in Site
 Only", colecções, destaque, certificados) e deve ser usado por cima:
 restaurá-lo em `/admin` → `⬆ Restore from file` no preview.
 
+**Regra obrigatória de comunicação para o programador:**
+- O ficheiro de arranque para novos chats vive em `CONTEXTO-NOVO-CHAT.md` (e em
+  `public/CONTEXTO-NOVO-CHAT.md`).
+- **Em TODAS as respostas**, o programador tem **sempre** de incluir os links
+  completos de **Produção** (`https://mediterranic.vercel.app`) e os links
+  actuais do **Sandbox / Preview** da sessão.
+
 ---
 
 ## 1. Criar a base de dados (Neon)
@@ -994,3 +1001,21 @@ Aceita `PAIS9676` ou `9676`. O núcleo de 4 dígitos é a chave de correspondên
 pelo que uma peça sem prefixo é reconhecida num anúncio com prefixo. Anos não são
 confundidos com referências. Uma referência diferente nunca é fundida com outra
 peça. Se a REF não for introduzida, a loja tenta aprendê-la do link do anúncio.
+
+
+---
+
+## 31. "Further from the same shelf", país/marketplace e links obrigatórios
+
+- **"Further from the same shelf" (`src/lib/shelf-recommendations.ts`):** na
+  página de cada peça (`/shop/[slug]`), esta secção mostra apenas peças da
+  **mesma Era geológica** (`period`, com fallback para a colecção correspondente
+  se o período estiver vazio). As peças **disponíveis** aparecem sempre
+  primeiro; as peças **Unavailable** passam para o fim e **só são apresentadas
+  se não existirem 4 peças disponíveis dessa mesma Era geológica**.
+- **Painel de sincronização (`Inventory synchronization` e `Diagnose eBay API`):**
+  apresenta sempre o **país/marketplace** activo de cada fonte e a barra de
+  **excepções** (distinguindo `feed not verified` de `0 pending`).
+- **Instruções para novo chat (`CONTEXTO-NOVO-CHAT.md`):** inclui a regra
+  obrigatória de apresentar em **todas** as respostas os links de **Produção** e
+  os links actuais de **Sandbox / Preview**.

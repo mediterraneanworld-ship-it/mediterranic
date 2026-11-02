@@ -74,3 +74,64 @@ test('one confirmed photo+copy signature recognizes a new eBay number without a 
  const plan=rules.planInventoryReconciliation([p],{ebay:feed([listing]),catawiki:feed([])});assert.equal(plan.links.length,1);assert.equal(plan.issues.length,0);
  const ambiguous=links.matchListing(listing,[p,{...p,id:2}]);assert.equal(ambiguous.productId,undefined);assert.equal(ambiguous.kind,'candidate');
 });
+
+test('country/marketplace descriptors and exception metadata are preserved for sync panel visibility',()=>{
+ assert.equal(rules.describeEbayMarketplace('EBAY_ES').label,'EBAY_ES · Spain (ebay.es)');
+ assert.equal(rules.describeEbayMarketplace(null).label,'EBAY_US · United States (ebay.com)');
+ assert.equal(rules.describeCatawikiMarketplace('https://www.catawiki.com/en/u/3881635-mediterranic').label,'International / EU (catawiki.com/en · EUR)');
+ assert.equal(rules.describeCatawikiMarketplace('https://www.catawiki.com/pt/l/108133994').label,'Portugal (catawiki.com/pt · EUR)');
+ assert.equal(rules.describeListingMarketplace('https://www.ebay.fr/itm/999999900001','ebay','EBAY_US').includes('France'),true);
+ const specimens=[1,2].map(id=>({id,name:'Testus '+id,species:'Testus testus',published:true,archived:false,stock:1,listingChannel:'direct'}));
+ const esFeed={...feed([{...remote('ebay','999999900001'),url:'https://www.ebay.es/itm/999999900001'}]),marketplace:rules.describeEbayMarketplace('EBAY_ES').label};
+ const plan=rules.planInventoryReconciliation(specimens,{ebay:esFeed,catawiki:feed([])});
+ assert.equal(plan.issues.length,1);
+ assert.equal(plan.issues[0].marketplace,'EBAY_ES · Spain (ebay.es)');
+});
+
+test('Further from the same shelf keeps only same geological Era, puts available first, and omits unavailable when enough exist',()=>{
+ const shelf=load('src/lib/shelf-recommendations.ts',{'@/lib/product-visibility':visibility});
+ const item=(id,slug,period,available,archived=false)=>({
+  id,slug,period,collection:/cambrian/i.test(period)?'cambrian-dawn':/devonian/i.test(period)?'devonian-crown':'ordovician-mariners',
+  published:true,featured:false,archived,stock:available?1:0,listingChannel:available?'ebay':null
+ });
+ const catalogue=[
+  item(1,'dicranurus','Devonian',true),
+  item(2,'agerina','Ordovician',false,true),
+  item(3,'bigotina','Cambrian',true),
+  item(4,'daguinaspis-unavail','Cambrian',false,true),
+  item(5,'fezouata','Ordovician',true),
+  item(6,'daguinaspis-avail','Cambrian',true),
+  item(7,'bigotinops','Lower Cambrian',true),
+  item(8,'cyphaspis','Devonian',true),
+  item(9,'perrector-unavail','Cambrian',false,false),
+  item(10,'perrector-avail','Cambrian',true),
+  item(11,'comura-unavail','Devonian',false,true),
+ ];
+ // Viewing an unavailable Cambrian piece: 4 available Cambrian exist -> 0 unavailable shown
+ const enough=shelf.selectSameShelfProducts(catalogue[8],catalogue,4);
+ assert.deepEqual(Array.from(enough,p=>p.slug),['bigotina','daguinaspis-avail','bigotinops','perrector-avail']);
+ assert.equal(enough.every(p=>visibility.isAvailable(p)),true);
+
+ // Viewing bigotina (Cambrian): 3 other available Cambrian exist -> 3 available first + 1 unavailable Cambrian at the end
+ const padded=shelf.selectSameShelfProducts(catalogue[2],catalogue,4);
+ assert.deepEqual(Array.from(padded,p=>p.slug),['daguinaspis-avail','bigotinops','perrector-avail','perrector-unavail']);
+
+ // Viewing cyphaspis (Devonian): 1 available Devonian first + 1 unavailable Devonian at the end; no Cambrian/Ordovician mixed in
+ const devonian=shelf.selectSameShelfProducts(catalogue[7],catalogue,4);
+ assert.deepEqual(Array.from(devonian,p=>p.slug),['dicranurus','comura-unavail']);
+});
+
+test('specimen period and channel labels resolve the same filters accepted by the shop URL',()=>{
+ const shop=load('src/lib/shop-links.ts');
+ assert.equal(shop.shopPeriodHref('Cambrian'),'/shop?period=Cambrian');
+ assert.equal(shop.shopPeriodHref('Lower Cambrian'),'/shop?period=Cambrian');
+ assert.equal(shop.shopPeriodFromLabel('Middle Devonian'),'Devonian');
+ assert.equal(shop.shopPeriodHref('Unknown'),null);
+ assert.equal(shop.normalizeShopPeriod('Ordovician'),'Ordovician');
+ assert.equal(shop.normalizeShopPeriod('Jurassic'),'all');
+ assert.equal(shop.shopChannelHref('ebay'),'/shop?channel=ebay');
+ assert.equal(shop.shopChannelHref('catawiki'),'/shop?channel=catawiki');
+ assert.equal(shop.shopChannelHref('direct'),'/shop?channel=direct');
+ assert.equal(shop.shopChannelHref(null),null);
+ assert.equal(shop.normalizeShopChannel('invalid'),'all');
+});

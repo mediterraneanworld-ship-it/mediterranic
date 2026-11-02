@@ -18,6 +18,7 @@ import {
   getSiteSettings,
 } from "@/lib/catalog";
 import { isAvailable } from "@/lib/product-visibility";
+import { selectSameShelfProducts } from "@/lib/shelf-recommendations";
 import { getCollection } from "@/lib/collections";
 import { collectionsOf } from "@/lib/product-collections";
 import { formatDate, formatPrice } from "@/lib/format";
@@ -170,15 +171,7 @@ export default async function ProductPage({ params }: Props) {
 
   const productCollections = collectionsOf(product);
   const collection = getCollection(productCollections[0] ?? product.collection);
-  const related = allProducts
-    .filter((p) => p.slug !== product.slug)
-    .map((p) => ({
-      p,
-      score: (p.collection === product.collection ? 2 : 0) + (p.period === product.period ? 1 : 0),
-    }))
-    .sort((a, b) => b.score - a.score || a.p.id - b.p.id)
-    .slice(0, 4)
-    .map((x) => x.p);
+  const related = selectSameShelfProducts(product, allProducts, 4);
 
   const totalReviews = reviews.length;
   const video = resolveVideo(product.videoUrl);

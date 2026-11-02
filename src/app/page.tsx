@@ -509,8 +509,7 @@ export default async function HomePage() {
               href={settings.ebayUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ backgroundImage: "linear-gradient(90deg, #E53238 0 25%, #0064D2 25% 50%, #F5AF02 50% 75%, #86B817 75% 100%)" }}
-              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="ebay-quad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Marketplace</p>
@@ -524,8 +523,7 @@ export default async function HomePage() {
               href={settings.catawikiUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ backgroundImage: "linear-gradient(135deg, #0033FF 0%, #2b5cff 100%)" }}
-              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="cw-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Auctions</p>
@@ -553,8 +551,7 @@ export default async function HomePage() {
               href={settings.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ backgroundImage: "linear-gradient(45deg, #FCAF45 0%, #E1306C 45%, #833AB4 100%)" }}
-              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="ig-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Photography</p>
@@ -568,8 +565,7 @@ export default async function HomePage() {
               href={settings.facebookUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ backgroundImage: "linear-gradient(135deg, #1877F2 0%, #0a5dc2 100%)" }}
-              className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="fb-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Community</p>
@@ -584,8 +580,7 @@ export default async function HomePage() {
                 href={`https://wa.me/${settings.whatsappPhone.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ backgroundImage: "linear-gradient(135deg, #25D366 0%, #128C4A 100%)" }}
-                className="group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+                className="wa-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
               >
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Direct</p>

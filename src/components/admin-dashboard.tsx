@@ -1079,403 +1079,9 @@ export function AdminDashboard({
     "w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-sea focus:ring-2 focus:ring-sea/15";
   const labelClass = "block text-[11px] uppercase tracking-[0.2em] text-ink/65 mb-1.5";
 
-  return (
-    <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-8">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-brass">Mediterranic · Curator Studio</p>
-          <h1 className="mt-2 font-display text-5xl text-ink">Curator Admin</h1>
-          <p className="mt-2 text-sm text-ink/65">
-            Switch specimens between <strong>Site Only</strong>, <strong>Live on Catawiki</strong>,{" "}
-            <strong>Live on eBay</strong>, or <strong>mark it unavailable</strong> in one click, upload real photographs, and edit
-            storefront texts.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <a
-            href="/mediterranic.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-brass px-5 text-xs font-semibold uppercase tracking-[0.18em] text-ink hover:bg-ink hover:text-parchment"
-          >
-            Open Pure HTML Version (mediterranic.html) <ExternalLink size={13} />
-          </a>
-          <Link
-            href="/"
-            className="inline-flex h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs uppercase tracking-[0.18em] text-ink hover:border-ink"
-          >
-            View Public Storefront <ExternalLink size={13} />
-          </Link>
-          <button
-            type="button"
-            onClick={() => void onSignOut()}
-            className="inline-flex h-11 items-center gap-2 rounded-full border border-ink/15 px-4 text-xs uppercase tracking-[0.18em] text-ink/70 hover:text-terracotta"
-          >
-            <LogOut size={14} /> Sign Out
-          </button>
-        </div>
-      </div>
-
-      {feedback && (
-        <div className="mt-6 flex items-center justify-between rounded-sm bg-sea px-5 py-3.5 text-sm text-parchment shadow">
-          <span className="flex items-center gap-2">
-            <Check size={16} /> {feedback}
-          </span>
-          <button type="button" onClick={() => setFeedback(null)}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-
-      {publishedSlug && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-brass/50 bg-brass/15 px-5 py-3.5 text-sm">
-          <span className="flex items-center gap-2 font-medium text-ink">
-            <Check size={16} className="text-sea" /> New specimen published and live on your storefront.
-          </span>
-          <span className="flex items-center gap-2">
-            <a
-              href={`/shop/${publishedSlug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-sea"
-            >
-              View on storefront <ExternalLink size={12} />
-            </a>
-            <button
-              type="button"
-              onClick={() => setPublishedSlug(null)}
-              className="rounded-full p-1.5 text-ink/50 hover:text-ink"
-              aria-label="Dismiss"
-            >
-              <X size={14} />
-            </button>
-          </span>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="mt-8 flex flex-wrap gap-2 border-b border-ink/10 pb-4">
-        <button
-          type="button"
-          onClick={() => setTab("products")}
-          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
-            tab === "products" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
-          }`}
-        >
-          <Package size={15} /> 1. Specimens &amp; Marketplace Labels ({initialProducts.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("settings")}
-          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
-            tab === "settings" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
-          }`}
-        >
-          <Settings size={15} /> 2. Fixed Storefront Texts &amp; Links (eBay / Catawiki)
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("orders")}
-          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
-            tab === "orders" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
-          }`}
-        >
-          <ShoppingBag size={15} /> 3. Orders ({orders.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("newsletter")}
-          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
-            tab === "newsletter" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
-          }`}
-        >
-          <Mail size={15} /> 4. Newsletter ({subscribers.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("content")}
-          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
-            tab === "content" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
-          }`}
-        >
-          <Edit3 size={15} /> 5. Page texts &amp; photos
-        </button>
-      </div>
-
-      {/* TAB 1: PRODUCTS */}
-      {tab === "products" && (
-        <div className="mt-10">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="font-display text-3xl text-ink">Specimens Catalogue</h2>
-              <p className="text-sm text-ink/60">
-                While a piece is on auction, click <strong>On Catawiki</strong> or <strong>On eBay</strong>. If it does
-                not sell there, click <strong>Site Only</strong> and it returns immediately to direct sale on the site.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEditing({ ...EMPTY_PRODUCT })}
-              className="inline-flex h-12 items-center gap-2 rounded-full bg-terracotta px-6 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-ink"
-            >
-              <Plus size={16} /> Add New Specimen
-            </button>
-          </div>
-
-          {/* Backup & restore — protects back-office work across deployments */}
-          <div className="mb-4 rounded-sm border-2 border-ink/25 bg-white/80 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
-              Backup &amp; restore
-            </p>
-            <p className="mt-1 text-xs text-ink/65">
-              Download a full copy of the shop — every piece, photograph setting, price and all the
-              storefront text — before any development work. If anything is ever lost, the same file puts
-              it all back.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <a
-                href="/api/admin/backup"
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea"
-              >
-                ⬇ Download backup
-              </a>
-              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-ink/25 px-5 text-[11px] uppercase tracking-[0.16em] text-ink transition hover:border-ink">
-                {restoring ? "Restoring…" : "⬆ Restore from file"}
-                <input
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={handleRestoreBackup}
-                  disabled={restoring}
-                  className="sr-only"
-                />
-              </label>
-              <span className="text-[11px] text-ink/55">
-                Restoring never deletes: pieces are matched by name and updated.
-              </span>
-            </div>
-          </div>
-
-          <InventorySyncPanel specimens={initialProducts.map((p) => ({ id: p.id, name: p.name, archived: p.archived }))} refreshKey={runsKey} />
-
-          {/* Automatic marketplace price refresh */}
-          <div className="mb-4 rounded-sm border-2 border-brass/40 bg-brass/10 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
-              Refresh marketplace prices
-            </p>
-            <p className="mt-1 text-xs text-ink/65">
-              Reads the current bid from Catawiki and the current price from your eBay store, and updates the shop.
-              If an auction has <strong>ended</strong>, the piece is automatically marked <strong>Unavailable</strong>
-              (price hidden). Runs once a day — or press the button now.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleRefreshPrices}
-                disabled={refreshing}
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea disabled:opacity-50"
-              >
-                {refreshing ? "Checking listings…" : "Check prices now"}
-              </button>
-              <span className="text-[11px] text-ink/55">
-                Only pieces that are <strong>already on the site</strong> are checked. A brand-new listing is brought in by{" "}
-              <strong>“Find my eBay listings”</strong> below, not by this button.
-              </span>
-            </div>
-
-            <AdminCronStatus refreshKey={runsKey} />
-
-            {priceReport && (
-              <div className="mt-4 max-h-64 overflow-y-auto rounded-sm border border-ink/15 bg-white/85 p-3">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="text-[9px] uppercase tracking-[0.18em] text-ink/50">
-                    <tr>
-                      <th className="pb-2">Specimen</th>
-                      <th className="pb-2">Channel</th>
-                      <th className="pb-2">Was</th>
-                      <th className="pb-2">Now</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ink/10">
-                    {priceReport.map((r) => (
-                      <tr key={r.name + r.channel}>
-                        <td className="py-1.5 pr-2 text-ink">{r.name}</td>
-                        <td className="py-1.5 pr-2 text-ink/60">{r.channel}</td>
-                        <td className="py-1.5 pr-2 text-ink/60">€{(r.previousCents / 100).toFixed(0)}</td>
-                        <td className="py-1.5">
-                          {r.status === "sold" || r.status === "ended" ? (
-                            <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] uppercase tracking-wider text-parchment">
-                              Sold → Archive
-                            </span>
-                          ) : r.status === "unsold" ? (
-                            <span className="rounded-full bg-sea px-2 py-0.5 text-[10px] uppercase tracking-wider text-parchment">
-                              Unsold → Site Only €{((r.currentCents ?? 0) / 100).toFixed(0)}
-                            </span>
-                          ) : r.currentCents === null ? (
-                            <span className="text-terracotta">{r.error ?? "not read"}</span>
-                          ) : (
-                            <span className={r.currentCents !== r.previousCents ? "font-semibold text-sea" : "text-ink/60"}>
-                              €{(r.currentCents / 100).toFixed(0)}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* eBay store sync */}
-          <div className="mb-4 rounded-sm border-2 border-sea/30 bg-sea/5 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
-              Sync all trilobite listings from your eBay store
-            </p>
-            <p className="mt-1 text-xs text-ink/65">
-              Paste your eBay store link. Only trilobites are listed — seashells and minerals are filtered out
-              automatically. Each listing comes in with its photograph <strong>and goes live straight away</strong> at
-              the eBay price, marked “Live on eBay”. If eBay did not show a price, the piece is saved as a draft for
-              you to complete. Existing specimens are not overwritten by discovery or import.
-            </p>
-            <div className="mt-3"><EbayConnectionCheck onSellerDetected={(seller) => setEbaySellerUrl(`https://www.ebay.com/usr/${encodeURIComponent(seller)}`)} /></div>
-            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-              <input
-                value={ebaySellerUrl}
-                onChange={(e) => setEbaySellerUrl(e.target.value)}
-                placeholder="https://www.ebay.com/str/mederranic"
-                className="w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
-              />
-              <button
-                type="button"
-                onClick={findEbayLots}
-                disabled={sellerBusy}
-                className="inline-flex h-9 items-center justify-center rounded-full bg-sea px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-ink disabled:opacity-50"
-              >
-                {sellerBusy ? "Working…" : "Find my eBay listings"}
-              </button>
-            </div>
-
-            {sellerSource === "ebay" && renderSellerResults()}
-
-            {/* Paste is a fallback if the API is not available. */}
-            <details className="mt-3 rounded-sm border border-ink/15 bg-white/80 p-3">
-              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-ink">
-                eBay blocking? Paste the listing here — no keys needed
-              </summary>
-              <p className="mt-2 text-xs text-ink/65">
-                Open the listing in your browser, select everything (<kbd>Ctrl</kbd>+<kbd>A</kbd>), copy and paste it
-                below. Right-click the main photo → <em>Copy image address</em> and paste it in the second box. We read
-                the title, price, description and keep the photos in the shop database.
-              </p>
-              <textarea
-                value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
-                rows={5}
-                placeholder="Paste the listing text (or the page source) here…"
-                className="mt-3 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-xs outline-none focus:border-sea"
-              />
-              <textarea
-                value={pastedPhotos}
-                onChange={(e) => setPastedPhotos(e.target.value)}
-                rows={2}
-                placeholder="Photo addresses, one per line — https://i.ebayimg.com/images/g/…"
-                className="mt-2 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-xs outline-none focus:border-sea"
-              />
-              <button
-                type="button"
-                onClick={handlePastedListing}
-                disabled={pastingBusy}
-                className="mt-2 inline-flex h-9 items-center justify-center rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-terracotta disabled:opacity-50"
-              >
-                {pastingBusy ? "Reading…" : "Read pasted listing"}
-              </button>
-            </details>
-          </div>
-
-          {/* Catawiki seller sync */}
-          <div className="mb-4 rounded-sm border-2 border-brass/40 bg-brass/10 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
-              Sync all lots from your Catawiki seller page
-            </p>
-            <p className="mt-1 text-xs text-ink/65">
-              Paste your seller page link once. All live auctions are listed, and each one is imported with its photos,
-              title, species and period — saved as a <strong>draft</strong>, never live, so nothing wrong reaches the shop.
-              Catawiki does not expose price or exact locality reliably to automated reading: confirm those two fields,
-              then press <strong>Publish</strong>.
-            </p>
-            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
-              <input
-                value={sellerUrl}
-                onChange={(e) => setSellerUrl(e.target.value)}
-                placeholder="https://www.catawiki.com/en/u/3881635-mediterranic"
-                className="w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
-              />
-              <button
-                type="button"
-                onClick={findSellerLots}
-                disabled={sellerBusy}
-                className="inline-flex h-9 items-center justify-center rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-sea disabled:opacity-50"
-              >
-                {sellerBusy ? "Working…" : "Find my lots"}
-              </button>
-
-            </div>
-            {sellerSource === "catawiki" && renderSellerResults()}
-          </div>
-
-          {/* Import from eBay / Catawiki */}
-          <div className="mb-8 rounded-sm border border-ink/15 bg-bone/60 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
-              Import a specimen — enter once, publish everywhere
-            </p>
-            <p className="mt-1 text-xs text-ink/65">
-              Catawiki blocks automatic reading, so paste the lot text below (title, description, details). Species, period,
-              age, locality, size, price and photos are read automatically, and the English sales copy is written for you.
-            </p>
-
-            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-              <input
-                value={importUrl}
-                onChange={(e) => setImportUrl(e.target.value)}
-                placeholder="Listing link (optional, e.g. https://www.catawiki.com/en/l/... or https://www.ebay.com/itm/...)"
-                className="w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
-              />
-              <button
-                type="button"
-                onClick={handleImportFromUrl}
-                disabled={importingUrl || !importUrl.trim()}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea disabled:opacity-50"
-              >
-                {importingUrl ? "Reading…" : "Try reading link"}
-              </button>
-            </div>
-
-            <textarea
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              rows={4}
-              placeholder="Paste here the Catawiki/eBay lot text, e.g. 'Trilobite - Gerastos - Devonian - 6.9 cm - Locality: Alnif, Morocco - No restoration - €450'"
-              className="mt-2 w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
-            />
-
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleParsePastedText}
-                disabled={parsingText}
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-terracotta px-5 text-[11px] uppercase tracking-[0.18em] text-parchment transition hover:bg-ink disabled:opacity-50"
-              >
-                {parsingText ? "Reading text…" : "Read pasted text & fill the form"}
-              </button>
-              <span className="text-[11px] text-ink/55">
-                No double typing: one entry here becomes your website page, Catawiki listing and eBay listing.
-              </span>
-            </div>
-          </div>
-
-          {/* Product Editor Form */}
-          {editing && (
+  // The specimen editor renders inline, directly under the row being edited,
+  // so the list never has to be scrolled past to reach the form.
+  const editorForm = editing ? (
             <form
               onSubmit={handleSaveProduct}
               className="mb-12 rounded-sm border-2 border-sea/30 bg-white p-6 shadow-xl md:p-8"
@@ -2101,7 +1707,406 @@ export function AdminDashboard({
                 </button>
               </div>
             </form>
-          )}
+  ) : null;
+
+  return (
+    <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-8">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-brass">Mediterranic · Curator Studio</p>
+          <h1 className="mt-2 font-display text-5xl text-ink">Curator Admin</h1>
+          <p className="mt-2 text-sm text-ink/65">
+            Switch specimens between <strong>Site Only</strong>, <strong>Live on Catawiki</strong>,{" "}
+            <strong>Live on eBay</strong>, or <strong>mark it unavailable</strong> in one click, upload real photographs, and edit
+            storefront texts.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="/mediterranic.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-brass px-5 text-xs font-semibold uppercase tracking-[0.18em] text-ink hover:bg-ink hover:text-parchment"
+          >
+            Open Pure HTML Version (mediterranic.html) <ExternalLink size={13} />
+          </a>
+          <Link
+            href="/"
+            className="inline-flex h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs uppercase tracking-[0.18em] text-ink hover:border-ink"
+          >
+            View Public Storefront <ExternalLink size={13} />
+          </Link>
+          <button
+            type="button"
+            onClick={() => void onSignOut()}
+            className="inline-flex h-11 items-center gap-2 rounded-full border border-ink/15 px-4 text-xs uppercase tracking-[0.18em] text-ink/70 hover:text-terracotta"
+          >
+            <LogOut size={14} /> Sign Out
+          </button>
+        </div>
+      </div>
+
+      {feedback && (
+        <div className="mt-6 flex items-center justify-between rounded-sm bg-sea px-5 py-3.5 text-sm text-parchment shadow">
+          <span className="flex items-center gap-2">
+            <Check size={16} /> {feedback}
+          </span>
+          <button type="button" onClick={() => setFeedback(null)}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {publishedSlug && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-brass/50 bg-brass/15 px-5 py-3.5 text-sm">
+          <span className="flex items-center gap-2 font-medium text-ink">
+            <Check size={16} className="text-sea" /> New specimen published and live on your storefront.
+          </span>
+          <span className="flex items-center gap-2">
+            <a
+              href={`/shop/${publishedSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-sea"
+            >
+              View on storefront <ExternalLink size={12} />
+            </a>
+            <button
+              type="button"
+              onClick={() => setPublishedSlug(null)}
+              className="rounded-full p-1.5 text-ink/50 hover:text-ink"
+              aria-label="Dismiss"
+            >
+              <X size={14} />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="mt-8 flex flex-wrap gap-2 border-b border-ink/10 pb-4">
+        <button
+          type="button"
+          onClick={() => setTab("products")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "products" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Package size={15} /> 1. Specimens &amp; Marketplace Labels ({initialProducts.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("settings")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "settings" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Settings size={15} /> 2. Fixed Storefront Texts &amp; Links (eBay / Catawiki)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("orders")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "orders" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <ShoppingBag size={15} /> 3. Orders ({orders.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("newsletter")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "newsletter" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Mail size={15} /> 4. Newsletter ({subscribers.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("content")}
+          className={`inline-flex items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "content" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Edit3 size={15} /> 5. Page texts &amp; photos
+        </button>
+      </div>
+
+      {/* TAB 1: PRODUCTS */}
+      {tab === "products" && (
+        <div className="mt-10">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-3xl text-ink">Specimens Catalogue</h2>
+              <p className="text-sm text-ink/60">
+                While a piece is on auction, click <strong>On Catawiki</strong> or <strong>On eBay</strong>. If it does
+                not sell there, click <strong>Site Only</strong> and it returns immediately to direct sale on the site.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing({ ...EMPTY_PRODUCT })}
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-terracotta px-6 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-ink"
+            >
+              <Plus size={16} /> Add New Specimen
+            </button>
+          </div>
+
+          {/* Backup & restore — protects back-office work across deployments */}
+          <div className="mb-4 rounded-sm border-2 border-ink/25 bg-white/80 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
+              Backup &amp; restore
+            </p>
+            <p className="mt-1 text-xs text-ink/65">
+              Download a full copy of the shop — every piece, photograph setting, price and all the
+              storefront text — before any development work. If anything is ever lost, the same file puts
+              it all back.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <a
+                href="/api/admin/backup"
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea"
+              >
+                ⬇ Download backup
+              </a>
+              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-ink/25 px-5 text-[11px] uppercase tracking-[0.16em] text-ink transition hover:border-ink">
+                {restoring ? "Restoring…" : "⬆ Restore from file"}
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleRestoreBackup}
+                  disabled={restoring}
+                  className="sr-only"
+                />
+              </label>
+              <span className="text-[11px] text-ink/55">
+                Restoring never deletes: pieces are matched by name and updated.
+              </span>
+            </div>
+          </div>
+
+          <InventorySyncPanel specimens={initialProducts.map((p) => ({ id: p.id, name: p.name, archived: p.archived }))} refreshKey={runsKey} />
+
+          {/* Automatic marketplace price refresh */}
+          <div className="mb-4 rounded-sm border-2 border-brass/40 bg-brass/10 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
+              Refresh marketplace prices
+            </p>
+            <p className="mt-1 text-xs text-ink/65">
+              Reads the current bid from Catawiki and the current price from your eBay store, and updates the shop.
+              If an auction has <strong>ended</strong>, the piece is automatically marked <strong>Unavailable</strong>
+              (price hidden). Runs once a day — or press the button now.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleRefreshPrices}
+                disabled={refreshing}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea disabled:opacity-50"
+              >
+                {refreshing ? "Checking listings…" : "Check prices now"}
+              </button>
+              <span className="text-[11px] text-ink/55">
+                Only pieces that are <strong>already on the site</strong> are checked. A brand-new listing is brought in by{" "}
+              <strong>“Find my eBay listings”</strong> below, not by this button.
+              </span>
+            </div>
+
+            <AdminCronStatus refreshKey={runsKey} />
+
+            {priceReport && (
+              <div className="mt-4 max-h-64 overflow-y-auto rounded-sm border border-ink/15 bg-white/85 p-3">
+                <table className="w-full text-left text-[11px]">
+                  <thead className="text-[9px] uppercase tracking-[0.18em] text-ink/50">
+                    <tr>
+                      <th className="pb-2">Specimen</th>
+                      <th className="pb-2">Channel</th>
+                      <th className="pb-2">Was</th>
+                      <th className="pb-2">Now</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink/10">
+                    {priceReport.map((r) => (
+                      <tr key={r.name + r.channel}>
+                        <td className="py-1.5 pr-2 text-ink">{r.name}</td>
+                        <td className="py-1.5 pr-2 text-ink/60">{r.channel}</td>
+                        <td className="py-1.5 pr-2 text-ink/60">€{(r.previousCents / 100).toFixed(0)}</td>
+                        <td className="py-1.5">
+                          {r.status === "sold" || r.status === "ended" ? (
+                            <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] uppercase tracking-wider text-parchment">
+                              Sold → Archive
+                            </span>
+                          ) : r.status === "unsold" ? (
+                            <span className="rounded-full bg-sea px-2 py-0.5 text-[10px] uppercase tracking-wider text-parchment">
+                              Unsold → Site Only €{((r.currentCents ?? 0) / 100).toFixed(0)}
+                            </span>
+                          ) : r.currentCents === null ? (
+                            <span className="text-terracotta">{r.error ?? "not read"}</span>
+                          ) : (
+                            <span className={r.currentCents !== r.previousCents ? "font-semibold text-sea" : "text-ink/60"}>
+                              €{(r.currentCents / 100).toFixed(0)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* eBay store sync */}
+          <div className="mb-4 rounded-sm border-2 border-sea/30 bg-sea/5 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
+              Sync all trilobite listings from your eBay store
+            </p>
+            <p className="mt-1 text-xs text-ink/65">
+              Paste your eBay store link. Only trilobites are listed — seashells and minerals are filtered out
+              automatically. Each listing comes in with its photograph <strong>and goes live straight away</strong> at
+              the eBay price, marked “Live on eBay”. If eBay did not show a price, the piece is saved as a draft for
+              you to complete. Existing specimens are not overwritten by discovery or import.
+            </p>
+            <div className="mt-3"><EbayConnectionCheck onSellerDetected={(seller) => setEbaySellerUrl(`https://www.ebay.com/usr/${encodeURIComponent(seller)}`)} /></div>
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+              <input
+                value={ebaySellerUrl}
+                onChange={(e) => setEbaySellerUrl(e.target.value)}
+                placeholder="https://www.ebay.com/str/mederranic"
+                className="w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
+              />
+              <button
+                type="button"
+                onClick={findEbayLots}
+                disabled={sellerBusy}
+                className="inline-flex h-9 items-center justify-center rounded-full bg-sea px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-ink disabled:opacity-50"
+              >
+                {sellerBusy ? "Working…" : "Find my eBay listings"}
+              </button>
+            </div>
+
+            {sellerSource === "ebay" && renderSellerResults()}
+
+            {/* Paste is a fallback if the API is not available. */}
+            <details className="mt-3 rounded-sm border border-ink/15 bg-white/80 p-3">
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-ink">
+                eBay blocking? Paste the listing here — no keys needed
+              </summary>
+              <p className="mt-2 text-xs text-ink/65">
+                Open the listing in your browser, select everything (<kbd>Ctrl</kbd>+<kbd>A</kbd>), copy and paste it
+                below. Right-click the main photo → <em>Copy image address</em> and paste it in the second box. We read
+                the title, price, description and keep the photos in the shop database.
+              </p>
+              <textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                rows={5}
+                placeholder="Paste the listing text (or the page source) here…"
+                className="mt-3 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-xs outline-none focus:border-sea"
+              />
+              <textarea
+                value={pastedPhotos}
+                onChange={(e) => setPastedPhotos(e.target.value)}
+                rows={2}
+                placeholder="Photo addresses, one per line — https://i.ebayimg.com/images/g/…"
+                className="mt-2 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-xs outline-none focus:border-sea"
+              />
+              <button
+                type="button"
+                onClick={handlePastedListing}
+                disabled={pastingBusy}
+                className="mt-2 inline-flex h-9 items-center justify-center rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-terracotta disabled:opacity-50"
+              >
+                {pastingBusy ? "Reading…" : "Read pasted listing"}
+              </button>
+            </details>
+          </div>
+
+          {/* Catawiki seller sync */}
+          <div className="mb-4 rounded-sm border-2 border-brass/40 bg-brass/10 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
+              Sync all lots from your Catawiki seller page
+            </p>
+            <p className="mt-1 text-xs text-ink/65">
+              Paste your seller page link once. All live auctions are listed, and each one is imported with its photos,
+              title, species and period — saved as a <strong>draft</strong>, never live, so nothing wrong reaches the shop.
+              Catawiki does not expose price or exact locality reliably to automated reading: confirm those two fields,
+              then press <strong>Publish</strong>.
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+              <input
+                value={sellerUrl}
+                onChange={(e) => setSellerUrl(e.target.value)}
+                placeholder="https://www.catawiki.com/en/u/3881635-mediterranic"
+                className="w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
+              />
+              <button
+                type="button"
+                onClick={findSellerLots}
+                disabled={sellerBusy}
+                className="inline-flex h-9 items-center justify-center rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-sea disabled:opacity-50"
+              >
+                {sellerBusy ? "Working…" : "Find my lots"}
+              </button>
+
+            </div>
+            {sellerSource === "catawiki" && renderSellerResults()}
+          </div>
+
+          {/* Import from eBay / Catawiki */}
+          <div className="mb-8 rounded-sm border border-ink/15 bg-bone/60 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
+              Import a specimen — enter once, publish everywhere
+            </p>
+            <p className="mt-1 text-xs text-ink/65">
+              Catawiki blocks automatic reading, so paste the lot text below (title, description, details). Species, period,
+              age, locality, size, price and photos are read automatically, and the English sales copy is written for you.
+            </p>
+
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+              <input
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                placeholder="Listing link (optional, e.g. https://www.catawiki.com/en/l/... or https://www.ebay.com/itm/...)"
+                className="w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
+              />
+              <button
+                type="button"
+                onClick={handleImportFromUrl}
+                disabled={importingUrl || !importUrl.trim()}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-ink px-5 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea disabled:opacity-50"
+              >
+                {importingUrl ? "Reading…" : "Try reading link"}
+              </button>
+            </div>
+
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              rows={4}
+              placeholder="Paste here the Catawiki/eBay lot text, e.g. 'Trilobite - Gerastos - Devonian - 6.9 cm - Locality: Alnif, Morocco - No restoration - €450'"
+              className="mt-2 w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2 text-xs outline-none focus:border-sea"
+            />
+
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleParsePastedText}
+                disabled={parsingText}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-terracotta px-5 text-[11px] uppercase tracking-[0.18em] text-parchment transition hover:bg-ink disabled:opacity-50"
+              >
+                {parsingText ? "Reading text…" : "Read pasted text & fill the form"}
+              </button>
+              <span className="text-[11px] text-ink/55">
+                No double typing: one entry here becomes your website page, Catawiki listing and eBay listing.
+              </span>
+            </div>
+          </div>
+
+          {/* New specimen (no row yet): the editor sits above the table. */}
+          {editing && editing.id === null && editorForm}
+
 
           {/* Product Table */}
           <div className="overflow-x-auto rounded-sm border border-ink/10 bg-white/70">
@@ -2120,6 +2125,7 @@ export function AdminDashboard({
                   const isSold = p.stock <= 0;
                   const channel = p.listingChannel ?? "direct";
                   return (
+                    <>
                     <tr key={p.id} className="hover:bg-white">
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
@@ -2244,6 +2250,17 @@ export function AdminDashboard({
                         </div>
                       </td>
                     </tr>
+                    {/* Editor inline, immediately below the piece being edited */}
+                    {editing && editing.id === p.id && (
+                      <tr className="hover:bg-transparent">
+                        <td colSpan={5} className="bg-bone/40 p-0 align-top">
+                          <div className="m-3 md:m-4 [&>form]:mb-0 [&>form]:shadow-none">
+                            {editorForm}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </>
                   );
                 })}
               </tbody>

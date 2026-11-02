@@ -8,6 +8,7 @@ import { ProductCard } from "@/components/product-card";
 import { COLLECTIONS, getCollection } from "@/lib/collections";
 import type { ProductWithStats } from "@/lib/catalog";
 import { collectionsOf } from "@/lib/product-collections";
+import { inventoryCounts, offeredSpecimen } from "@/lib/inventory-rules";
 import type { SiteContent } from "@/lib/site-content";
 
 type Category = "all" | "specimen" | "accessory";
@@ -77,11 +78,13 @@ export function ShopExplorer({
   initialCollection,
   initialChannel = "all",
   copy,
+  inventoryStatus,
 }: {
   products: ProductWithStats[];
   initialCollection: string;
   initialChannel?: string;
   copy: SiteContent["shop"];
+  inventoryStatus?: ReactNode;
 }) {
   const validInitialChannel: Channel =
     initialChannel === "direct" || initialChannel === "catawiki" || initialChannel === "ebay"
@@ -127,6 +130,7 @@ export function ShopExplorer({
   const results = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
     const filtered = products.filter((p) => {
+      if (!offeredSpecimen(p)) return false;
       if (filters.collection !== "all" && !collectionsOf(p).includes(filters.collection)) return false;
       // Unavailable pieces (no channel) only appear under "All specimens".
       const pieceChannel = p.listingChannel;
@@ -172,12 +176,7 @@ export function ShopExplorer({
   const reset = () => setFilters(DEFAULT_FILTERS);
 
   const channelCounts = useMemo(
-    () => ({
-      all: products.length,
-      direct: products.filter((p) => p.listingChannel === "direct").length,
-      ebay: products.filter((p) => p.listingChannel === "ebay").length,
-      catawiki: products.filter((p) => p.listingChannel === "catawiki").length,
-    }),
+    () => inventoryCounts(products),
     [products],
   );
 
@@ -212,9 +211,11 @@ export function ShopExplorer({
           </p>
         </div>
         <p className="font-display text-xl italic text-ink/55 md:text-right">
-          {products.length} pieces currently in the cabinet
+          {channelCounts.all} specimens currently offered
         </p>
       </header>
+
+      {inventoryStatus}
 
       {/* 3-Channel Quick Switcher Bar */}
       <div className="mb-12 flex flex-wrap items-center justify-between gap-4 rounded-sm border border-ink/10 bg-bone/60 p-3">

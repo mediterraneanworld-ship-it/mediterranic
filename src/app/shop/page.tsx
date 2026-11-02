@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { ShopExplorer } from "@/components/shop-explorer";
+import { InventoryStatus } from "@/components/inventory-status";
 import { getAllProducts, getSiteContent } from "@/lib/catalog";
 import { publicProducts } from "@/lib/product-visibility";
+import { offeredSpecimen } from "@/lib/inventory-rules";
 import { getCollection } from "@/lib/collections";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +25,7 @@ export default async function ShopPage({ searchParams }: Props) {
   const { collection, channel } = await searchParams;
   const [products, content] = await Promise.all([getAllProducts(), getSiteContent()]);
   // Unavailable pieces lose their price before reaching the browser.
-  const visible = publicProducts(products.filter((p) => !p.archived));
+  const visible = publicProducts(products.filter(offeredSpecimen));
 
   return (
     <ShopExplorer
@@ -31,6 +33,7 @@ export default async function ShopPage({ searchParams }: Props) {
       initialCollection={collection ?? "all"}
       initialChannel={channel ?? "all"}
       copy={content.shop}
+      inventoryStatus={<InventoryStatus />}
     />
   );
 }

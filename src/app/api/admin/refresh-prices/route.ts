@@ -1,6 +1,5 @@
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { logPriceRefreshRun, refreshMarketplacePrices } from "@/lib/refresh-prices";
-import { getSiteSettings } from "@/lib/catalog";
+import { getRecentPriceRuns, runLoggedRefresh } from "@/lib/price-runs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -10,29 +9,24 @@ export async function POST() {
   if (!(await isAdminAuthenticated())) {
     return Response.json({ error: "Unauthorized." }, { status: 401 });
   }
-
-  const settings = await getSiteSettings();
-  const ebayStoreUrl =
-    process.env.EBAY_STORE_URL || settings.ebayUrl || "https://www.ebay.com/str/mederranic";
-
   try {
-    const report = await refreshMarketplacePrices(ebayStoreUrl);
-    const unreadable = report.results.filter((r) => r.error).length;
-    await logPriceRefreshRun({
-      source: "manual",
-      ok: true,
-      checked: report.checked,
-      changed: report.changed,
-      ended: report.ended,
-      summary: `Checked ${report.checked}, changed ${report.changed}, ended ${report.ended}${
-        unreadable ? `, ${unreadable} could not be read` : ""
-      }.`,
-    });
+    const report = await runLoggedRefresh("manual");
     return Response.json(report);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    await logPriceRefreshRun({ source: "manual", ok: false, summary: `Failed: ${message}` });
     console.error("Price refresh failed", error);
     return Response.json({ error: "Could not refresh prices." }, { status: 500 });
   }
+}
+
+/** History of automatic and manual checks, plus whether the cron is configured. */
+export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  const runs = await getRecentPriceRuns(15);
+  return Response.json({
+    // Only a yes/no — the secret itself never leaves the server.
+    cronSecretConfigured: Boolean(process.env.CRON_SECRET?.trim()),
+    runs,
+  });
 }

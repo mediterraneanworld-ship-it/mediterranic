@@ -27,6 +27,7 @@ function when(iso: string) {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Europe/Lisbon",
   });
 }
 
@@ -44,6 +45,8 @@ export function AdminCronStatus({ refreshKey = 0 }: { refreshKey?: number }) {
     try {
       const res = await fetch("/api/admin/cron-status", { cache: "no-store" });
       if (res.ok) setStatus((await res.json()) as Status);
+    } catch {
+      // Keep the last known result if the network is temporarily unavailable.
     } finally {
       setLoading(false);
     }
@@ -84,8 +87,8 @@ export function AdminCronStatus({ refreshKey = 0 }: { refreshKey?: number }) {
           <span>
             <strong>CRON_SECRET</strong>{" "}
             {status.cronSecretConfigured
-              ? "is set — Vercel can authenticate the job."
-              : "is NOT set. Vercel calls the job every morning but it is refused. Add CRON_SECRET in Vercel → Settings → Environment Variables, then Redeploy."}
+              ? "is set — check the actual executions below; this alone does not prove the schedule ran."
+              : "is NOT set on this deployment. Add CRON_SECRET in Vercel → Settings → Environment Variables, then redeploy to authorise scheduled calls."}
           </span>
         </li>
         <li className="flex items-start gap-2">
@@ -97,7 +100,7 @@ export function AdminCronStatus({ refreshKey = 0 }: { refreshKey?: number }) {
           <span>
             <strong>eBay API keys</strong>{" "}
             {status.ebayApiConfigured
-              ? "are set — eBay prices are read through the official API."
+              ? "are set — use Test eBay API to verify authorisation. Each scheduled run reconciles active inventories before checking prices."
               : "are NOT set. eBay blocks server reads (HTTP 403), so eBay pieces are left unchanged until EBAY_CLIENT_ID / EBAY_CLIENT_SECRET are added. Catawiki is unaffected."}
           </span>
         </li>
@@ -132,7 +135,7 @@ export function AdminCronStatus({ refreshKey = 0 }: { refreshKey?: number }) {
       )}
       {last && !last.ok && (
         <p className="mt-2 text-terracotta">
-          The most recent attempt failed — see the reason above. Nothing in the catalogue was changed by a failed run.
+          The most recent attempt was incomplete or failed — see the reason above. Unreadable listings are kept unchanged; other listings may have been updated.
         </p>
       )}
     </div>

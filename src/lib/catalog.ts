@@ -4,6 +4,8 @@ import { newsletterSubscribers, orderItems, orders, products, reviews, siteSetti
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
 import { mergeContent, type SiteContent } from "@/lib/site-content";
+import { publicProduct, publicProducts } from "@/lib/product-visibility";
+import { safeContent } from "@/lib/public-copy";
 
 export type Product = typeof products.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
@@ -79,7 +81,8 @@ export async function getAllProducts({ includeDrafts = false } = {}): Promise<Pr
     ).orderBy(asc(products.id)),
     statsByProduct(),
   ]);
-  return attachStats(list, stats);
+  const result = attachStats(list, stats);
+  return includeDrafts ? result : publicProducts(result);
 }
 
 export async function getProductBySlug(
@@ -94,7 +97,8 @@ export async function getProductBySlug(
     .limit(1);
   if (!product) return null;
   const stats = await statsByProduct();
-  return attachStats([product], stats)[0];
+  const result = attachStats([product], stats)[0];
+  return includeDrafts ? result : publicProduct(result);
 }
 
 export async function getProductReviews(productId: number): Promise<Review[]> {
@@ -180,7 +184,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
  */
 export async function getSiteContent(): Promise<SiteContent> {
   const settings = await getSiteSettings();
-  return mergeContent(settings.content);
+  return safeContent(mergeContent(settings.content));
 }
 
 export async function getAllOrdersWithItems() {

@@ -108,7 +108,7 @@ export async function buildOrder(input: OrderInput): Promise<BuiltOrder> {
   const lines = input.items.map((item) => {
     const product = bySlug.get(item.slug);
     if (!product) throw new OrderError("One of the specimens in your cart is no longer available.", 409);
-    if (!product.listingChannel || product.archived) {
+    if (!product.published || product.listingChannel !== "direct" || product.archived || product.priceCents <= 0) {
       throw new OrderError(`${product.name} is not available for direct purchase right now.`, 409);
     }
     if (product.stock < item.quantity) {
@@ -148,7 +148,8 @@ export async function insertOrder(
   built: BuiltOrder,
   extra: { status: string; paymentMethod: string; paypalOrderId?: string | null },
 ): Promise<string> {
-  const [order] = await db
+  return db.transaction(async (tx) => {
+    const [order] = await tx
     .insert(orders)
     .values({
       email: input.email,
@@ -170,37 +171,40 @@ export async function insertOrder(
     })
     .returning({ id: orders.id });
 
-  await db.insert(orderItems).values(built.lines.map((line) => ({ ...line, orderId: order.id })));
-  return order.id;
+    await tx.insert(orderItems).values(built.lines.map((line) => ({ ...line, orderId: order.id })));
+    return order.id;
+  });
 }
 
 /**
  * Confirms a pending order: decrements stock atomically and flips the status.
  * Used after a successful PayPal capture.
  */
-export async function confirmOrder(orderId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+type OrderTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function confirmOrder(orderId: string, transaction?: OrderTransaction): Promise<void> {
+  const confirm = async (tx: OrderTransaction) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1).for("update");
     if (!order) throw new OrderError("Order not found.", 404);
     if (order.status === "confirmed") return;
-    if (order.status !== "pending_payment") {
+    if (order.status !== "pending_payment" && order.status !== "payment_pending" && order.status !== "payment_review") {
       throw new OrderError("This order is no longer awaiting payment.", 409);
     }
-
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-    for (const line of items) {
-      const updated = await tx
-        .update(products)
+    for (const line of [...items].sort((a, b) => a.productId - b.productId)) {
+      const [updated] = await tx.update(products)
         .set({ stock: sql`${products.stock} - ${line.quantity}` })
-        .where(and(eq(products.id, line.productId), gte(products.stock, line.quantity)))
-        .returning({ id: products.id });
-      if (updated.length === 0) {
-        throw new OrderError(`${line.productName} has just sold out. Please contact us.`, 409);
+        .where(and(eq(products.id, line.productId), eq(products.listingChannel, "direct"), eq(products.published, true), eq(products.archived, false), gte(products.stock, line.quantity)))
+        .returning({ id: products.id, stock: products.stock });
+      if (!updated) throw new OrderError(`${line.productName} is no longer available. Please contact us before paying again.`, 409);
+      if (updated.stock === 0) {
+        await tx.update(products).set({ archived: true, listingChannel: null }).where(eq(products.id, updated.id));
       }
     }
-
     await tx.update(orders).set({ status: "confirmed" }).where(eq(orders.id, orderId));
-  });
+  };
+  if (transaction) return confirm(transaction);
+  return db.transaction(confirm);
 }
 
 export async function markOrderStatus(

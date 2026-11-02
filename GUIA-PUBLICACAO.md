@@ -20,8 +20,12 @@ node scripts/pull-live.cjs https://mediterranic.vercel.app
   que faltam, **nunca apaga**.
 - Fotografias guardadas na base de dados da loja (`/api/uploads/N`) são
   descarregadas e re-mapeadas para a base local.
-- Os dados de produção (Neon) **nunca são tocados** por este script — é só
-  leitura do site público.
+- Os dados de produção (Neon) **nunca devem ser usados como destino** deste
+  script: só executar com uma base de dados local de desenvolvimento.
+- As páginas públicas são uma vista parcial: não permitem obter rascunhos,
+  preços privados, todos os textos editáveis ou o histórico do cron. A consulta
+  pública não substitui um backup autenticado. Nunca prometer que é um espelho
+  completo nem restaurar esse espelho para produção.
 
 Se o dono da loja enviar um ficheiro de backup (`⬇ Download backup`), esse
 ficheiro é ainda mais completo (inclui campos privados como "When in Site
@@ -110,10 +114,9 @@ Marcar as três opções: *Production*, *Preview* e *Development*.
    (`PAYPAL_CLIENT_ID` e `PAYPAL_SECRET`) nas Environment Variables da Vercel.
 2. **Importar o catálogo antigo** de `www.mediterranic.com` (galerias numeradas,
    ex.: *9588 Koneprusia dahmani*).
-3. **Subdomínio** `shop.mediterranic.com` — na Vercel: *Settings → Domains → Add*
-   `shop.mediterranic.com`; no DNS do domínio: um **CNAME** `shop` →
-   `cname.vercel-dns.com`. Depois actualizar `NEXT_PUBLIC_SITE_URL` para
-   `https://shop.mediterranic.com` (o `sitemap.ts` já usa este endereço por omissão).
+3. **Domínio próprio, só no fim do projecto:** `mediterranic.com` (e `www`).
+   Até essa decisão, manter a loja em `mediterranic.vercel.app`, sem alterar
+   DNS, o SmugMug ou os domínios configurados na Vercel.
 4. **Limitação de pedidos** (*rate limiting*) para proteger o checkout.
 5. **Cópias de segurança** — o Neon faz cópias automáticas nos planos pagos.
 
@@ -161,9 +164,11 @@ qualquer peça criada depois do backup fica intacta.
 
 ## Notas técnicas
 
-- O catálogo vive em `src/lib/seed-data.ts` e os textos em `src/lib/seed-settings.ts`.
-  Tudo o que alterar no back-office tem de ser capturado para esses ficheiros antes
-  de um novo deploy, senão é reposto.
+- Peças, preços, fotografias carregadas e textos editados vivem no **Neon**.
+  `src/lib/seed-data.ts` e `src/lib/seed-settings.ts` são apenas valores iniciais:
+  o catálogo só é preenchido se a tabela de peças estiver vazia. Um deploy não
+  repõe os valores do admin nem apaga dados existentes. Nunca copiar um `.env`
+  de desenvolvimento para substituir as variáveis da Vercel.
 - O automático dos preços corre **uma vez por dia às 06:00** (`vercel.json`). O plano
   gratuito da Vercel (Hobby) só permite um cron diário. Para mais frequência:
   - **Plano Pro da Vercel** (~20 €/mês): mude `"schedule"` para `"*/30 * * * *"`.
@@ -693,46 +698,299 @@ trânsito e o preço (ou "Free", quando o envio grátis está ligado).
 
 ---
 
-## 25. Porque o cron da manhã não correu — e como ver isso no admin
+## 25. Porque o cron diário não corria — e como fica
 
-### Diagnóstico
+### 25.1 Diagnóstico
 
-O endereço do cron online responde **401 Unauthorized**. Isto significa que a
-Vercel chama a rota todas as manhãs (06:00 UTC = 07:00 Lisboa no Inverno,
-08:00 no Verão), mas a rota recusa porque:
+- A rota `/api/cron/refresh-prices` está publicada (responde 401 sem segredo).
+- A Vercel só envia o segredo ao cron se a variável **`CRON_SECRET`** existir no
+  projecto. Sem ela, a Vercel chama a rota todos os dias às 06:00 UTC, mas a rota
+  **recusa em silêncio** (401). Não havia registo nenhum, por isso ninguém via.
+- O eBay bloqueia servidores (403); o Catawiki lê-se via leitor. Por isso as duas
+  peças eBay aparecem como "could not be read" até haver chaves da API do eBay.
 
-1. **`CRON_SECRET` não existe nas Environment Variables** da Vercel, **ou**
-2. foi alterado e o deploy que está no ar ainda tem o valor antigo.
+### 25.2 O que mudou
 
-Além disso, mesmo quando corre, as peças do **eBay** não eram actualizadas porque
-o eBay bloqueia a leitura da página a partir de servidores (HTTP 403). Com as
-chaves `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` o cron passa a usar a API oficial.
+- **Histórico de verificações** em `/admin` → cartão *Refresh marketplace
+  prices* → **Check history**: cada execução (automática Vercel, agendador
+  externo ou manual) fica registada com data (hora de Lisboa), resultado e, se
+  for recusada, o motivo exacto. Tabela nova `price_check_runs` (criada sozinha).
+- Aviso vermelho **"CRON_SECRET missing in Vercel"** quando a variável não existe.
+- **Blindagem eBay:** uma página de "verificação anti-robô" do eBay nunca é lida
+  como "anúncio terminado" — antes podia arquivar uma peça viva como vendida.
+- **Preços de Site Only protegidos:** numa peça já em Site Only, uma leitura
+  incerta do leilão já não reescreve o preço do site. Só um leilão confirmado a
+  decorrer devolve a peça ao canal do marketplace.
 
-### O que mudou no código
+### 25.3 O que tens de fazer (2 minutos)
 
-- **Registo de cada execução** (tabela nova `price_refresh_runs`, criada sozinha):
-  quem chamou (cron ou botão manual), se correu, quantas peças verificou e o
-  motivo exacto quando é recusado.
-- **Painel "Did the daily job run?"** no admin, dentro do cartão *Refresh
-  marketplace prices*: mostra se `CRON_SECRET` e as chaves eBay estão definidas,
-  a hora da última execução agendada e as últimas 10 tentativas.
-- **eBay via API** no refresh de preços quando há chaves; sem chaves a peça fica
-  intocada (nunca é marcada como vendida por não conseguir ler).
-- **O cron já não devolve ao leilão uma peça que puseste em Site Only.** Antes,
-  se a leitura dissesse "live", o canal era forçado de volta a Catawiki/eBay.
-  Agora a tua decisão manual no admin prevalece; o cron só actualiza preço e só
-  arquiva/devolve a Site Only quando o leilão **terminou** (vendido/não vendido).
+1. Vercel → **Settings → Environment Variables** → procurar `CRON_SECRET`.
+   - Se não existir: **Add** → nome `CRON_SECRET`, valor = uma frase longa
+     inventada (20+ caracteres, só letras e números), ambiente **Production**,
+     *Sensitive* ligado → **Save**.
+2. **Deployments → ⋯ → Redeploy** (as variáveis só valem após novo deploy).
+3. No dia seguinte, `/admin` → *Check history* deve mostrar
+   "Automatic (Vercel, daily) · N checked".
 
-### O que tens de fazer na Vercel (2 minutos)
+### 25.4 Agendador externo (recomendado, mais fiável)
 
-1. **Settings → Environment Variables** → verifica se existe `CRON_SECRET`.
-   - Se não existir: **Add** → Key `CRON_SECRET`, Value uma frase longa aleatória
-     (20+ caracteres), ambientes *Production* (+ Preview). **Save**.
-   - Se existir: deixa estar.
-2. **Deployments → ⋯ → Redeploy** (as variáveis só entram num deploy novo).
-3. No dia seguinte, `/admin` → cartão *Refresh marketplace prices* → o painel
-   mostra "Last scheduled run: <hora> — Checked N…".
-
-Para testar já, sem esperar pela manhã:
+O cron gratuito da Vercel corre uma vez por dia, a uma hora aproximada dentro da
+hora marcada. Para várias verificações por dia e um histórico próprio:
+**cron-job.org** → *Create cronjob* → URL
 `https://mediterranic.vercel.app/api/cron/refresh-prices?secret=O_TEU_CRON_SECRET`
-(responde com o relatório em JSON e fica registado no painel como "cron").
+→ a cada 2 ou 3 horas. Aparece no histórico como "external scheduler".
+
+
+---
+
+## 26. Entrega eBay com chaves de Production já colocadas na Vercel
+
+### Publicar
+
+1. No admin **da loja online**, descarregar **Download backup**.
+2. Descompactar `mediterranic-update.zip` e copiar o conteúdo para a pasta local
+   do projecto. O ZIP não contém `.env`, `.git`, `node_modules`, base de dados,
+   credenciais nem o próprio ZIP dentro de si.
+3. GitHub Desktop → **Commit** → **Push origin**. A Vercel cria um deployment
+   novo e lê as variáveis já guardadas.
+4. Promover para Production se a Vercel o pedir. Não criar outro projecto,
+   não mudar o Neon, não voltar a introduzir nem partilhar as chaves.
+5. Admin online → cartão **eBay** → **Test eBay API**. O teste consulta um
+   anúncio e mostra o resultado, o nome de vendedor devolvido, fotos e preço em
+   euros. **Não cria nem altera peças.**
+6. **Find my eBay listings** → resultados no próprio cartão eBay → **Import all
+   new** ou **Import this**. Depois, **Check prices now** para actualizar as
+   peças já existentes. O cron usa o mesmo leitor da API.
+
+### Variáveis que este ZIP usa (só no servidor)
+
+- `EBAY_CLIENT_ID`: App ID da chave **Production**.
+- `EBAY_CLIENT_SECRET`: Cert ID do mesmo conjunto de chaves.
+- `EBAY_MARKETPLACE_ID`: opcional; por omissão `EBAY_US`.
+- `EBAY_SELLER_USERNAME`: opcional, caso o nome da montra não seja o nome de
+  utilizador. Também se pode colocar a ligação `/usr/<utilizador>` na caixa de
+  pesquisa, em vez de `/str/<montra>`.
+- `CRON_SECRET`: continua necessário para autorizar as chamadas do agendador.
+  A presença desta variável não prova, por si só, que o cron executou: confirmar
+  em **Check history** e nos logs da Vercel.
+
+**Chaves na Vercel não aparecem automaticamente no sandbox de desenvolvimento.**
+Se aqui disser "No eBay keys on this deployment", isso não quer dizer que faltem
+na Vercel. Testar no admin do deployment onde foram configuradas.
+
+### Garantias de comportamento e limites
+
+- Conta aprovada, chaves detectadas e acesso à API são três verificações
+  diferentes. O teste pode mostrar credenciais rejeitadas, keyset desactivado,
+  acesso Production recusado (403), limite de chamadas ou artigo inexistente.
+  Não se esconde um erro da API atrás da mensagem "o HTML foi bloqueado".
+- A pesquisa inclui leilões e preço fixo na categoria Rocks, Fossils & Minerals,
+  com filtro de vendedor e exclusão local de material não trilobite.
+- O preço do leilão usa o lance actual quando a API o fornece. USD não é
+  reetiquetado como EUR: utiliza-se EUR ou `convertedFromValue` explicitamente
+  em EUR; sem esse valor, pede-se o preço em euros e preserva-se o preço existente.
+- O cron e o botão manual usam **também** as chaves, não apenas a importação.
+- Falhas, desaparecimento da montra, página de segurança e artigo terminado
+  **não provam venda** e não arquivam nem reescrevem preços automaticamente.
+  A API Browse não fornece um recibo da venda; nesse caso, confirmar no eBay e
+  marcar a peça no admin. Venda comprovada no Catawiki mantém a regra do arquivo.
+- Importações novas só publicam com preço válido, foto e descrição. Incompletas
+  ficam em rascunho; nunca recebem um preço inventado do formulário de exemplo.
+- O preço **When in Site Only** é definido pelo curador, não preenchido com um
+  lance baixo. Se faltar, uma leitura de leilão não vendido deixa o produto
+  intacto e pede para preencher esse campo.
+- **Check history** distingue execuções completas, parciais e falhadas.
+
+Validação offline (sem eBay, Neon ou credenciais):
+`node --test scripts/test-ebay.cjs`
+
+Este ZIP conserva todas as alterações anteriores: etiquetas fora das imagens,
+cor Site Exclusive, cores dos mercados, favicon, conteúdos editáveis e envios.
+Não faz limpeza em massa, importação nem reposição de textos no arranque.
+
+
+---
+
+## 27. Revisão geral do deployment 39e76ca e peças que mudam de canal
+
+Relatório detalhado, resultados e limites de teste:
+`public/AUDITORIA-39e76ca.md` (também acessível em `/AUDITORIA-39e76ca.md`).
+
+### A regra passa a ser: uma peça física, uma ficha
+
+- Links eBay e Catawiki guardados separadamente, com histórico. O editor tem os
+  campos **Saved eBay item URL**, **Saved Catawiki lot URL** e referência.
+- Na pesquisa do eBay, uma relistagem pode ser **ligada à ficha existente** por
+  **Link / reactivate this specimen**. Não importar outra cópia só porque mudou
+  de plataforma ou de ID do anúncio.
+- O nome da espécie não basta para juntar peças: o painel pede a escolha. Um
+  número de catálogo inequívoco ou um link já guardado pode identificar a ficha.
+- A acção confirma o novo canal e conserva fotos, textos e When in Site Only.
+  Não termina nem cria anúncios fora do site. Essa gestão continua tua.
+- Um anúncio terminado guardado na conta eBay não está activo; só aparecerá como
+  oferta activa depois de relistado. A API Browse não é o arquivo do Seller Hub.
+- O cron só consulta a plataforma actualmente escolhida. Site Only não regressa
+  sozinho ao link antigo de Catawiki, e um eBay antigo não manda sobre Catawiki.
+- Quando Catawiki termina sem venda, usa-se **When in Site Only**. Sem esse preço,
+  o painel avisa em vez de colocar a peça à venda pelo valor do último lance.
+- Se editares enquanto o cron lê uma página, a tua alteração prevalece.
+- Os históricos das duas versões de cron foram mantidos e reunidos.
+
+### Outras correcções da revisão
+
+Autenticação do admin no servidor antes de enviar dados, compras directas apenas
+em Site Only, idempotência e confirmação transaccional de PayPal, pedido por
+factura distinto de pagamento confirmado, precisão dos cêntimos e ajustes das
+fotos preservados, favicon do admin respeitado, Statcounter com navegação interna,
+249 destinos ISO e manutenção das cinco tarifas, envio grátis único quando activo.
+
+Backup v3 inclui ficheiros de imagens carregadas e encomendas. O restauro é
+transaccional e remapeia os IDs das imagens sem substituir ficheiros existentes.
+Remover uma peça conserva a ficha como rascunho de arquivo, em vez de apagar
+fisicamente reviews ou linhas de encomendas. Nada disto faz updates em massa nos
+textos ou repõe os dados do Neon durante o arranque.
+
+A actualização inclui Next.js 16.4.3 e dependências corrigidas. O build tem de
+instalar o novo package-lock.json; não publicar apenas um ou dois ficheiros.
+Os avisos do log original e as auditorias estão explicados no relatório.
+
+### Publicar
+
+**ZIP TODO** → manter `.git` e `.env` locais → Commit + Push → aguardar build e
+promover para Production. As chaves da Vercel mantêm-se. Depois confirmar
+**Test eBay API**, associar as relistagens às fichas certas e ver **Check history**.
+
+Os testes no sandbox não usam as tuas chaves de produção. Não foi efectuada
+cobrança PayPal real, alteração no Neon ou encerramento de anúncio externo.
+
+
+---
+
+## 28. Inventário automático: não apenas preços nem revisão diária do catálogo
+
+### O erro que esta entrega corrige
+
+O cron actualizava preços dos links já escolhidos, mas não reconciliava todos os
+anúncios activos. Assim, uma peça que regressou de Catawiki a Site Only podia
+continuar marcada Site Only quando reaparecia no eBay. O canal guardado e a
+presença real de uma oferta não eram a mesma coisa. As contagens também não
+usavam um único filtro.
+
+Foi verificado publicamente um exemplo concreto: a página do vendedor Catawiki
+mostrava **All lots (1)**; o antigo link Bigotina `107874965` redireccionava para
+`108133994`, mantendo a referência **#9629**. Não se alteraram números à mão.
+
+### Rotina normal
+
+- O cron e **Check prices now** passam a executar descoberta e reconciliação de
+  inventários, depois preços.
+- Ao abrir o admin na Vercel, com chaves eBay presentes e automatização activa,
+  inicia-se uma sincronização em falta ou com mais de **15 minutos**.
+- O cron da Vercel continua diário às 06:00 UTC e exige CRON_SECRET. No plano
+  Hobby não é um processo em tempo real. Para intervalos regulares menores,
+  configurar cron-job.org **uma vez**, preferindo Authorization: Bearer ao
+  segredo na query string. Isto é configuração inicial, não revisão diária.
+- Há um interruptor em **Shipping & payment** para pausar a reconciliação
+  automática. O botão explícito **Synchronize inventory now** continua disponível.
+
+### Identidade, relistagens e ofertas activas
+
+Links antigos, referências de catálogo encontradas nas descrições e
+redireccionamentos de relistagens são reaproveitados automaticamente.
+
+Sem referência, uma associação confirmada pode guardar uma assinatura do **texto
++ identificador das fotografias originais**. Um novo número eBay com o mesmo
+texto/fotos pode então ser reconhecido sem nova confirmação. Se mudarem ambos,
+ou se várias fichas partilharem a mesma assinatura, não se adivinha a identidade.
+O nome da espécie nunca basta para juntar peças físicas.
+
+Novas referências inequívocas são importadas automaticamente. Só se publicam
+com descrição, fotografia e preço EUR confirmado; incompletas ficam em rascunho.
+O preço When in Site Only é teu, nunca um lance de €1 inventado pelo programa.
+
+As colunas marketplace_active e marketplace_checked_at distinguem um link
+guardado de uma oferta comprovadamente activa. Um inventário completo pode
+provar ausência de uma oferta, **não** uma venda: não elimina a ficha, stock,
+fotos ou histórico. Leituras parciais/falhadas nunca são gravadas como zero.
+
+### Contagem única e excepções visíveis
+
+Início, cartões de canal, colecções e filtros usam a mesma regra. Arquivo,
+rascunhos, stock zero, ausência de canal e ofertas verificadas como inactivas
+não contam. O total é a soma Site Only + eBay + Catawiki.
+
+O novo painel **Inventory synchronization** mostra fontes verificadas, data,
+valores guardados e avisos pontuais. Em casos ambíguos, ligar a oferta à ficha
+existente uma vez. Suspensões cautelares criadas pelo sincronizador podem ser
+levantadas automaticamente quando a dúvida deixa de existir; nunca se repõe
+uma indisponibilidade manual por adivinhação.
+
+O site mostra a data/estado da última verificação. Neste sandbox, sem chaves da
+Vercel, mostra explicitamente que a contagem é uma cópia local, **não** a leitura
+actual autenticada do eBay.
+
+### Publicar e testar uma vez
+
+**ZIP TODO**. Antes: Download backup. Copiar o conteúdo mantendo .git/.env;
+Commit + Push; promover o novo deployment. As Environment Variables mantêm-se.
+Abrir o admin de produção e acompanhar Inventory synchronization. Só permissões,
+identidades não inequívocas ou ofertas contraditórias precisam de resolução
+pontual — não uma recontagem quase diária feita por ti.
+
+Os testes offline e de base local cobrem 1 Catawiki + várias eBay + 0 Site Only,
+execuções repetidas sem duplicar, novos números de anúncio, perda temporária da
+API, assinatura texto/fotos, importação completa e conservação dos dados.
+
+
+---
+
+## 29. Se os anúncios do eBay não sincronizarem
+
+Diagnóstico completo em `public/EBAY-DIAGNOSTICO.md`.
+
+**Sandbox:** sem variáveis `EBAY_*` no ambiente local. Chaves da Vercel não são
+copiadas para o sandbox nem para deployments Preview. O painel diz isto
+explicitamente.
+
+**Produção com chaves:** a causa mais comum é o nome do vendedor. O código usava
+o nome da loja (`ebay.com/str/mederranic`) como `sellers:{…}`, mas um nome de
+loja não é obrigatoriamente a conta de vendedor. A eBay responde então HTTP 200
+com lista vazia e um **aviso** (código 12003). O código só lia `errors`, pelo que
+isso era interpretado como zero anúncios. Já está corrigido: os avisos são
+lidos e um resultado vazio com aviso nunca é gravado como inventário vazio.
+
+**Resolver:** admin → *Diagnose eBay API* → se indicar nome inválido, criar
+`EBAY_SELLER_USERNAME` na Vercel com o nome real da conta de vendedor e fazer
+Redeploy. Em alternativa, colar o URL de um anúncio próprio no diagnóstico para
+a loja aprender o `seller.username`.
+
+Outras causas: 403 (acesso Production à Browse API não aprovado), 401
+(keyset inválido), mercado diferente de `EBAY_US`, ou indexação recente de um
+anúncio novo. Todas são distinguidas no diagnóstico.
+
+
+---
+
+## 30. Referência de colecção (REF) e bloqueio do keyset eBay
+
+Documento completo: `public/REFERENCIA-E-BLOCKIO-EBAY.md`.
+
+### Bloqueio do keyset
+
+O email da eBay indica que o keyset Production *Mediterranic* está **desactivado**
+e precisa de subscrição nas notificações de encerramento de contas do
+Marketplace, ou de uma isenção. Sem isso as chaves não autorizam a Browse API.
+Activar em developer.ebay.com → Application Keys → seguir o aviso do keyset.
+Depois: Redeploy e *Diagnose eBay API*. Enquanto estiver desactivado, o painel
+mostra erro de acesso, nunca zero anúncios.
+
+### REF — identificador único
+
+A ficha passa a mostrar, por baixo do título, `PAIS9676 · 9 mm · 456 g` em vez de
+*Scientific Species*. A espécie permanece na tabela de características.
+
+Campos novos no editor: **REF · collection reference** e **Weight with box (g)**.
+Aceita `PAIS9676` ou `9676`. O núcleo de 4 dígitos é a chave de correspondência,
+pelo que uma peça sem prefixo é reconhecida num anúncio com prefixo. Anos não são
+confundidos com referências. Uma referência diferente nunca é fundida com outra
+peça. Se a REF não for introduzida, a loja tenta aprendê-la do link do anúncio.

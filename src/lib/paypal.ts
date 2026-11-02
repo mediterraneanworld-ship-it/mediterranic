@@ -45,7 +45,7 @@ function paypalApiBase(): string {
     : "https://api-m.sandbox.paypal.com";
 }
 
-type CachedToken = { token: string; expiresAt: number };
+type CachedToken = { token: string; expiresAt: number; clientId: string; environment: string };
 const globalForPaypal = globalThis as typeof globalThis & { __paypalToken?: CachedToken };
 
 export class PaypalNotConfiguredError extends Error {
@@ -58,7 +58,7 @@ async function getAccessToken(): Promise<string> {
   if (!isPaypalConfigured()) throw new PaypalNotConfiguredError();
 
   const cached = globalForPaypal.__paypalToken;
-  if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
+  if (cached && cached.clientId === readPaypalClientId() && cached.environment === paypalEnvironment() && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
   const basic = Buffer.from(
     `${readPaypalClientId()}:${readPaypalSecret()}`,
@@ -83,6 +83,7 @@ async function getAccessToken(): Promise<string> {
   const data = (await res.json()) as { access_token: string; expires_in?: number };
   globalForPaypal.__paypalToken = {
     token: data.access_token,
+    clientId: readPaypalClientId(), environment: paypalEnvironment(),
     expiresAt: Date.now() + Math.max(60, data.expires_in ?? 32_400) * 1_000,
   };
   return data.access_token;
@@ -92,6 +93,7 @@ async function paypalRequest<T>(
   method: "GET" | "POST",
   path: string,
   body?: unknown,
+  requestId?: string,
 ): Promise<T> {
   const token = await getAccessToken();
   const res = await fetch(`${paypalApiBase()}${path}`, {
@@ -99,6 +101,7 @@ async function paypalRequest<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...(requestId ? { "PayPal-Request-Id": requestId } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
@@ -161,13 +164,15 @@ export async function createPaypalOrder(input: {
       return_url: input.returnUrl,
       cancel_url: input.cancelUrl,
     },
-  });
+  }, `create-${input.referenceId}`);
 }
 
 export type PaypalCapture = {
   id: string;
   status: string;
   purchase_units?: {
+    reference_id?: string;
+    amount?: { value: string; currency_code: string };
     payments?: {
       captures?: { id: string; status: string; amount?: { value: string; currency_code: string } }[];
     };
@@ -175,9 +180,9 @@ export type PaypalCapture = {
 };
 
 export function capturePaypalOrder(orderId: string): Promise<PaypalCapture> {
-  return paypalRequest<PaypalCapture>("POST", `/v2/checkout/orders/${orderId}/capture`, {});
+  return paypalRequest<PaypalCapture>("POST", `/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {}, `capture-${orderId}`);
 }
 
-export function getPaypalOrder(orderId: string): Promise<PaypalCreatedOrder> {
-  return paypalRequest<PaypalCreatedOrder>("GET", `/v2/checkout/orders/${orderId}`);
+export function getPaypalOrder(orderId: string): Promise<PaypalCapture> {
+  return paypalRequest<PaypalCapture>("GET", `/v2/checkout/orders/${encodeURIComponent(orderId)}`);
 }

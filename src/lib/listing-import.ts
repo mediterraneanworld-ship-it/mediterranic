@@ -15,6 +15,7 @@ export async function storeRemoteImages(
   urls: string[],
   label: string,
   referer = "https://www.ebay.com/",
+  signal?: AbortSignal,
 ): Promise<StoredImage[]> {
   const stored: StoredImage[] = [];
   const unique = Array.from(new Set(urls.filter(Boolean))).slice(0, 6);
@@ -24,7 +25,7 @@ export async function storeRemoteImages(
       const res = await fetch(remote, {
         headers: { "User-Agent": UA, Referer: referer },
         cache: "no-store",
-        signal: AbortSignal.timeout(20_000),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
       });
       if (!res.ok) continue;
       const type = res.headers.get("content-type") ?? "";

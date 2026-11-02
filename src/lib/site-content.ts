@@ -138,12 +138,15 @@ export type SiteContent = {
   };
   notFound: { title: string; text: string; homeCta: string; shopCta: string };
   analytics: {
+    enabled: boolean;
     /** Raw <script> HTML pasted in the back-office (e.g. Statcounter), injected at the end of <body>. */
     bodyScripts: string;
   };
   commerce: {
     /** When on, every order ships free and no other delivery option is offered. */
     freeShipping: boolean;
+    /** Discover/reconcile active listings before the daily price refresh. */
+    autoSyncInventory: boolean;
   };
   site: {
     /** Favicon URL shown in the browser tab. Uploadable in the back-office. */
@@ -327,7 +330,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       items: [
         "Orders confirmed before 14:00 (WET, Lisbon time) on a business day are packed and handed to the carrier the same day. Anything confirmed later leaves the following business day.",
         "Preparation: 1–2 business days for cradling, labelling and photographic record before the crate is closed.",
-        "Tracking: sent by email the moment the label is created, with the insurance reference attached.",
+        "Tracking details are provided once the carrier label is created.",
         "Auction pieces: a specimen that is live on eBay or Catawiki ships under that marketplace's own schedule. When the auction ends and the piece returns to Site Only, it ships under the terms on this page.",
       ],
     },
@@ -353,7 +356,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       items: [
         "Specimens leave Portugal/EU under a commercial invoice describing the goods as “fossil specimens for private collection”, with the HS code for collector's items and the declared value matching what you paid.",
         "Import duty and any local sales tax are the buyer's responsibility and are not included in the shipping price shown at checkout.",
-        "We never under-declare value or mark a commercial shipment as a gift. It invalidates the insurance and holds the parcel at the border.",
+        "We never under-declare value or mark a commercial shipment as a gift. Incorrect declarations can cause customs problems and delays.",
         "Moroccan fossil exports are legal under the national framework for privately collected material; every piece is sourced through licensed quarry families and the documentation travels with the specimen.",
       ],
     },
@@ -372,7 +375,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       items: [
         "It is rare, and we handle it directly. Please follow this order so the case can be opened straight away:",
         "Photograph the outer box before opening it if the packaging is visibly crushed, pierced or wet, and note any damage with the carrier at the door.",
-        "Photograph the specimen and the packing exactly as you found it. Do not discard anything, including the foam cradle and fragments — insurers ask for them.",
+        "Photograph the specimen and the packing exactly as you found it. Do not discard anything, including the foam cradle and fragments — they help us assess the damage.",
         "Email us within 48 hours of delivery with the order reference and the photographs.",
         "We open the claim and offer you a replacement, a partial refund or a full refund including shipping. You are never left holding a broken stone.",
       ],
@@ -401,10 +404,12 @@ export const DEFAULT_CONTENT: SiteContent = {
     unavailableNote: "This specimen is no longer available.",
   },
   analytics: {
+    enabled: true,
     bodyScripts: "",
   },
   commerce: {
     freeShipping: true,
+    autoSyncInventory: true,
   },
   site: {
     favicon: "/images/favicon-m-caribbean.png",
@@ -750,6 +755,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     label: "Shipping & payment",
     note: "Free shipping is the normal case. While it is on, the checkout offers no other delivery option. Switch it off to charge one rate per zone.",
     fields: [
+      { path: ["commerce", "autoSyncInventory"], label: "Automatically reconcile active eBay and Catawiki inventory", type: "toggle", hint: "The cron discovers relistings and matches saved links or catalogue references. Ambiguous identities are flagged once; stored photos and text are kept." },
       {
         path: ["commerce", "freeShipping"],
         label: "Free shipping on every order",
@@ -763,6 +769,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     label: "Analytics & tracking (Statcounter)",
     note: "Paste the full Statcounter code here. It is injected at the end of every page, exactly as Statcounter gives it.",
     fields: [
+      { path: ["analytics", "enabled"], label: "Enable visitor analytics", type: "toggle", hint: "Uses your Statcounter project. Does not load on admin, checkout or order pages." },
       {
         path: ["analytics", "bodyScripts"],
         label: "Statcounter / analytics code (raw HTML)",

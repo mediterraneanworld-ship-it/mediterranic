@@ -20,6 +20,7 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
   };
 
   const handleMove = (e: MouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setPointer({
       x: ((e.clientX - rect.left) / rect.width) * 100,
@@ -47,6 +48,10 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-ink/55">
+        <span className="hidden items-center gap-2 sm:inline-flex"><ZoomIn size={13} /> {pointer ? "Inspecting" : "Hover to inspect"}</span>
+        <span className="ml-auto tabular-nums">{images.length ? index + 1 : 0} / {images.length}</span>
+      </div>
       {/* Main frame */}
       <div className="relative">
         <div
@@ -80,13 +85,6 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
             </div>
           ))}
 
-          <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 rounded-full bg-parchment/90 px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-ink backdrop-blur">
-            <ZoomIn size={13} strokeWidth={1.5} />
-            {pointer ? "Inspecting" : "Hover to inspect"}
-          </div>
-          <div className="pointer-events-none absolute bottom-4 right-4 rounded-full bg-ink/70 px-3 py-1 text-[11px] tabular-nums text-parchment backdrop-blur">
-            {index + 1} / {images.length}
-          </div>
         </div>
 
         {/* Arrows */}
@@ -179,7 +177,7 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
         )}
       </div>
 
-      <p className="text-center text-[11px] uppercase tracking-[0.2em] text-ink/50">{view.label}</p>
+      <p className="text-center text-[11px] uppercase tracking-[0.2em] text-ink/50">{view?.label ?? "Photographs are being updated"}</p>
     </div>
   );
 }

@@ -63,11 +63,11 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
             clear();
             router.push(`/orders/${data.orderId}`);
           } else {
-            setError(data.error ?? "The payment could not be confirmed. Nothing was charged.");
+            setError(data.error ?? "The payment could not be confirmed. Check your PayPal activity before paying again.");
             setPaypalBusy(false);
           }
         } catch {
-          setError("Network error while confirming the payment. Nothing was charged.");
+          setError("Network error while confirming the payment. Check your PayPal activity and contact us before paying again.");
           setPaypalBusy(false);
         }
       })();

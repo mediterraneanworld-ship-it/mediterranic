@@ -1,4 +1,6 @@
 import { relations } from "drizzle-orm";
+import type { MarketplaceLink } from "@/lib/marketplace-links";
+import type { InventorySyncReport } from "@/lib/inventory-rules";
 import {
   boolean,
   integer,
@@ -38,6 +40,8 @@ export const products = pgTable("products", {
   locality: text("locality").notNull(),
   formation: text("formation"),
   lengthMm: integer("length_mm"),
+  /** Weight of the specimen with its protective box, in grams. */
+  weightGrams: integer("weight_grams"),
   preparation: text("preparation").notNull(),
   priceCents: integer("price_cents").notNull(),
   compareAtCents: integer("compare_at_cents"),
@@ -47,6 +51,14 @@ export const products = pgTable("products", {
   listingChannel: text("listing_channel"),
   published: boolean("published").notNull().default(true),
   externalListingUrl: text("external_listing_url"),
+  /** Separate remembered URLs: switching one platform must not erase the other. */
+  ebayListingUrl: text("ebay_listing_url"),
+  catawikiListingUrl: text("catawiki_listing_url"),
+  marketplaceHistory: jsonb("marketplace_history").$type<MarketplaceLink[]>().notNull().default(sql`'[]'::jsonb`),
+  specimenReference: text("specimen_reference"),
+  /** Null = not yet verified; false only after a complete inventory proves absence. */
+  marketplaceActive: boolean("marketplace_active"),
+  marketplaceCheckedAt: timestamp("marketplace_checked_at", { withTimezone: true }),
   /** Optional YouTube / Vimeo link shown on the product page */
   videoUrl: text("video_url"),
   /** When the marketplace price was last checked automatically */
@@ -170,9 +182,24 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
 });
 
 /**
- * One row per scheduled/manual price refresh, so the back-office can show
- * whether the daily job actually ran and what it found.
+ * One row per price check — automatic (Vercel cron or an external scheduler)
+ * or manual ("Check prices now"). Rejected calls are recorded too, so a cron
+ * that is being refused (missing/wrong CRON_SECRET) is visible in the admin.
  */
+export const priceCheckRuns = pgTable("price_check_runs", {
+  id: serial("id").primaryKey(),
+  /** "vercel-cron" | "external" | "manual" */
+  source: text("source").notNull(),
+  /** "ok" | "error" | "unauthorized" | "running" */
+  status: text("status").notNull(),
+  detail: text("detail"),
+  checked: integer("checked").notNull().default(0),
+  changed: integer("changed").notNull().default(0),
+  ended: integer("ended").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});
+
 export const priceRefreshRuns = pgTable("price_refresh_runs", {
   id: serial("id").primaryKey(),
   /** "cron" (Vercel schedule / external scheduler) or "manual" (admin button). */
@@ -184,6 +211,14 @@ export const priceRefreshRuns = pgTable("price_refresh_runs", {
   /** Human-readable summary or the error message. */
   summary: text("summary").notNull().default(""),
   ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Separate operational state; does not replace shop settings or product data. */
+export const inventorySyncState = pgTable("inventory_sync_state", {
+  id: integer("id").primaryKey().default(1),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  report: jsonb("report").$type<InventorySyncReport>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const productsRelations = relations(products, ({ many }) => ({

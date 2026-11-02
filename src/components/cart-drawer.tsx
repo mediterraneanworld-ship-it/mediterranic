@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { formatPrice } from "@/lib/format";
 import { selectItemCount, selectSubtotal, useCart, useHydrated } from "@/lib/cart-store";
 
-export function CartDrawer() {
+export function CartDrawer({ freeShipping = true }: { freeShipping?: boolean }) {
   const isOpen = useCart((s) => s.isOpen);
   const close = useCart((s) => s.close);
   const items = useCart((s) => s.items);
@@ -165,7 +165,7 @@ export function CartDrawer() {
                     <div className="mb-2 flex items-center justify-between text-xs text-ink/70">
                       <span className="flex items-center gap-2">
                         <Truck size={14} strokeWidth={1.5} />
-                        Free shipping
+                        {freeShipping ? "Free shipping" : "Shipping calculated by destination at checkout"}
                       </span>
                     </div>
                   </div>

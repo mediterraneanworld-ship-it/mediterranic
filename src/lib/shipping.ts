@@ -237,7 +237,28 @@ export const COUNTRIES: { code: string; name: string; zone: ShippingZone }[] = [
   { code: "YE", name: "Yemen", zone: "asia" },
   { code: "ZM", name: "Zambia", zone: "africa" },
   { code: "ZW", name: "Zimbabwe", zone: "africa" },
+  { code: "AF", name: "Afghanistan", zone: "asia" },
+  { code: "AS", name: "American Samoa", zone: "oceania" },
+  { code: "AX", name: "Åland Islands", zone: "europe" },
+  { code: "BL", name: "St. Barthélemy", zone: "americas" },
+  { code: "BV", name: "Bouvet Island", zone: "oceania" },
+  { code: "CC", name: "Cocos (Keeling) Islands", zone: "oceania" },
+  { code: "CK", name: "Cook Islands", zone: "oceania" },
+  { code: "CX", name: "Christmas Island", zone: "oceania" },
+  { code: "FO", name: "Faroe Islands", zone: "europe" },
+  { code: "GG", name: "Guernsey", zone: "europe" },
+  { code: "GS", name: "South Georgia & South Sandwich Islands", zone: "oceania" },
+  { code: "HM", name: "Heard & McDonald Islands", zone: "oceania" },
+  { code: "IM", name: "Isle of Man", zone: "europe" },
+  { code: "IO", name: "British Indian Ocean Territory", zone: "asia" },
+  { code: "JE", name: "Jersey", zone: "europe" },
+  { code: "MF", name: "St. Martin", zone: "americas" },
+  { code: "PN", name: "Pitcairn Islands", zone: "oceania" },
+  { code: "SH", name: "St. Helena", zone: "africa" },
+  { code: "SJ", name: "Svalbard & Jan Mayen", zone: "europe" },
+  { code: "TF", name: "French Southern Territories", zone: "oceania" },
 ];
+COUNTRIES.sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 
 /**
  * Delivery is either free (the owner switches this on in the back-office, and

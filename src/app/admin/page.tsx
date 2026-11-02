@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AdminGate } from "@/components/admin-gate";
+import { isAdminAuthenticated, isAdminPreview } from "@/lib/admin-auth";
 import {
   getAllOrdersWithItems,
   getAllProducts,
@@ -16,6 +17,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
+  const authorized = await isAdminAuthenticated();
+  if (!authorized) return <AdminGate authorized={false} previewMode={false} />;
   const [products, settings, orders, subscribers, content] = await Promise.all([
     getAllProducts({ includeDrafts: true }),
     getSiteSettings(),
@@ -26,6 +29,8 @@ export default async function AdminPage() {
 
   return (
     <AdminGate
+      authorized={true}
+      previewMode={isAdminPreview()}
       products={products}
       settings={settings}
       orders={orders}

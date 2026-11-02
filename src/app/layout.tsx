@@ -6,6 +6,8 @@ import { MotionProvider } from "@/components/motion-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getSiteContent } from "@/lib/catalog";
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
+import { SiteAnalytics } from "@/components/site-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +18,9 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const content = await getSiteContent();
   const favicon = content.site.favicon.trim() || "/images/favicon-m-caribbean.png";
-  const faviconType = favicon.endsWith(".svg") ? "image/svg+xml" : favicon.endsWith(".png") ? "image/png" : "image/x-icon";
+  const faviconType = favicon.endsWith(".svg") ? "image/svg+xml" : favicon.endsWith(".png") ? "image/png" : favicon.endsWith(".ico") ? "image/x-icon" : undefined;
   return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    metadataBase: new URL(PUBLIC_SITE_URL),
     title: {
       default: "Mediterranic · Moroccan Trilobites for Collectors",
       template: "%s · Mediterranic",
@@ -28,10 +30,9 @@ export async function generateMetadata(): Promise<Metadata> {
     icons: {
       icon: [
         { url: favicon, type: faviconType },
-        { url: "/favicon-m-caribbean.svg", type: "image/svg+xml" },
       ],
       shortcut: [{ url: favicon, type: faviconType }],
-      apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+      apple: [{ url: favicon }],
     },
     openGraph: {
       title: "Mediterranic · Moroccan Trilobites",
@@ -50,6 +51,10 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const content = await getSiteContent();
+  const customAnalytics = content.analytics.bodyScripts.trim();
+  const usesStatcounter = !customAnalytics || /statcounter/i.test(customAnalytics);
+  const project = Number(customAnalytics.match(/sc_project\s*=\s*([0-9]+)/)?.[1] ?? 13364233);
+  const security = customAnalytics.match(/sc_security\s*=\s*["']([a-z0-9]+)["']/i)?.[1] ?? "b5ec7882";
 
   return (
     <html lang="en" translate="yes">
@@ -66,9 +71,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <SiteHeader content={content.header} />
           <main className="min-h-[70svh]">{children}</main>
           <SiteFooter />
-          <CartDrawer />
+          <CartDrawer freeShipping={content.commerce.freeShipping} />
+          {usesStatcounter && <SiteAnalytics project={project} security={security} enabled={content.analytics.enabled} />}
         </MotionProvider>
-        {content.analytics.bodyScripts.trim() !== "" && (
+        {content.analytics.enabled && !usesStatcounter && customAnalytics !== "" && (
           <div
             aria-hidden
             suppressHydrationWarning

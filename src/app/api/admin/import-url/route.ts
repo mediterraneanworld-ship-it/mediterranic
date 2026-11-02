@@ -2,7 +2,7 @@ import { storeRemoteImages } from "@/lib/listing-import";
 import { firstGalleryPhotos } from "@/lib/gallery-images";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { parseListingText } from "@/lib/parse-listing";
-import { EbayNotConfiguredError, getEbayItem, hasEbayCredentials } from "@/lib/ebay";
+import { ebayErrorCode, ebayErrorMessage, getEbayItem, hasEbayCredentials } from "@/lib/ebay";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -121,41 +121,53 @@ export async function POST(request: Request) {
   const lower = rawUrl.toLowerCase();
   const listingChannel = lower.includes("catawiki") ? "catawiki" : lower.includes("ebay") ? "ebay" : "direct";
 
-  // eBay first through the official API: eBay answers 403 to datacenter IPs,
-  // so page scraping is only a fallback and will often fail.
   if (listingChannel === "ebay" && hasEbayCredentials()) {
     try {
       const item = await getEbayItem(rawUrl);
-      if (item?.title) {
-        const aspectText = Object.entries(item.aspects ?? {})
-          .map(([key, values]) => `${key}: ${values.join(", ")}`)
-          .join("\n");
-        const text = [item.title, item.description ?? "", aspectText].filter(Boolean).join("\n");
-        const parsed = parseListingText(text, rawUrl, "", (body.title ?? "").trim());
-        const photos = item.imageUrls.length > 0 ? await storeImages(item.imageUrls, item.title) : [];
-
+      if (!item?.title || !item.active) {
         return Response.json({
-          via: "ebay-api",
-          found: parsed.found,
-          missing: parsed.missing,
-          imported: {
-            ...parsed,
-            // The API values are authoritative.
-            name: item.title,
-            listingChannel,
-            externalListingUrl: item.itemWebUrl || rawUrl,
-            ...(item.priceCents ? { priceDollars: (item.priceCents / 100).toFixed(2) } : {}),
-            priceCents: item.priceCents ?? 0,
-            images: photos.length > 0 ? photos : parsed.images,
-            photosStored: photos.length,
-            videoUrl: "",
-          },
-        });
+          error: "eBay did not return an active listing. No specimen was created or archived.",
+          code: "EBAY_LISTING_UNAVAILABLE", via: "ebay-api",
+        }, { status: 422 });
       }
+      const aspectText = Object.entries(item.aspects ?? {})
+        .map(([key, values]) => `${key}: ${values.join(", ")}`)
+        .join("\n");
+      const description = htmlToText(item.description ?? "");
+      const sourceText = [item.title, description, aspectText].filter(Boolean).join("\n");
+      const priceDollars = item.priceCents === null ? "" : (item.priceCents / 100).toFixed(2);
+      const parsed = parseListingText(sourceText, rawUrl, priceDollars, item.title);
+      const photos = item.imageUrls.length ? await storeImages(item.imageUrls, item.title) : [];
+      const missing = Array.from(new Set([
+        ...parsed.missing.filter((field) => field !== "price" && field !== "photos"),
+        ...(item.priceCents === null ? ["price in EUR"] : []),
+        ...(photos.length ? [] : ["photos"]),
+      ]));
+      return Response.json({
+        via: "ebay-api",
+        found: Array.from(new Set([...parsed.found, ...(photos.length ? ["photos"] : [])])),
+        missing,
+        warning: item.priceCents === null
+          ? `eBay returned ${item.currency || "an unknown currency"}, not an EUR amount. Set the euro price before publishing; no automatic currency conversion is guessed.`
+          : undefined,
+        imported: {
+          ...parsed,
+          name: item.title,
+          listingChannel: "ebay",
+          externalListingUrl: item.itemWebUrl || rawUrl,
+          priceDollars,
+          priceCents: item.priceCents ?? 0,
+          sourceCurrency: item.currency,
+          description: description || parsed.description,
+          images: photos,
+          photosStored: photos.length,
+          published: item.priceCents !== null && photos.length > 0 && Boolean(description || parsed.description),
+          photoWarning: photos.length ? undefined : "eBay photos could not be downloaded. Add a photo before publishing.",
+          videoUrl: "",
+        },
+      });
     } catch (error) {
-      if (!(error instanceof EbayNotConfiguredError)) {
-        console.error("eBay API item read failed", error);
-      }
+      return Response.json({ error: ebayErrorMessage(error), code: ebayErrorCode(error), via: "ebay-api" }, { status: 502 });
     }
   }
 

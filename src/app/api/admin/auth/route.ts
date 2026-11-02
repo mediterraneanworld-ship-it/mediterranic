@@ -11,7 +11,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const password = (body.password ?? "").trim();
+  if (!getAdminPassword()) {
+    return Response.json({ error: "Admin access is not configured on this deployment." }, { status: 503 });
+  }
+  const password = typeof body.password === "string" ? body.password.trim() : "";
   if (password !== getAdminPassword()) {
     return Response.json({ error: "Incorrect password." }, { status: 401 });
   }
@@ -19,6 +22,7 @@ export async function POST(request: Request) {
   const jar = await cookies();
   jar.set(ADMIN_COOKIE_NAME, getAdminPassword(), {
     httpOnly: true,
+    secure: Boolean(process.env.VERCEL) || new URL(request.url).protocol === "https:",
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,

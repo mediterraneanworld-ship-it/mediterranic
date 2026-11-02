@@ -1,3 +1,4 @@
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
 import { getAllProducts } from "@/lib/catalog";
 import { COLLECTIONS } from "@/lib/collections";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
  * is listed so search engines find new specimens as soon as they appear.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mediterranic.com").replace(/\/$/, "");
+  const base = PUBLIC_SITE_URL;
   const now = new Date();
   const products = await getAllProducts();
 

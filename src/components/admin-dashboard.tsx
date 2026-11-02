@@ -25,7 +25,11 @@ import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
 import { AdminContentEditor } from "@/components/admin-content-editor";
 import { AdminCronStatus } from "@/components/admin-cron-status";
+import { InventorySyncPanel } from "@/components/inventory-sync-panel";
+import type { InventorySyncReport } from "@/lib/inventory-rules";
+import { EbayConnectionCheck } from "@/components/ebay-connection-check";
 import { readContent, type SiteContent } from "@/lib/site-content";
+import { listingKey, matchListing, marketplaceOf, savedListing, type ListingMatch } from "@/lib/marketplace-links";
 
 type OrderEntry = {
   order: {
@@ -55,6 +59,8 @@ type OrderEntry = {
   }[];
 };
 
+type SellerLot = { id: string; url: string; title: string; priceCents?: number | null; match?: ListingMatch };
+
 type EditableProduct = {
   id: number | null;
   slug: string;
@@ -78,6 +84,10 @@ type EditableProduct = {
   archived: boolean;
   listingChannel: string;
   externalListingUrl: string;
+  ebayListingUrl: string;
+  catawikiListingUrl: string;
+  specimenReference: string;
+  weightGrams: string;
   videoUrl: string;
   shortDescription: string;
   description: string;
@@ -108,6 +118,10 @@ const EMPTY_PRODUCT: EditableProduct = {
   archived: false,
   listingChannel: "direct",
   externalListingUrl: "",
+  ebayListingUrl: "",
+  catawikiListingUrl: "",
+  specimenReference: "",
+  weightGrams: "",
   videoUrl: "",
   shortDescription: "",
   description: "",
@@ -132,16 +146,20 @@ function toEditable(p: ProductWithStats): EditableProduct {
     formation: p.formation ?? "",
     lengthMm: p.lengthMm ? String(p.lengthMm) : "",
     preparation: p.preparation,
-    priceDollars: (p.priceCents / 100).toFixed(0),
-    compareAtDollars: p.compareAtCents ? (p.compareAtCents / 100).toFixed(0) : "",
+    priceDollars: (p.priceCents / 100).toFixed(2),
+    compareAtDollars: p.compareAtCents ? (p.compareAtCents / 100).toFixed(2) : "",
     stock: String(p.stock),
     featured: p.featured,
     published: p.published ?? true,
     hasCertificate: p.hasCertificate ?? false,
-    siteOnlyPriceDollars: p.siteOnlyPriceCents ? String(Math.round(p.siteOnlyPriceCents / 100)) : "",
+    siteOnlyPriceDollars: p.siteOnlyPriceCents ? (p.siteOnlyPriceCents / 100).toFixed(2) : "",
     archived: p.archived ?? false,
     listingChannel: p.listingChannel ?? "direct",
     externalListingUrl: p.externalListingUrl ?? "",
+    ebayListingUrl: savedListing(p, "ebay") ?? "",
+    catawikiListingUrl: savedListing(p, "catawiki") ?? "",
+    specimenReference: p.specimenReference ?? "",
+    weightGrams: p.weightGrams ? String(p.weightGrams) : "",
     videoUrl: p.videoUrl ?? "",
     shortDescription: p.shortDescription,
     description: p.description,
@@ -245,10 +263,22 @@ export function AdminDashboard({
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
   const [sellerUrl, setSellerUrl] = useState("https://www.catawiki.com/en/u/3881635-mediterranic");
   const [ebaySellerUrl, setEbaySellerUrl] = useState("https://www.ebay.com/str/mederranic");
-  const [sellerLots, setSellerLots] = useState<
-    { id: string; url: string; title: string; priceCents?: number | null }[] | null
-  >(null);
+  const [sellerLots, setSellerLots] = useState<SellerLot[] | null>(null);
+  const [linkChoices, setLinkChoices] = useState<Record<string, string>>({});
+  /** Quick channel box: link + price (+ archive choice for Unavailable). */
+  const [channelBox, setChannelBox] = useState<{
+    product: ProductWithStats;
+    target: "direct" | "catawiki" | "ebay" | "sold";
+  } | null>(null);
+  const [channelForm, setChannelForm] = useState({
+    link: "",
+    price: "",
+    archive: false,
+  });
+  const [channelBusy, setChannelBusy] = useState(false);
   const [sellerBusy, setSellerBusy] = useState(false);
+  const [sellerSource, setSellerSource] = useState<"ebay" | "catawiki" | null>(null);
+  const [sellerFeedback, setSellerFeedback] = useState<string | null>(null);
   const [sellerProgress, setSellerProgress] = useState<string | null>(null);
   const [parsingText, setParsingText] = useState(false);
   const [pastedText, setPastedText] = useState("");
@@ -260,7 +290,7 @@ export function AdminDashboard({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [cronStatusKey, setCronStatusKey] = useState(0);
+  const [runsKey, setRunsKey] = useState(0);
   const [restoring, setRestoring] = useState(false);
   const [priceReport, setPriceReport] = useState<
     {
@@ -319,43 +349,88 @@ export function AdminDashboard({
 
 
 
-  async function handleQuickChannel(
-    product: ProductWithStats,
-    target: "direct" | "catawiki" | "ebay" | "sold",
-  ) {
-    if (target === "sold") {
+  /**
+   * Opens the channel box instead of switching immediately: a listing link and
+   * a price have to travel with the piece when it moves platform. For
+   * "Unavailable" only the price and the archive choice apply.
+   */
+  function openChannelBox(product: ProductWithStats, target: "direct" | "catawiki" | "ebay" | "sold") {
+    const knownLink =
+      target === "direct"
+        ? product.externalListingUrl ?? ""
+        : target === "sold"
+          ? ""
+          : savedListing(product, target) ?? "";
+    setChannelForm({
+      link: knownLink,
+      price: target === "sold" ? "" : (product.priceCents / 100).toFixed(2),
+      archive: target === "sold" ? true : product.archived,
+    });
+    setChannelBox({ product, target });
+  }
+
+  async function submitChannelBox() {
+    if (!channelBox) return;
+    const { product, target } = channelBox;
+    const priceCents = Math.round(Number(channelForm.price.replace(",", ".") || 0) * 100);
+    setChannelBusy(true);
+    try {
+      if (target === "sold") {
+        // Only send a price when one was typed: an empty box must keep the
+        // existing euro price instead of resetting it to zero (which the
+        // publish validation would then reject).
+        const body: Record<string, unknown> = {
+          id: product.id,
+          stock: 0,
+          archived: channelForm.archive,
+          listingChannel: null,
+        };
+        if (channelForm.price) body.priceDollars = channelForm.price;
+        if (channelForm.archive) body.published = false;
+        const res = await fetch("/api/admin/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          notify(
+            channelForm.archive
+              ? `"${product.name}" is Unavailable and moved to the public archive (no price shown).`
+              : `"${product.name}" is Unavailable and kept out of the archive.`,
+          );
+          setChannelBox(null);
+          router.refresh();
+        } else {
+          notify("Could not save. Nothing was changed.");
+        }
+        return;
+      }
+
       const res = await fetch("/api/admin/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set-stock", id: product.id, stock: 0 }),
+        body: JSON.stringify({
+          id: product.id,
+          listingChannel: target,
+          externalListingUrl: channelForm.link || "",
+          priceDollars: channelForm.price || "0",
+          stock: product.stock > 0 ? product.stock : 1,
+          archived: false,
+          published: true,
+        }),
       });
+      const data = await res.json().catch(() => ({})) as { error?: string };
       if (res.ok) {
-        notify(`"${product.name}" marked as SOLD.`);
+        const label =
+          target === "direct" ? "Site Only" : target === "catawiki" ? "Live on Catawiki" : "Live on eBay";
+        notify(`"${product.name}" saved as ${label}${channelForm.link ? ` with its link` : ""}.`);
+        setChannelBox(null);
         router.refresh();
+      } else {
+        notify(data.error ?? "Could not save. Check the link and the price.");
       }
-      return;
-    }
-
-    const ensuredStock = product.stock > 0 ? product.stock : 1;
-    const res = await fetch("/api/admin/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "set-channel",
-        id: product.id,
-        listingChannel: target,
-        stock: ensuredStock,
-      }),
-    });
-    if (res.ok) {
-      const label =
-        target === "direct"
-          ? "Site Only (Direct Sale)"
-          : target === "catawiki"
-            ? "Live on Catawiki"
-            : "Live on eBay";
-      notify(`"${product.name}" switched to ${label}.`);
-      router.refresh();
+    } finally {
+      setChannelBusy(false);
     }
   }
 
@@ -414,6 +489,7 @@ export function AdminDashboard({
           error?: string;
         }[];
         changed?: number;
+        inventory?: InventorySyncReport | null;
         ended?: number;
         error?: string;
       };
@@ -422,16 +498,14 @@ export function AdminDashboard({
         return;
       }
       setPriceReport(data.results ?? []);
+      setRunsKey((k) => k + 1);
       const endedCount = data.ended ?? 0;
       notify(
-        `Checked ${(data.results ?? []).length} listing(s). ${data.changed ?? 0} price change(s)${
-          endedCount ? ` · ${endedCount} auction(s) ended → marked Unavailable` : ""
-        }. ${(data.results ?? []).filter((r) => r.error).length} could not be read.`,
+        `${data.inventory ? `Inventory ${data.inventory.status}: ${data.inventory.linked} relinked, ${data.inventory.created} imported, ${data.inventory.issues.length} warning(s). ` : ""}Checked ${(data.results ?? []).length} listing(s). ${data.changed ?? 0} price change(s)${endedCount ? ` · ${endedCount} closed auction(s) handled` : ""}. ${(data.results ?? []).filter((r) => r.error).length} could not be read.`,
       );
       router.refresh();
     } finally {
       setRefreshing(false);
-      setCronStatusKey((k) => k + 1);
     }
   }
 
@@ -470,10 +544,10 @@ export function AdminDashboard({
   }
 
   async function handleDeleteProduct(product: ProductWithStats) {
-    if (!window.confirm(`Delete "${product.name}" from the catalogue?`)) return;
+    if (!window.confirm(`Remove "${product.name}" from the storefront? The record, photos and history will be kept as an archive draft.`)) return;
     const res = await fetch(`/api/admin/products?id=${product.id}`, { method: "DELETE" });
     if (res.ok) {
-      notify(`"${product.name}" deleted.`);
+      notify(`"${product.name}" removed from the storefront; archive draft kept.`);
       router.refresh();
     }
   }
@@ -542,12 +616,13 @@ export function AdminDashboard({
         locality: imp.locality || EMPTY_PRODUCT.locality,
         formation: imp.formation || "",
         preparation: imp.preparation || EMPTY_PRODUCT.preparation,
-        priceDollars: imp.priceDollars || EMPTY_PRODUCT.priceDollars,
+        priceDollars: imp.priceDollars ?? "",
         compareAtDollars: (imp as { compareAtDollars?: string }).compareAtDollars || "",
         shortDescription: imp.shortDescription || "",
         description: imp.description || "",
         provenance: imp.provenance || EMPTY_PRODUCT.provenance,
         images: imp.images && imp.images.length > 0 ? imp.images : [],
+        published: imp.published !== false && Number(imp.priceDollars) > 0 && Boolean(imp.images?.length) && Boolean(imp.description || imp.shortDescription),
       };
 
       // Never silently publish a partial gallery. SmugMug has the 3-first-photo
@@ -576,10 +651,10 @@ export function AdminDashboard({
       const storedPhotos = imp.photosStored ?? draft.images.length;
       setImportUrl("");
       setEditing(null);
-      setPublishedSlug(saved.product.slug);
-      notify(
-        `Published to your storefront with ${storedPhotos} photo(s). It is live now — open it from the list below.`,
-      );
+      setPublishedSlug(draft.published ? saved.product.slug : null);
+      notify(draft.published
+        ? `Published to your storefront with ${storedPhotos} photo(s).`
+        : "Saved as a draft. Complete the euro price, photographs and description before publishing.");
     } finally {
       setImportingUrl(false);
     }
@@ -642,40 +717,42 @@ export function AdminDashboard({
     }
   }
 
-  const alreadyImported = (lotUrl: string) =>
-    initialProducts.some((p) => (p.externalListingUrl ?? "").includes(lotUrl.split("/").pop() ?? "___"));
+  const knownMatch = (lot: SellerLot) => lot.match ?? matchListing(lot, initialProducts);
+  const chosenProduct = (lot: SellerLot) => linkChoices[lot.id] === "new" ? null
+    : Number(linkChoices[lot.id] || knownMatch(lot).productId) || null;
+  const alreadyImported = (url: string) => initialProducts.some((p) => {
+    const channel = marketplaceOf(url);
+    return Boolean(channel && p.listingChannel === channel && !p.archived && listingKey(savedListing(p, channel)) === listingKey(url));
+  });
 
   async function findEbayLots() {
+    setSellerSource("ebay");
+    setSellerLots(null);
     setSellerBusy(true);
     setSellerProgress(null);
+    setSellerFeedback(null);
     try {
       const res = await fetch("/api/admin/import-ebay-seller", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: ebaySellerUrl }),
       });
-      const data = (await res.json()) as {
-        lots?: { id: string; url: string; title: string; price: string }[];
-        excluded?: number;
-        error?: string;
+      const data = await res.json() as {
+        lots?: SellerLot[];
+        excluded?: number; error?: string; message?: string; via?: string;
       };
-      if (!res.ok) {
-        setSellerLots(null);
-        notify(data.error ?? "Could not read the eBay store.");
-        return;
-      }
+      if (!res.ok) { setSellerFeedback(data.error ?? "Could not read eBay."); return; }
       setSellerLots(data.lots ?? []);
-      notify(
-        `Found ${data.lots?.length ?? 0} trilobite listing(s) on your eBay store${
-          data.excluded ? ` — ${data.excluded} shell(s) and mineral(s) excluded` : ""
-        }.`,
+      setSellerFeedback(
+        `Found ${data.lots?.length ?? 0} listing(s)${data.via === "ebay-api" ? " through the official API" : ""}. ${data.excluded ?? 0} non-trilobite listing(s) excluded. ${data.message ?? ""}`,
       );
-    } finally {
-      setSellerBusy(false);
-    }
+    } catch {
+      setSellerFeedback("Network error while contacting eBay. Nothing was imported.");
+    } finally { setSellerBusy(false); }
   }
 
   async function findSellerLots() {
+    setSellerSource("catawiki");
+    setSellerFeedback(null);
     setSellerBusy(true);
     setSellerProgress(null);
     try {
@@ -705,88 +782,100 @@ export function AdminDashboard({
     }
   }
 
-  async function importSellerLots(
-    lots: { id: string; url: string; title: string; priceCents?: number | null }[],
-    marketplace: "ebay" | "catawiki" = "ebay",
-  ) {
-    // `marketplace` only seeds the first pass; each lot is badged from its own URL.
-    void marketplace;
+  async function importSellerLots(lots: SellerLot[], marketplace: "ebay" | "catawiki" = "ebay") {
+    const moving = lots.filter((lot) => chosenProduct(lot) && !alreadyImported(lot.url));
+    if (moving.length && !window.confirm(
+      `Link ${moving.length} listing(s) to existing specimen records and set their active marketplace? Photos, texts and the Site Only price stay unchanged. End any other live auction yourself — this does not change eBay or Catawiki.`,
+    )) return;
     setSellerBusy(true);
-    let live = 0;
-    let drafts = 0;
-    let skipped = 0;
-    let failed = 0;
-    let lastError: string | null = null;
+    let live = 0, linked = 0, drafts = 0, skipped = 0, choose = 0, failed = 0;
+    let lastError = "";
     try {
       for (const [index, lot] of lots.entries()) {
-        if (alreadyImported(lot.url)) {
-          skipped += 1;
+        if (alreadyImported(lot.url)) { skipped++; continue; }
+        setSellerProgress(`Reading ${index + 1} of ${lots.length}: ${lot.title.slice(0, 48)}…`);
+        const channel = marketplaceOf(lot.url) ?? marketplace;
+        const existingId = chosenProduct(lot);
+        if (existingId) {
+          const specimen = initialProducts.find((p) => p.id === existingId);
+          const res = await fetch("/api/admin/marketplace-link", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId: existingId, channel, url: lot.url,
+              restoreStock: Boolean(specimen && !specimen.archived && specimen.stock <= 0) }),
+          });
+          const data = await res.json().catch(() => ({})) as { error?: string; message?: string };
+          if (res.ok) linked++; else { failed++; lastError = data.error ?? "Could not link this listing."; }
           continue;
         }
-        setSellerProgress(`Importing ${index + 1} of ${lots.length}: ${lot.title.slice(0, 48)}…`);
+        if (knownMatch(lot).kind === "candidate" && linkChoices[lot.id] !== "new") { choose++; continue; }
         const readRes = await fetch("/api/admin/import-url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: lot.url, title: lot.title }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: lot.url, title: lot.title }),
         });
-        const read = (await readRes.json()) as {
-          imported?: Record<string, unknown> & { images?: ProductImage[]; priceCents?: number | string };
-          error?: string;
-        };
-        if (!readRes.ok || !read.imported) {
-          failed += 1;
-          lastError = read.error ?? lastError;
-          continue;
-        }
-
-        // Prefer the price the listing page gave us, then the price shown on the
-        // store page. With a price the piece can go live immediately.
-        // Which marketplace the lot actually comes from decides the badge.
-        const lotChannel = lot.url.includes("catawiki") ? "catawiki" : "ebay";
-        const fromListing = Number(read.imported.priceCents ?? 0);
-        const priceCents = fromListing > 0 ? Math.round(fromListing) : (lot.priceCents ?? 0);
-        const canPublish = priceCents > 0;
-
+        const read = await readRes.json() as { imported?: Record<string, unknown> & { images?: ProductImage[]; priceCents?: number | string }; error?: string };
+        if (!readRes.ok || !read.imported) { failed++; lastError = read.error ?? "Could not read the listing."; continue; }
+        const parsedPrice = Number(read.imported.priceCents ?? Number(read.imported.priceDollars ?? 0) * 100);
+        const priceCents = parsedPrice > 0 ? Math.round(parsedPrice) : lot.priceCents ?? 0;
+        const canPublish = priceCents > 0 && Boolean(read.imported.images?.length) && Boolean(read.imported.description || read.imported.shortDescription);
         const saveRes = await fetch("/api/admin/products", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...read.imported,
-            stock: "1",
-            listingChannel: lotChannel,
-            archived: false,
-            published: canPublish,
-            priceDollars: canPublish ? (priceCents / 100).toFixed(2) : "",
-            // If the auction ends unsold, the piece returns to Site Only at the
-            // same price instead of losing its value.
-            siteOnlyPriceDollars: canPublish ? (priceCents / 100).toFixed(2) : "",
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...read.imported, stock: "1", listingChannel: channel, archived: false,
+            published: canPublish, priceDollars: priceCents > 0 ? (priceCents / 100).toFixed(2) : "",
+            siteOnlyPriceDollars: String(read.imported.siteOnlyPriceDollars ?? "") }),
         });
-        if (saveRes.ok) {
-          if (canPublish) live += 1;
-          else drafts += 1;
-        }
+        const saved = await saveRes.json().catch(() => ({})) as { error?: string };
+        if (saveRes.ok) { if (canPublish) live++; else drafts++; } else { failed++; lastError = saved.error ?? "Could not save the specimen."; }
       }
-      setSellerProgress(null);
-      const parts = [
-        live > 0
-          ? `${live} piece(s) imported and ALREADY LIVE on the site, badged with their marketplace`
-          : null,
-        drafts > 0
-          ? `${drafts} saved as draft(s) because no price was found — open each one, type the price and press Publish`
-          : null,
-        skipped > 0 ? `${skipped} already on the site` : null,
-        failed > 0 ? `${failed} could not be read` : null,
-      ].filter(Boolean);
-      notify(
-        failed > 0 && lastError
-          ? `Finished. ${parts.join("; ")}. Reason: ${lastError}`
-          : `Finished. ${parts.join("; ")}.`,
-      );
-      router.refresh();
-    } finally {
-      setSellerBusy(false);
-    }
+      const summary = `${linked} existing specimen(s) linked, ${live} new listing(s) published, ${drafts} draft(s), ${skipped} already active, ${choose} awaiting your choice, ${failed} failed.${lastError ? ` ${lastError}` : ""}`;
+      setSellerFeedback(summary); notify(summary); router.refresh();
+    } catch { setSellerFeedback("Network error. Previously completed actions are kept; check the list before retrying."); }
+    finally { setSellerBusy(false); setSellerProgress(null); }
+  }
+
+  function renderSellerResults() {
+    return (
+      <div className="mt-3 space-y-3">
+        {sellerFeedback && <p role="status" className="rounded-sm border border-ink/15 bg-white/85 p-3 text-xs leading-relaxed text-ink/80">{sellerFeedback}</p>}
+        {sellerProgress && <p className="text-xs text-sea">{sellerProgress}</p>}
+        {sellerLots && sellerLots.length > 0 && (
+          <div className="rounded-sm border border-ink/15 bg-white/80 p-3">
+            <button type="button" disabled={sellerBusy} onClick={() => importSellerLots(sellerLots, sellerSource ?? "ebay")}
+              className="min-h-11 rounded-full bg-terracotta px-4 text-[11px] uppercase tracking-[0.14em] text-parchment disabled:opacity-40">Sync selected / import new</button>
+            <p className="mt-2 text-xs text-ink/60">A returned listing can be linked to its existing specimen — do not import another copy. Similar names are suggestions only.</p>
+            <ul className="mt-2 divide-y divide-ink/10">
+              {sellerLots.map((lot) => {
+                const match = knownMatch(lot);
+                const selected = linkChoices[lot.id] ?? (match.productId ? String(match.productId) : "");
+                return (
+                  <li key={lot.id} className="space-y-2 py-3 text-xs">
+                    <p className="font-medium text-ink">{lot.title}</p>
+                    {alreadyImported(lot.url) ? <p className="text-sea">Already active on this marketplace</p> : (
+                      <>
+                        <label className="block">
+                          <span className="text-ink/65">Link to existing specimen, or create a distinct new specimen</span>
+                          <select aria-label={`Specimen for ${lot.title}`} value={selected}
+                            onChange={(event) => setLinkChoices((old) => ({ ...old, [lot.id]: event.target.value }))}
+                            className="mt-1 min-h-11 w-full min-w-0 rounded-sm border border-ink/20 bg-white px-2 text-xs">
+                            <option value="">{match.kind === "candidate" ? "Choose — possible existing specimen found" : "Choose an existing specimen if this is a relisting"}</option>
+                            <option value="new">Create a NEW, distinct specimen</option>
+                            {initialProducts.map((specimen) => <option key={specimen.id} value={specimen.id}>{specimen.specimenReference ? `${specimen.specimenReference} · ` : ""}{specimen.name} · {specimen.archived ? "Archive" : specimen.listingChannel ?? "Unavailable"}</option>)}
+                          </select>
+                        </label>
+                        {match.productId && <p className="text-sea">Recognised by a saved listing or specimen reference. The existing photos and text will be kept.</p>}
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" disabled={sellerBusy || (match.kind === "candidate" && !selected)} onClick={() => importSellerLots([lot], sellerSource ?? "ebay")}
+                            className="min-h-11 rounded-full border border-ink/25 px-4 text-[10px] uppercase tracking-[0.12em] disabled:opacity-40">{chosenProduct(lot) ? "Link / reactivate this specimen" : "Import this"}</button>
+                          <button type="button" onClick={() => addLotManually(lot)} className="min-h-11 rounded-full border border-ink/20 px-4 text-[10px] uppercase tracking-[0.12em]">Open a new draft manually</button>
+                        </div>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
   }
 
   /**
@@ -1167,6 +1256,8 @@ export function AdminDashboard({
             </div>
           </div>
 
+          <InventorySyncPanel specimens={initialProducts.map((p) => ({ id: p.id, name: p.name, archived: p.archived }))} refreshKey={runsKey} />
+
           {/* Automatic marketplace price refresh */}
           <div className="mb-4 rounded-sm border-2 border-brass/40 bg-brass/10 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
@@ -1192,7 +1283,7 @@ export function AdminDashboard({
               </span>
             </div>
 
-            <AdminCronStatus refreshKey={cronStatusKey} />
+            <AdminCronStatus refreshKey={runsKey} />
 
             {priceReport && (
               <div className="mt-4 max-h-64 overflow-y-auto rounded-sm border border-ink/15 bg-white/85 p-3">
@@ -1245,8 +1336,9 @@ export function AdminDashboard({
               Paste your eBay store link. Only trilobites are listed — seashells and minerals are filtered out
               automatically. Each listing comes in with its photograph <strong>and goes live straight away</strong> at
               the eBay price, marked “Live on eBay”. If eBay did not show a price, the piece is saved as a draft for
-              you to complete.
+              you to complete. Existing specimens are not overwritten by discovery or import.
             </p>
+            <div className="mt-3"><EbayConnectionCheck onSellerDetected={(seller) => setEbaySellerUrl(`https://www.ebay.com/usr/${encodeURIComponent(seller)}`)} /></div>
             <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
               <input
                 value={ebaySellerUrl}
@@ -1264,7 +1356,9 @@ export function AdminDashboard({
               </button>
             </div>
 
-            {/* Always works: the curator's browser can see what the server cannot. */}
+            {sellerSource === "ebay" && renderSellerResults()}
+
+            {/* Paste is a fallback if the API is not available. */}
             <details className="mt-3 rounded-sm border border-ink/15 bg-white/80 p-3">
               <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-ink">
                 eBay blocking? Paste the listing here — no keys needed
@@ -1325,58 +1419,9 @@ export function AdminDashboard({
               >
                 {sellerBusy ? "Working…" : "Find my lots"}
               </button>
-              <button
-                type="button"
-                disabled={!sellerLots || sellerBusy || sellerLots.length === 0}
-                onClick={() => sellerLots && importSellerLots(sellerLots, "catawiki")}
-                className="inline-flex h-9 items-center justify-center rounded-full bg-terracotta px-5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-ink disabled:opacity-40"
-              >
-                Import all new
-              </button>
+
             </div>
-            {sellerProgress && <p className="mt-2 text-xs text-sea">{sellerProgress}</p>}
-            {sellerLots && (
-              <div className="mt-3 rounded-sm border border-ink/15 bg-white/80 p-3">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-ink/60">
-                  {sellerLots.length} live lot(s) found
-                </p>
-                <ul className="mt-2 divide-y divide-ink/10">
-                  {sellerLots.map((lot) => {
-                    const done = alreadyImported(lot.url);
-                    return (
-                      <li key={lot.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
-                        <span className="min-w-0 flex-1 truncate text-ink/85" title={lot.title}>
-                          {lot.title}
-                        </span>
-                        {done ? (
-                          <span className="rounded-full bg-sea/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-sea">
-                            Already on site
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={sellerBusy}
-                              onClick={() => importSellerLots([lot])}
-                              className="rounded-full border border-ink/20 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-ink hover:border-ink disabled:opacity-40"
-                            >
-                              Import this
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => addLotManually(lot)}
-                              className="rounded-full border border-ink/20 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-ink/70 hover:border-ink"
-                            >
-                              Add manually
-                            </button>
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
+            {sellerSource === "catawiki" && renderSellerResults()}
           </div>
 
           {/* Import from eBay / Catawiki */}
@@ -1512,7 +1557,7 @@ export function AdminDashboard({
                   <label className={labelClass}>Listing Channel (Where is it right now?)</label>
                   <select
                     value={editing.listingChannel}
-                    onChange={(e) => setEditing({ ...editing, listingChannel: e.target.value })}
+                    onChange={(e) => { const channel = e.target.value; setEditing({ ...editing, listingChannel: channel, externalListingUrl: channel === "ebay" || channel === "catawiki" ? savedListing(editing, channel) ?? "" : editing.externalListingUrl }); }}
                     className={inputClass}
                   >
                     <option value="direct">Site Only (Direct Sale on Mediterranic)</option>
@@ -1554,6 +1599,28 @@ export function AdminDashboard({
                         : "Video link detected — it will be embedded on the product page."}
                     </p>
                   )}
+                </div>
+
+                <div className="rounded-sm border border-ink/15 bg-bone/40 p-4 md:col-span-2">
+                  <p className="mb-3 text-sm font-medium text-ink">One specimen, separate marketplace links</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="text-xs text-ink/65">
+                      <span className="block">REF · collection reference (shown under the title)</span>
+                      <input value={editing.specimenReference} onChange={(e) => setEditing({ ...editing, specimenReference: e.target.value })} placeholder="PAIS9676 or 9676" className={`${inputClass} mt-1`} /></label>
+                    <label className="text-xs text-ink/65">
+                      <span className="block">Weight with box (g)</span>
+                      <input value={editing.weightGrams} onChange={(e) => setEditing({ ...editing, weightGrams: e.target.value })} inputMode="numeric" placeholder="456" className={`${inputClass} mt-1`} /></label>
+                    <label className="text-xs text-ink/65">Saved eBay item URL
+                      <input value={editing.ebayListingUrl} onChange={(e) => setEditing({ ...editing, ebayListingUrl: e.target.value })} placeholder="https://www.ebay.com/itm/..." className={`${inputClass} mt-1`} /></label>
+                    <label className="text-xs text-ink/65">Saved Catawiki lot URL
+                      <input value={editing.catawikiListingUrl} onChange={(e) => setEditing({ ...editing, catawikiListingUrl: e.target.value })} placeholder="https://www.catawiki.com/en/l/..." className={`${inputClass} mt-1`} /></label>
+                  </div>
+                  <p className="mt-2 text-xs text-ink/55">
+                    The REF is the unique number this piece keeps on eBay, Catawiki and the site, so a relisting is
+                    recognised by its number instead of by a name or a photograph. Changing channels keeps both links
+                    and their history. Only the selected active channel is checked automatically — end any competing
+                    live listing yourself.
+                  </p>
                 </div>
 
                 <div className="md:col-span-2">
@@ -2087,7 +2154,7 @@ export function AdminDashboard({
                         <div className="inline-flex flex-wrap items-center gap-1 rounded-full bg-bone/70 p-1">
                           <button
                             type="button"
-                            onClick={() => handleQuickChannel(p, "direct")}
+                            onClick={() => openChannelBox(p, "direct")}
                             className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.14em] transition ${
                               !isSold && channel === "direct"
                                 ? "bg-ink font-semibold text-parchment shadow-sm"
@@ -2098,7 +2165,7 @@ export function AdminDashboard({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleQuickChannel(p, "catawiki")}
+                            onClick={() => openChannelBox(p, "catawiki")}
                             className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.14em] transition ${
                               !isSold && channel === "catawiki"
                                 ? "bg-brass font-semibold text-ink shadow-sm"
@@ -2109,7 +2176,7 @@ export function AdminDashboard({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleQuickChannel(p, "ebay")}
+                            onClick={() => openChannelBox(p, "ebay")}
                             className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.14em] transition ${
                               !isSold && channel === "ebay"
                                 ? "bg-sea font-semibold text-parchment shadow-sm"
@@ -2120,7 +2187,7 @@ export function AdminDashboard({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleQuickChannel(p, "sold")}
+                            onClick={() => openChannelBox(p, "sold")}
                             className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.14em] transition ${
                               isSold
                                 ? "bg-terracotta font-semibold text-parchment shadow-sm"
@@ -2573,6 +2640,140 @@ export function AdminDashboard({
           )}
         </div>
       )}
+      {/* Channel box: link + price travel with the piece when it changes platform. */}
+      {channelBox && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-sm border border-ink/15 bg-parchment p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.28em] text-brass">
+                  {channelBox.target === "sold"
+                    ? "Unavailable"
+                    : channelBox.target === "direct"
+                      ? "Site Only"
+                      : channelBox.target === "catawiki"
+                        ? "Live on Catawiki"
+                        : "Live on eBay"}
+                </p>
+                <h3 className="mt-1 font-display text-3xl leading-tight text-ink">{channelBox.product.name}</h3>
+                {channelBox.product.specimenReference && (
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-ink/50">
+                    {channelBox.product.specimenReference}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setChannelBox(null)}
+                aria-label="Close"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink/60 transition hover:bg-ink/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {channelBox.target === "sold" ? (
+                <p className="rounded-sm bg-bone/60 p-3 text-xs leading-relaxed text-ink/70">
+                  No listing link applies to an unavailable piece. Choose whether it should also appear in the
+                  public archive — where pieces are shown for the record, without any price.
+                </p>
+              ) : (
+                <label className="block">
+                  <span className={labelClass}>
+                    {channelBox.target === "direct"
+                      ? "Link (optional — usually none for Site Only)"
+                      : channelBox.target === "catawiki"
+                        ? "Catawiki lot link"
+                        : "eBay item link"}
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="url"
+                    value={channelForm.link}
+                    onChange={(e) => setChannelForm({ ...channelForm, link: e.target.value })}
+                    placeholder={
+                      channelBox.target === "catawiki"
+                        ? "https://www.catawiki.com/en/l/..."
+                        : channelBox.target === "ebay"
+                          ? "https://www.ebay.com/itm/..."
+                          : "https://…"
+                    }
+                    className={`${inputClass} mt-1`}
+                  />
+                  <span className="mt-1 block text-[11px] text-ink/45">
+                    The link changes every time the piece moves platform. Leave it empty if it is not listed yet.
+                  </span>
+                </label>
+              )}
+
+              <label className="block">
+                <span className={labelClass}>
+                  {channelBox.target === "sold" ? "Price (EUR €) — optional" : "Price (EUR €)"}
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={channelForm.price}
+                  onChange={(e) => setChannelForm({ ...channelForm, price: e.target.value })}
+                  placeholder="0"
+                  className={`${inputClass} mt-1`}
+                />
+                {channelBox.target === "direct" && (
+                  <span className="mt-1 block text-[11px] text-ink/45">
+                    This is the direct-sale price. When the piece later returns from an unsold auction, this is the
+                    value used — never the last auction bid.
+                  </span>
+                )}
+              </label>
+
+              {channelBox.target === "sold" && (
+                <div>
+                  <span className={labelClass}>Show in the public archive?</span>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[
+                      { value: true, label: "Yes — add to /archive" },
+                      { value: false, label: "No — keep it off the site" },
+                    ].map((option) => (
+                      <button
+                        key={String(option.value)}
+                        type="button"
+                        onClick={() => setChannelForm({ ...channelForm, archive: option.value })}
+                        className={`min-h-11 rounded-full border px-4 text-[11px] uppercase tracking-[0.14em] transition ${
+                          channelForm.archive === option.value
+                            ? "border-ink bg-ink text-parchment"
+                            : "border-ink/25 text-ink/70 hover:border-ink"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-ink/10 pt-5">
+              <button
+                type="button"
+                disabled={channelBusy}
+                onClick={submitChannelBox}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-6 text-[11px] uppercase tracking-[0.16em] text-parchment transition hover:bg-sea disabled:opacity-50"
+              >
+                {channelBusy ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setChannelBox(null)}
+                className="inline-flex min-h-11 items-center rounded-full border border-ink/25 px-5 text-[11px] uppercase tracking-[0.16em] text-ink/70 transition hover:border-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

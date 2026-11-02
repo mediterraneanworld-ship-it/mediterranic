@@ -74,10 +74,13 @@
    already Catawiki's, so eBay uses the e+a+y colours — one third each. */
 /* eBay's own four colours — e=red, b=blue, a=yellow, y=green — one quarter
    each, with a light dark wash so white text stays readable on the yellow. */
+/* eBay's own four colours — e=red, b=blue, a=yellow, y=green. Static, with a
+   slight 102° slant so the bands read like the angled logo without any motion
+   that could shimmer or mis-render on low-end screens. */
 .ebay-quad {
   background-image:
     linear-gradient(rgba(11, 32, 48, 0.28), rgba(11, 32, 48, 0.28)),
-    linear-gradient(90deg, #E53238 0 25%, #0064D2 25% 50%, #F5AF02 50% 75%, #86B817 75% 100%);
+    linear-gradient(102deg, #E53238 0 25%, #0064D2 25% 50%, #F5AF02 50% 75%, #86B817 75% 100%);
 }
 
 /* Site Only — the owner's orange, used on every page. */

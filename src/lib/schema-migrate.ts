@@ -155,17 +155,49 @@ ALTER TABLE "site_settings" ADD COLUMN IF NOT EXISTS "content" jsonb DEFAULT '{}
 ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "payment_method" text DEFAULT 'direct' NOT NULL;
 ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "paypal_order_id" text;
 
--- Log of price refreshes (cron + manual). New table only; never touches data.
-CREATE TABLE IF NOT EXISTS "price_refresh_runs" (
+-- Log of every price check (automatic or manual). New table only.
+CREATE TABLE IF NOT EXISTS "price_check_runs" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"source" text DEFAULT 'manual' NOT NULL,
-	"ok" boolean DEFAULT true NOT NULL,
+	"source" text NOT NULL,
+	"status" text NOT NULL,
+	"detail" text,
 	"checked" integer DEFAULT 0 NOT NULL,
 	"changed" integer DEFAULT 0 NOT NULL,
 	"ended" integer DEFAULT 0 NOT NULL,
-	"summary" text DEFAULT '' NOT NULL,
-	"ran_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"finished_at" timestamp with time zone
 );
+
+-- Preserve the log table used by the published 39e76ca deployment.
+CREATE TABLE IF NOT EXISTS "price_refresh_runs" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "source" text DEFAULT 'manual' NOT NULL,
+  "ok" boolean DEFAULT true NOT NULL,
+  "checked" integer DEFAULT 0 NOT NULL,
+  "changed" integer DEFAULT 0 NOT NULL,
+  "ended" integer DEFAULT 0 NOT NULL,
+  "summary" text DEFAULT '' NOT NULL,
+  "ran_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Additive only: no backfill, deletion or overwrite of shop data.
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "ebay_listing_url" text;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "catawiki_listing_url" text;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_history" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "specimen_reference" text;
+
+
+CREATE TABLE IF NOT EXISTS "inventory_sync_state" (
+  "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
+  "lease_expires_at" timestamp with time zone,
+  "report" jsonb,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_active" boolean;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "weight_grams" integer;
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_checked_at" timestamp with time zone;
+
 `;
 
 let migrated: Promise<void> | null = null;

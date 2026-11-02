@@ -1,3 +1,4 @@
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -60,6 +61,41 @@ function resolveVideo(url: string | null | undefined): VideoSource | null {
   // than being silently dropped.
   if (/^https?:\/\//i.test(trimmed)) return { kind: "link", url: trimmed };
   return null;
+}
+
+/** Brass separator used between the reference, the size and the weight. */
+function RefDot() {
+  return <span aria-hidden className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brass" />;
+}
+
+/**
+ * The collection reference sits directly under the title: PAIS9676 · 46x56 mm · 456g.
+ * It is the number the same piece keeps on every platform, so customers and the
+ * back-office can recognise it without relying on a name or a photograph.
+ */
+function SpecimenReference({
+  reference,
+  lengthMm,
+  weightGrams,
+}: {
+  reference: string | null;
+  lengthMm: number | null;
+  weightGrams: number | null;
+}) {
+  if (!reference && !lengthMm && !weightGrams) return null;
+  return (
+    <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink/65">
+      {reference && (
+        <span className="font-medium uppercase tracking-[0.16em] text-ink/80" data-testid="specimen-ref">
+          {reference}
+        </span>
+      )}
+      {reference && lengthMm && <RefDot />}
+      {lengthMm && <span>{lengthMm} mm</span>}
+      {lengthMm && weightGrams && <RefDot />}
+      {weightGrams && <span>{weightGrams} g</span>}
+    </p>
+  );
 }
 
 function SpecimenVideo({ video, name }: { video: VideoSource; name: string }) {
@@ -163,10 +199,11 @@ export default async function ProductPage({ params }: Props) {
     ["Formation", product.formation],
     ["Locality", product.locality],
     ["Length", product.lengthMm ? `${product.lengthMm} mm` : null],
+    ["Weight", product.weightGrams ? `${product.weightGrams} g` : null],
     ["Preparation", product.preparation],
   ];
 
-  const siteBase = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mediterranic.com").replace(/\/$/, "");
+  const siteBase = PUBLIC_SITE_URL;
   const absolute = (src: string) => (src.startsWith("http") ? src : `${siteBase}${src}`);
   const productJsonLd = {
     "@context": "https://schema.org",
@@ -239,7 +276,13 @@ export default async function ProductPage({ params }: Props) {
             {product.period ? ` · ${product.period}` : ""}
           </p>
           <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">{product.name}</h1>
-          <p className="mt-3 font-display text-2xl italic text-ink/60">{product.species}</p>
+
+          {/* Collection reference — the unique number that follows this piece across platforms. */}
+          <SpecimenReference
+            reference={product.specimenReference}
+            lengthMm={product.lengthMm}
+            weightGrams={product.weightGrams}
+          />
 
           <ChannelBanner
             channel={product.listingChannel}

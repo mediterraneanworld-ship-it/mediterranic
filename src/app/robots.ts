@@ -1,7 +1,8 @@
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mediterranic.com").replace(/\/$/, "");
+  const base = PUBLIC_SITE_URL;
   return {
     rules: [
       {

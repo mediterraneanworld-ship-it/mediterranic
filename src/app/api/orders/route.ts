@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     const input = parseOrderInput(body);
     const built = await buildOrder(input);
-    const id = await insertOrder(input, built, { status: "confirmed", paymentMethod: "direct" });
+    const id = await insertOrder(input, built, { status: "pending_invoice", paymentMethod: "direct" });
     return Response.json({ id }, { status: 201 });
   } catch (error) {
     if (error instanceof OrderError) {

@@ -1,7 +1,8 @@
-import { and, eq, isNotNull, gt } from "drizzle-orm";
+import { and, eq, inArray, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { priceRefreshRuns, products } from "@/db/schema";
-import { getEbayItem, hasEbayCredentials } from "@/lib/ebay";
+import { products } from "@/db/schema";
+import { activeListing, savedListing, rememberedLinks } from "@/lib/marketplace-links";
+import { ebayErrorMessage, ebayItemIdFromUrl, getEbayItem, hasEbayCredentials } from "@/lib/ebay";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -28,11 +29,12 @@ export type PriceCheckResult = {
  */
 async function readCatawikiPrice(
   url: string,
+  signal?: AbortSignal,
 ): Promise<{ cents: number | null; status: ListingStatus }> {
   const res = await fetch(`https://r.jina.ai/${url}`, {
-    headers: { "User-Agent": UA },
+    headers: { "User-Agent": UA, "X-No-Cache": "true", "X-Cache-Tolerance": "0" },
     cache: "no-store",
-    signal: AbortSignal.timeout(45_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
   });
   if (!res.ok) return { cents: null, status: "unknown" };
   const text = await res.text();
@@ -78,43 +80,35 @@ async function readCatawikiPrice(
   return { cents: null, status };
 }
 
-/**
- * Reads the current price of an eBay item.
- *
- * With EBAY_CLIENT_ID / EBAY_CLIENT_SECRET set, the official Browse API is used
- * (reliable from any server). Without them, the store page is scraped — eBay
- * answers HTTP 403 to datacenter IPs, so that path usually returns null and the
- * piece is simply left untouched.
- */
-async function readEbayPrice(itemUrl: string, storeUrl: string): Promise<number | "ended" | null> {
-  const itemId = itemUrl.match(/\/itm\/(\d{6,13})/)?.[1];
+/** Reads the current price of an eBay item from the store page it is listed on. */
+async function readEbayPagePrice(itemUrl: string, storeUrl: string, signal?: AbortSignal): Promise<number | null> {
+  const itemId = ebayItemIdFromUrl(itemUrl);
   if (!itemId) return null;
-
-  if (hasEbayCredentials()) {
-    try {
-      const item = await getEbayItem(itemId);
-      // The API returns null for a listing that no longer exists (sold/ended).
-      if (!item) return "ended";
-      return item.priceCents ?? null;
-    } catch {
-      // fall through to the page read below
-    }
-  }
 
   const res = await fetch(storeUrl, {
     headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
     cache: "no-store",
-    signal: AbortSignal.timeout(40_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000),
   });
   if (!res.ok) return null;
   const html = await res.text();
+
+  // eBay often answers servers with a 200 "security check" page instead of the
+  // store. Such a page has no listings, and must NEVER be read as "the item is
+  // gone" — that would archive a live piece as sold. Only a real store page,
+  // with several listings on it, can prove that this one has ended.
+  const otherListings = new Set(Array.from(html.matchAll(/\/itm\/(\d{6,13})/g), (m) => m[1]));
+  const looksBlocked = /pardon our interruption|security measure|captcha|access denied|are you a robot/i.test(
+    html.slice(0, 20_000),
+  );
+  if (looksBlocked || otherListings.size < 3) return null;
 
   const positions: [string, number][] = [];
   for (const m of html.matchAll(new RegExp(`/itm/${itemId}`, "g"))) {
     positions.push([itemId, m.index ?? 0]);
   }
-  // Store page loaded fine but the item is gone from it: the listing ended.
-  if (positions.length === 0) return "ended";
+  // Missing from one page is not evidence of a sale (pagination/relisting).
+  if (positions.length === 0) return null;
 
   const pos = positions[0][1];
   const chunk = html.slice(pos, pos + 6000);
@@ -129,155 +123,101 @@ async function readEbayPrice(itemUrl: string, storeUrl: string): Promise<number 
   return null;
 }
 
+/** The cron and manual refresh use exactly the same authenticated eBay reader. */
+async function readEbayPrice(itemUrl: string, storeUrl: string, signal?: AbortSignal): Promise<{
+  cents: number | null; status: ListingStatus; error?: string;
+}> {
+  if (hasEbayCredentials()) {
+    const item = await getEbayItem(itemUrl, signal);
+    if (!item?.active) return {
+      cents: null, status: "unknown",
+      error: "eBay did not confirm an active listing. Existing data kept; an absent item does not prove a sale.",
+    };
+    if (item.priceCents === null) return {
+      cents: null, status: "unknown",
+      error: `eBay returned no EUR price (${item.currency || "unknown currency"}). Existing euro price kept.`,
+    };
+    return { cents: item.priceCents, status: "live" };
+  }
+  const price = await readEbayPagePrice(itemUrl, storeUrl, signal);
+  return price === null
+    ? { cents: null, status: "unknown", error: "eBay keys are missing in this deployment and the page could not be read. Existing data kept." }
+    : { cents: price, status: "live" };
+}
+
 /**
  * Refreshes the displayed price of every piece that is currently listed on a
  * marketplace. Only pieces with stock are touched.
  */
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function refreshMarketplacePrices(
-  ebayStoreUrl: string,
-): Promise<{ results: PriceCheckResult[]; checked: number; changed: number; ended: number }> {
-  const rows = await db
-    .select()
-    .from(products)
-    .where(and(isNotNull(products.externalListingUrl), gt(products.stock, 0)));
-
-  const results: PriceCheckResult[] = [];
-
-  for (const p of rows) {
-    const url = p.externalListingUrl!;
-    const channel = p.listingChannel ?? "direct";
-    // Read the marketplace the listing URL points to (not the current channel),
-    // so a piece moved off its auction by mistake is restored automatically.
-    const marketplace = url.includes("catawiki.") ? "catawiki" : url.includes("ebay.") ? "ebay" : null;
-    const onMarketplace = channel === "catawiki" || channel === "ebay";
-    let currentCents: number | null = null;
-    let status: ListingStatus = "unknown";
-    let error: string | undefined;
-
+export async function refreshMarketplacePrices(ebayStoreUrl: string, options: { deadline?: number; hints?: Map<string, { cents: number | null; status: ListingStatus }> } = {}): Promise<{
+  results: PriceCheckResult[]; checked: number; changed: number; ended: number;
+}> {
+  const rows = await db.select().from(products).where(and(
+    inArray(products.listingChannel, ["catawiki", "ebay"]), gt(products.stock, 0),
+    eq(products.archived, false), eq(products.published, true),
+  ));
+  const reports = new Map<number, PriceCheckResult>();
+  const deadline = options.deadline ?? Date.now() + 70_000;
+  let cursor = 0;
+  async function inspect(p: typeof products.$inferSelect) {
+    const channel = p.listingChannel;
+    if (channel !== "ebay" && channel !== "catawiki") return;
+    const result: PriceCheckResult = {
+      slug: p.slug, name: p.name, channel, previousCents: p.priceCents,
+      currentCents: null, changed: false, status: "unknown",
+    };
+    reports.set(p.id, result);
+    if (Date.now() >= deadline) { result.error = "Not checked within this run's time budget. Existing data kept; check again."; return; }
+    const active = activeListing(p);
+    if (!active) { result.error = `No ${channel} URL is saved. Set the active link in the editor.`; return; }
     try {
-      if (marketplace === "catawiki") {
-        const read = await readCatawikiPrice(url);
-        currentCents = read.cents;
-        status = read.status;
-      } else if (marketplace === "ebay") {
-        // eBay rate-limits aggressively; one retry after a pause usually clears it.
-        let read = await readEbayPrice(url, ebayStoreUrl);
-        if (read === null) {
-          await wait(3_000);
-          read = await readEbayPrice(url, ebayStoreUrl);
-        }
-        if (read === "ended") {
-          status = "sold";
-        } else if (read !== null) {
-          currentCents = read;
-          status = "live";
-        }
+      const signal = AbortSignal.timeout(Math.max(1000, deadline - Date.now()));
+      const read = options.hints?.get(active.url) ?? (channel === "ebay" ? await readEbayPrice(active.url, ebayStoreUrl, signal) : await readCatawikiPrice(active.url, signal));
+      result.status = read.status;
+      if ("error" in read && typeof read.error === "string") result.error = read.error;
+      if (read.status === "unknown") { result.error ||= "The listing state could not be confirmed; existing data kept."; return; }
+      if (read.status === "live" && p.marketplaceActive === false && !options.hints?.has(active.url)) {
+        result.error = "This saved URL is absent from the verified active inventory. A related/redirected page was not allowed to reactivate it without a confirmed listing match.";
+        return;
       }
-    } catch {
-      error = "could not read the listing";
+      const values: Partial<typeof products.$inferInsert> = { lastPriceCheck: new Date() };
+      if (read.status === "sold") {
+        Object.assign(values, { stock: 0, archived: true, listingChannel: null,
+          ebayListingUrl: savedListing(p, "ebay"), catawikiListingUrl: savedListing(p, "catawiki"), marketplaceHistory: rememberedLinks(p) });
+      } else if (read.status === "unsold") {
+        if (!p.siteOnlyPriceCents || p.siteOnlyPriceCents <= 0) { result.error = "Set 'When in Site Only' before returning an unpurchased specimen to direct sale. The auction bid was not used."; return; }
+        Object.assign(values, { listingChannel: "direct", priceCents: p.siteOnlyPriceCents,
+          ebayListingUrl: savedListing(p, "ebay"), catawikiListingUrl: savedListing(p, "catawiki"), marketplaceHistory: rememberedLinks(p) });
+      } else if (read.status === "live" && read.cents !== null) {
+        values.priceCents = read.cents;
+        values.marketplaceActive = true; values.marketplaceCheckedAt = new Date();
+      } else { result.error ||= "No current price was confirmed; existing data kept."; return; }
+      // Optimistic concurrency: a manual channel, stock, URL or price edit made
+      // during the fetch wins. A stale external result never overwrites it.
+      const changed = await db.update(products).set(values).where(and(
+        eq(products.id, p.id), eq(products.listingChannel, channel),
+        eq(products.priceCents, p.priceCents), eq(products.stock, p.stock),
+        eq(products.archived, false), eq(products.published, true),
+        sql`${products.externalListingUrl} IS NOT DISTINCT FROM ${p.externalListingUrl}`,
+      )).returning({ id: products.id });
+      if (!changed.length) { result.error = "Specimen changed during this check. Your edit was kept; check again."; return; }
+      result.currentCents = read.status === "sold" ? null : values.priceCents ?? p.priceCents;
+      result.changed = read.status === "sold" || read.status === "unsold" || values.priceCents !== p.priceCents;
+      if (read.status === "sold") result.markedUnavailable = true;
+    } catch (error) {
+      result.error = channel === "ebay" ? ebayErrorMessage(error) : "Could not read the listing; existing data kept.";
     }
-
-    // Sold (no reserve, or reserve met): unavailable, no price, into the public archive.
-    if (status === "sold") {
-      await db
-        .update(products)
-        .set({ stock: 0, listingChannel: null, archived: true, lastPriceCheck: new Date() })
-        .where(eq(products.id, p.id));
-      results.push({
-        slug: p.slug, name: p.name, channel,
-        previousCents: p.priceCents, currentCents: null,
-        changed: true, status: "sold", markedUnavailable: true,
-      });
-      continue;
-    }
-
-    // Ended unsold: back to Site Only, at the price set in "When in Site Only".
-    if (status === "unsold" && onMarketplace) {
-      const newPrice = p.siteOnlyPriceCents ?? p.priceCents;
-      await db
-        .update(products)
-        .set({ listingChannel: "direct", priceCents: newPrice, lastPriceCheck: new Date() })
-        .where(eq(products.id, p.id));
-      results.push({
-        slug: p.slug, name: p.name, channel,
-        previousCents: p.priceCents, currentCents: newPrice,
-        changed: true, status: "unsold",
-      });
-      continue;
-    }
-
-    if (status === "unsold") {
-      // Already off the auction (e.g. Site Only): leave it exactly as it is.
-      await db.update(products).set({ lastPriceCheck: new Date() }).where(eq(products.id, p.id));
-      results.push({ slug: p.slug, name: p.name, channel, previousCents: p.priceCents, currentCents: p.priceCents, changed: false, status });
-      continue;
-    }
-
-    if (currentCents === null) {
-      results.push({
-        slug: p.slug,
-        name: p.name,
-        channel,
-        previousCents: p.priceCents,
-        currentCents: null,
-        changed: false,
-        status,
-        error: error ?? "no price found",
-      });
-      continue;
-    }
-
-    // Live auction: keep the price current. The channel is NEVER changed here —
-    // if the owner moved a piece to Site Only by hand, that decision stands.
-    const changed = onMarketplace && currentCents !== p.priceCents;
-    if (changed) {
-      await db.update(products).set({ priceCents: currentCents }).where(eq(products.id, p.id));
-    }
-    await db
-      .update(products)
-      .set({ lastPriceCheck: new Date() })
-      .where(eq(products.id, p.id));
-
-    results.push({
-      slug: p.slug,
-      name: p.name,
-      channel,
-      previousCents: p.priceCents,
-      currentCents,
-      changed,
-      status,
-    });
   }
-
+  async function worker() {
+    while (cursor < rows.length) {
+      const index = cursor++;
+      await inspect(rows[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(3, rows.length) }, worker));
+  const results = rows.map((row) => reports.get(row.id)).filter((row): row is PriceCheckResult => Boolean(row));
   return {
-    results,
-    checked: results.length,
-    changed: results.filter((r) => r.changed).length,
-    ended: results.filter((r) => r.changed && (r.status === "sold" || r.status === "unsold")).length,
+    results, checked: results.length, changed: results.filter((row) => row.changed).length,
+    ended: results.filter((row) => row.changed && (row.status === "sold" || row.status === "unsold")).length,
   };
-}
-
-/** Writes one line to the run log so the back-office can show when it last ran. */
-export async function logPriceRefreshRun(input: {
-  source: "cron" | "manual";
-  ok: boolean;
-  checked?: number;
-  changed?: number;
-  ended?: number;
-  summary: string;
-}): Promise<void> {
-  try {
-    await db.insert(priceRefreshRuns).values({
-      source: input.source,
-      ok: input.ok,
-      checked: input.checked ?? 0,
-      changed: input.changed ?? 0,
-      ended: input.ended ?? 0,
-      summary: input.summary.slice(0, 2000),
-    });
-  } catch (error) {
-    console.error("could not log price refresh run", error);
-  }
 }

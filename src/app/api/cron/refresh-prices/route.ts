@@ -1,68 +1,50 @@
-import { logPriceRefreshRun, refreshMarketplacePrices } from "@/lib/refresh-prices";
-import { getSiteSettings } from "@/lib/catalog";
-import { ensureSchema } from "@/lib/schema-migrate";
+import { recordRejectedRun, runLoggedRefresh, type PriceRunSource } from "@/lib/price-runs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * Scheduled refresh. Vercel calls this with `Authorization: Bearer <CRON_SECRET>`
- * (CRON_SECRET must exist in the project's environment variables). An external
- * scheduler (cron-job.org) may use `?secret=<CRON_SECRET>` instead.
+ * Scheduled refresh.
  *
- * Every attempt — accepted or refused — is written to the run log so the
- * back-office can show exactly what happened this morning.
+ * Two callers are supported:
+ *  - the Vercel cron (vercel.json). Vercel sends `Authorization: Bearer <CRON_SECRET>`
+ *    — but ONLY if the CRON_SECRET variable exists in the project. Without it the
+ *    call arrives with no secret and is refused.
+ *  - an external scheduler (cron-job.org), using ?secret=<CRON_SECRET>.
+ *
+ * Every call — accepted or refused — is written to the price-check log, which
+ * the back-office shows under "Refresh marketplace prices".
  */
 export async function GET(request: Request) {
-  await ensureSchema();
+  const url = new URL(request.url);
+  const fromVercel = /vercel-cron/i.test(request.headers.get("user-agent") ?? "");
+  const source: PriceRunSource = fromVercel ? "vercel-cron" : "external";
 
   const secret = process.env.CRON_SECRET?.trim();
-  const headerSecret = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-  const querySecret = new URL(request.url).searchParams.get("secret")?.trim();
-  const provided = headerSecret || querySecret || "";
-  const fromVercelCron = (request.headers.get("user-agent") ?? "").includes("vercel-cron");
+  const provided =
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ||
+    url.searchParams.get("secret")?.trim() ||
+    "";
 
   if (!secret) {
-    await logPriceRefreshRun({
-      source: "cron",
-      ok: false,
-      summary: "Refused: CRON_SECRET is not set in the environment variables, so the scheduled job cannot authenticate.",
-    });
-    return Response.json({ error: "CRON_SECRET is not configured." }, { status: 500 });
+    await recordRejectedRun(
+      source,
+      "CRON_SECRET is not set in Vercel → Settings → Environment Variables. The automatic check cannot run until it is.",
+    );
+    return Response.json({ error: "CRON_SECRET is not configured." }, { status: 401 });
   }
-
   if (provided !== secret) {
-    await logPriceRefreshRun({
-      source: "cron",
-      ok: false,
-      summary: fromVercelCron
-        ? "Refused: Vercel called the job but its CRON_SECRET does not match the one the app has. Redeploy after changing the variable."
-        : "Refused: wrong or missing secret.",
-    });
+    await recordRejectedRun(
+      source,
+      provided ? "The secret sent does not match CRON_SECRET." : "Called without a secret.",
+    );
     return Response.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const settings = await getSiteSettings();
-  const ebayStoreUrl =
-    process.env.EBAY_STORE_URL || settings.ebayUrl || "https://www.ebay.com/str/mederranic";
-
   try {
-    const report = await refreshMarketplacePrices(ebayStoreUrl);
-    const unreadable = report.results.filter((r) => r.error).length;
-    await logPriceRefreshRun({
-      source: "cron",
-      ok: true,
-      checked: report.checked,
-      changed: report.changed,
-      ended: report.ended,
-      summary: `Checked ${report.checked}, changed ${report.changed}, ended ${report.ended}${
-        unreadable ? `, ${unreadable} could not be read` : ""
-      }.`,
-    });
-    return Response.json({ ok: true, ranAt: new Date().toISOString(), ...report });
+    const report = await runLoggedRefresh(source);
+    return Response.json(report);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    await logPriceRefreshRun({ source: "cron", ok: false, summary: `Failed: ${message}` });
     console.error("Scheduled price refresh failed", error);
     return Response.json({ error: "Refresh failed." }, { status: 500 });
   }

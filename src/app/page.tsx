@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Award, ExternalLink, Gem, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
+import { InventoryStatus } from "@/components/inventory-status";
 import { Reveal } from "@/components/reveal";
 import { StarRating } from "@/components/star-rating";
 import { COLLECTIONS } from "@/lib/collections";
@@ -14,6 +15,7 @@ import {
   getTopReviews,
 } from "@/lib/catalog";
 import { isAvailable } from "@/lib/product-visibility";
+import { inventoryCounts, offeredSpecimen } from "@/lib/inventory-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -35,21 +37,22 @@ export default async function HomePage() {
 
   // Only pieces genuinely on sale: in stock, not archived and offered somewhere.
   // Catalogue entries (archive, unavailable) never count in these figures.
-  const forSale = products.filter(isAvailable);
+  const forSale = products.filter(offeredSpecimen);
+  const counts = inventoryCounts(products);
   const erasOffered = new Set(forSale.map((p) => p.period).filter(Boolean)).size;
 
   const featuredPool = products.filter((p) => p.featured && isAvailable(p));
   const featured = (featuredPool.length > 0 ? featuredPool : forSale).slice(0, 4);
   const collections = COLLECTIONS.map((c) => ({
     ...c,
-    count: products.filter((p) => collectionsOf(p).includes(c.slug)).length,
+    count: forSale.filter((p) => collectionsOf(p).includes(c.slug)).length,
   }));
   // The provenance panel always shows the whole seafloor plate.
   const story = products.find((p) => p.slug === "sandblasted-mortality-the-sandblasted-patriarch") ?? products[0];
   const archivePieces = products.filter((p) => p.archived);
-  const directCount = products.filter((p) => p.listingChannel === "direct").length;
-  const ebayCount = products.filter((p) => p.listingChannel === "ebay").length;
-  const catawikiCount = products.filter((p) => p.listingChannel === "catawiki").length;
+  const directCount = counts.direct;
+  const ebayCount = counts.ebay;
+  const catawikiCount = counts.catawiki;
 
   return (
     <>
@@ -210,6 +213,7 @@ export default async function HomePage() {
             </p>
           </div>
 
+          <InventoryStatus />
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             <Link
               href="/shop?channel=direct"

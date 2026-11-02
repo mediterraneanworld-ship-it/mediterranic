@@ -106,8 +106,7 @@ peça física é reconhecida quando muda de plataforma.
 - **Newsletter** com exportação CSV; **backup v3** inclui imagens e encomendas.
 - **Statcounter** activo, segue navegação interna, não carrega em admin/checkout.
 - Cores: Site Only `#ff9f3d`, Catawiki `#0033FF`, eBay quatro cores
-  (`.ebay-quad`, divisões inclinadas a **102°**, estático), WhatsApp `#25D366`,
-  Instagram/Facebook gradientes.
+  (`.ebay-quad`, 102°, estático), WhatsApp `#25D366`, Instagram/Facebook gradientes.
 - Etiquetas das peças **fora** das fotografias (não tapam no telemóvel).
 - **Next.js 16.4.3**; `npm audit --omit=dev` sem vulnerabilidades conhecidas;
   **42 testes** offline a passar.

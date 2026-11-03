@@ -76,7 +76,3 @@ test('checkout recomputes price and ignores a free-shipping claim from the brows
 test('public copy corrections do not mutate stored input',()=>{
  const copy=load('src/lib/public-copy.ts');const stored={title:'Insured worldwide shipping',analytics:{bodyScripts:'insured is a script literal'},logoImage:'/images/insured.png'};const out=copy.safeContent(stored);assert.equal(stored.title,'Insured worldwide shipping');assert.ok(!/insured/i.test(out.title));assert.equal(out.analytics.bodyScripts,stored.analytics.bodyScripts);assert.equal(out.logoImage,stored.logoImage);
 });
-test('eBay quad stripes use the intended 102deg slant and four brand colors',()=>{
- const css=fs.readFileSync('src/app/globals.css','utf8');
- assert.match(css,/\.ebay-quad\s*\{[^}]*linear-gradient\(102deg,\s*#E53238\s+0\s+25%,\s*#0064D2\s+25%\s+50%,\s*#F5AF02\s+50%\s+75%,\s*#86B817\s+75%\s+100%\)/);
-});

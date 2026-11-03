@@ -138,6 +138,7 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
       city: data.get("city"),
       postalCode: data.get("postalCode"),
       shippingMethod: method,
+      customerNote: String(data.get("customerNote") ?? ""),
       items: items.map((i) => ({ slug: i.slug, quantity: i.quantity })),
     };
   }
@@ -168,10 +169,7 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
         if (payload.code === "PAYPAL_NOT_CONFIGURED") {
           setError("Online payment is not enabled yet — please use the button below to place the order by invoice.");
         } else {
-          // Show the stable error code next to the sentence: it names the exact
-          // failing step (auth, rejection, network) without exposing secrets.
-          const sentence = payload.error ?? "Could not start the PayPal payment. Please try again.";
-          setError(payload.code ? `${sentence} [${payload.code}]` : sentence);
+          setError(payload.error ?? "Could not start the PayPal payment. Please try again.");
         }
         setPaypalBusy(false);
         return;
@@ -303,7 +301,27 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
           </p>
         </Section>
 
-        <Section number="04" title="Payment">
+        <Section number="04" title="A note for the curator">
+          <div className="space-y-3 rounded-sm border border-ink/15 bg-white/80 p-6">
+            <label className="block space-y-2">
+              <span className={label}>Message (optional)</span>
+              <textarea
+                name="customerNote"
+                rows={4}
+                maxLength={1000}
+                className={`${field} min-h-28 resize-y`}
+                placeholder="Alternative payment method, an offer for this piece, a question about shipping…"
+              />
+            </label>
+            <p className="text-xs leading-relaxed text-ink/55">
+              Tell us what you have in mind. Nothing is charged automatically with this option: we reply by e-mail to
+              confirm the payment method (bank transfer, another currency, an offer) before anything is arranged. The
+              price shown stays as listed until we agree otherwise in writing.
+            </p>
+          </div>
+        </Section>
+
+        <Section number="05" title="Payment">
           <div className="space-y-5 rounded-sm bg-bone/70 p-6 md:p-8">
             <div className="flex flex-col items-center gap-4 rounded-sm bg-white p-6 text-center">
               <p className="text-[11px] uppercase tracking-[0.24em] text-ink/55">You will be redirected to PayPal</p>
@@ -351,9 +369,11 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
             name="payment"
             value="invoice"
             disabled={submitting || paypalBusy}
-            className="inline-flex min-h-12 h-auto w-full items-center justify-center gap-3 rounded-full border border-ink/25 px-5 py-3 text-center text-[10px] leading-relaxed tracking-[0.12em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60 sm:text-[11px]"
+            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-ink/25 text-[12px] uppercase tracking-[0.2em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
           >
-            {submitting ? "Placing order…" : "PLACE ORDER BY INVOICE (EMAIL) - USE FOR ALTERNATIVE PAYMENT METHODS AND OFFERS"}
+            {submitting
+              ? "Placing order…"
+              : "PLACE ORDER BY INVOICE (EMAIL) - USE FOR ALTERNATIVE PAYMENT METHODS AND OFFERS"}
           </button>
           <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
             <ShieldCheck size={14} strokeWidth={1.5} />

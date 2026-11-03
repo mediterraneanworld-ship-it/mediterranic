@@ -41,6 +41,15 @@ export type SiteContent = {
       caption: string;
       primaryCta: string;
       secondaryCta: string;
+      /** Labels above the four hero numbers. Two values are automatic:
+       *  specimens = available now (site + eBay + Catawiki), eras = distinct
+       *  geological periods currently offered. */
+      stats: {
+        years: string;
+        feedbacks: string;
+        specimens: string;
+        eras: string;
+      };
     };
     trust: { items: ContentPair[] };
     channels: {
@@ -197,12 +206,18 @@ export const DEFAULT_CONTENT: SiteContent = {
       caption: "Hand-prepared · Anti-Atlas, Morocco",
       primaryCta: "Explore the collection",
       secondaryCta: "23 years of provenance",
+      stats: {
+        years: "Years in the field",
+        feedbacks: "Verified feedbacks",
+        specimens: "Specimens",
+        eras: "Eras offered",
+      },
     },
     trust: {
       items: [
         {
           title: "23 years · eBay & Catawiki",
-          text: "7,500+ verified feedbacks from worldwide collectors",
+          text: "5,000+ verified feedbacks from worldwide collectors",
         },
         {
           title: "23 years of shipping mastery",
@@ -281,7 +296,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       ],
     },
     testimonials: {
-      eyebrow: "7,500+ verified feedbacks across eBay, Catawiki & direct clients",
+      eyebrow: "5,000+ verified feedbacks across eBay, Catawiki & direct clients",
       title: "From collectors who have been where you are",
     },
     links: {
@@ -551,6 +566,10 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { path: ["home", "hero", "caption"], label: "Caption under the photo", type: "text" },
       { path: ["home", "hero", "primaryCta"], label: "Button · primary", type: "text" },
       { path: ["home", "hero", "secondaryCta"], label: "Button · secondary", type: "text" },
+      { path: ["home", "hero", "stats", "years"], label: "Stat label · years", type: "text" },
+      { path: ["home", "hero", "stats", "feedbacks"], label: "Stat label · verified feedbacks", type: "text" },
+      { path: ["home", "hero", "stats", "specimens"], label: "Stat label · specimens (number is automatic)", type: "text" },
+      { path: ["home", "hero", "stats", "eras"], label: "Stat label · eras (number is automatic)", type: "text" },
     ],
   },
   {

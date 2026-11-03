@@ -51,74 +51,8 @@ test('PayPal create/capture requests carry stable idempotency keys and EUR',asyn
  const requests=[];
  const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_SECRET:'fixture-only-placeholder',PAYPAL_ENV:'sandbox'},fetch:async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify(String(url).includes('oauth2/token')?{access_token:'fixture-token',expires_in:3600}:{id:'TESTORDER12345',status:'CREATED',links:[]}),{status:200,headers:{'Content-Type':'application/json'}})}});
  await api.createPaypalOrder({totalCents:12345,description:'Fixture',referenceId:'test-reference',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'});await api.capturePaypalOrder('TESTORDER12345');
-  const create=requests.find(r=>r.url.endsWith('/v2/checkout/orders'));assert.equal(create.options.headers['PayPal-Request-Id'],'create-test-reference');const unit=JSON.parse(create.options.body).purchase_units[0];assert.equal(unit.amount.currency_code,'EUR');assert.equal(unit.amount.value,'123.45');
-  assert.equal(requests.at(-1).options.headers['PayPal-Request-Id'],'capture-TESTORDER12345');
-});
-test('PayPal auth failure is classified and never leaks the secret',async()=>{
- const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_CLIENT_SECRET:'fixture-secret-value',PAYPAL_ENV:'sandbox'},fetch:async()=>new Response(JSON.stringify({error:'invalid_client',error_description:'The client credentials are invalid'}),{status:401,headers:{'Content-Type':'application/json'}})});
- await assert.rejects(
-  api.createPaypalOrder({totalCents:100,description:'Fixture',referenceId:'auth-fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'}),
-  (error)=>error.code==='PAYPAL_AUTH_FAILED'&&error.paypalName==='invalid_client'&&/sandbox/.test(error.message)&&!error.message.includes('fixture-secret-value'));
-});
-test('PayPal environment auto-detects live keys when PAYPAL_ENV is unset',async()=>{
- const hosts=[];
- const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'live-fixture-client',PAYPAL_CLIENT_SECRET:'live-fixture-secret'},fetch:async(url)=>{const u=String(url);hosts.push(new URL(u).hostname);
-  if(u.includes('sandbox')&&u.includes('oauth2/token'))return new Response(JSON.stringify({error:'invalid_client'}),{status:401,headers:{'Content-Type':'application/json'}});
-  if(u.includes('oauth2/token'))return new Response(JSON.stringify({access_token:'fixture-live-token',expires_in:3600}),{status:200,headers:{'Content-Type':'application/json'}});
-  return new Response(JSON.stringify({id:'LIVEORDER1',status:'CREATED',links:[{rel:'approve',href:'https://www.paypal.com/checkoutnow?token=LIVEORDER1'}]}),{status:200,headers:{'Content-Type':'application/json'}});}});
- const order=await api.createPaypalOrder({totalCents:500,description:'Fixture',referenceId:'detect-fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'});
- assert.equal(order.id,'LIVEORDER1');assert.ok(hosts.includes('api-m.paypal.com'));
- const summary=api.paypalConfigSummary();assert.equal(summary.resolvedEnvironment,'live');assert.equal(api.paypalEnvironment(),'live');
-});
-test('PayPal order rejection keeps the issue code for diagnosis',async()=>{
- const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_CLIENT_SECRET:'fixture-secret',PAYPAL_ENV:'live'},fetch:async(url)=>String(url).includes('oauth2/token')
-  ?new Response(JSON.stringify({access_token:'fixture-token',expires_in:3600}),{status:200,headers:{'Content-Type':'application/json'}})
-  :new Response(JSON.stringify({name:'UNPROCESSABLE_ENTITY',message:'The requested action could not be performed.',details:[{issue:'DUPLICATE_INVOICE_ID',description:'Invoice ID already used.'}],debug_id:'debug-fixture'}),{status:422,headers:{'Content-Type':'application/json'}})});
- await assert.rejects(
-  api.createPaypalOrder({totalCents:100,description:'Fixture',referenceId:'reject-fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'}),
-  (error)=>error.code==='PAYPAL_ORDER_REJECTED'&&/DUPLICATE_INVOICE_ID/.test(error.message)&&/debug-fixture/.test(error.message));
-});
-test('PayPal config summary exposes variable names and an ID tail, never secrets',()=>{
- const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'abcdefghwxyz',PAYPAL_SECRET:'a-very-secret-value'}});
- const summary=api.paypalConfigSummary();
- assert.equal(summary.configured,true);assert.equal(summary.clientIdTail,'wxyz');assert.equal(summary.secretSource,'PAYPAL_SECRET');
- assert.equal(summary.explicitEnvironment,null);assert.equal(JSON.stringify(summary).includes('a-very-secret-value'),false);
-});
-test('new order notification goes to the owner with idempotency and safely escaped order content',async()=>{
- let request;
- const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-resend-secret',RESEND_FROM_EMAIL:'Mediterranic <orders@example.test>'},fetch:async(url,options)=>{request={url:String(url),options};return new Response(JSON.stringify({id:'email-fixture-1'}),{status:200,headers:{'Content-Type':'application/json'}})}});
- const result=await mail.sendNewOrderNotification({order:{id:'12345678-1234-4234-8234-123456789012',email:'buyer@example.test',firstName:'<script>alert(1)</script>',lastName:'Buyer',phone:null,country:'PT',addressLine1:'Street & <b>one</b>',addressLine2:null,city:'Lisbon',postalCode:'1000-001',shippingMethod:'free',subtotalCents:10000,shippingCents:0,totalCents:10000,status:'pending_invoice',paymentMethod:'direct'},items:[{productName:'Fossil <one>',productSlug:'fossil-one',unitPriceCents:10000,quantity:1}],siteUrl:'https://mediterranic.vercel.app'});
- const body=JSON.parse(request.options.body);
- assert.equal(result.sent,true);assert.equal(result.providerId,'email-fixture-1');assert.deepEqual(body.to,['mediterranean.world@gmail.com']);
- assert.equal(request.options.headers['Idempotency-Key'],'mediterranic-order-12345678-1234-4234-8234-123456789012');
- assert.ok(body.html.includes('&lt;script&gt;'));assert.ok(!body.html.includes('<script>alert(1)</script>'));
- assert.ok(body.text.includes('MED-12345678'));assert.ok(body.subject.includes('€100.00'));
- assert.ok(!JSON.stringify(body).includes('fixture-resend-secret'));
-});
-test('missing email provider never throws or attempts network, so checkout can still place the order',async()=>{
- let called=false;
- const mail=load('src/lib/order-notifications.ts',{env:{},fetch:async()=>{called=true;throw Error('must not call')}});
- const result=await mail.sendNewOrderNotification({order:{id:'12345678-1234-4234-8234-123456789012',email:'buyer@example.test',firstName:'Test',lastName:'Buyer',phone:null,country:'PT',addressLine1:'Street 1',addressLine2:null,city:'Lisbon',postalCode:'1000-001',shippingMethod:'free',subtotalCents:10000,shippingCents:0,totalCents:10000,status:'pending_invoice',paymentMethod:'direct'},items:[]});
- assert.equal(result.sent,false);assert.equal(result.reason,'not_configured');assert.equal(called,false);
-});
-test('Resend rejection returns a safe failure result without throwing',async()=>{
- const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-key',RESEND_FROM_EMAIL:'orders@example.test'},fetch:async()=>new Response(JSON.stringify({message:'Domain is not verified'}),{status:403,headers:{'Content-Type':'application/json'}})});
- const result=await mail.sendNewOrderNotification({order:{id:'12345678-1234-4234-8234-123456789012',email:'buyer@example.test',firstName:'Test',lastName:'Buyer',phone:null,country:'PT',addressLine1:'Street 1',addressLine2:null,city:'Lisbon',postalCode:'1000-001',shippingMethod:'free',subtotalCents:10000,shippingCents:0,totalCents:10000,status:'pending_invoice',paymentMethod:'direct'},items:[]});
- assert.equal(result.sent,false);assert.equal(result.reason,'provider_rejected');assert.equal(result.status,403);assert.match(result.detail,/Domain is not verified/);
-});
-test('admin test email reaches the configured owner, has a unique key, and creates no order',async()=>{
- let request;
- const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-key',RESEND_FROM_EMAIL:'orders@example.test'},fetch:async(url,options)=>{request={url:String(url),options};return new Response(JSON.stringify({id:'test-mail-1'}),{status:200,headers:{'Content-Type':'application/json'}})}});
- const result=await mail.sendOrderNotificationTest('click-unique-123');
- const body=JSON.parse(request.options.body);
-  assert.equal(result.sent,true);assert.equal(result.recipient,'mediterranean.world@gmail.com');
-  const config=mail.getOrderNotificationConfiguration();
-  assert.equal(config.configured,true);assert.equal(config.from,'orders@example.test');assert.equal(config.recipient,'mediterranean.world@gmail.com');
-  assert.equal(JSON.stringify(config).includes('fixture-key'),false);
-  assert.deepEqual(body.to,['mediterranean.world@gmail.com']);
- assert.equal(body.subject,'TEST — Mediterranic order notifications');
- assert.match(body.text,/No order has been created/);
- assert.equal(request.options.headers['Idempotency-Key'],'mediterranic-order-email-test-click-unique-123');
+ const create=requests.find(r=>r.url.endsWith('/v2/checkout/orders'));assert.equal(create.options.headers['PayPal-Request-Id'],'create-test-reference');const unit=JSON.parse(create.options.body).purchase_units[0];assert.equal(unit.amount.currency_code,'EUR');assert.equal(unit.amount.value,'123.45');
+ assert.equal(requests.at(-1).options.headers['PayPal-Request-Id'],'capture-TESTORDER12345');
 });
 function orderService(row, free = true) {
   return load('src/lib/order-service.ts', {
@@ -139,54 +73,121 @@ test('checkout refuses marketplace, draft, archive and zero-price specimens',asy
 test('checkout recomputes price and ignores a free-shipping claim from the browser',async()=>{
  const service=orderService({id:1,slug:'test',name:'Fixture',published:true,stock:1,archived:false,listingChannel:'direct',priceCents:12345},false);const built=await service.buildOrder(buyer);assert.equal(built.subtotalCents,12345);assert.equal(built.shippingCents,5400);assert.equal(built.totalCents,17745);assert.equal(built.shippingMethod,'protected');
 });
-test('order status transitions guard payment, shipping and stock restoration',()=>{
- const service=orderService({id:1,slug:'test',name:'Fixture',published:true,stock:1,archived:false,listingChannel:'direct',priceCents:12345});
- const plan=service.planOrderTransition;
- const allows=(status,action,to,restoreStock)=>{const p=plan(status,action);assert.equal(p.ok,true,`${status} + ${action}`);assert.equal(p.to,to);assert.equal(p.restoreStock,restoreStock)};
- const denies=(status,action)=>assert.equal(plan(status,action).ok,false,`${status} + ${action}`);
- allows('pending_invoice','confirm','confirmed',false);
- allows('payment_review','confirm','confirmed',false);
- denies('pending_payment','confirm');
- denies('confirmed','confirm');
- allows('confirmed','ship','shipped',false);
- denies('pending_invoice','ship');
- allows('shipped','complete','completed',false);
- allows('confirmed','complete','completed',false);
- denies('pending_invoice','complete');
- allows('confirmed','cancel','cancelled',true);
- allows('shipped','cancel','cancelled',true);
- allows('pending_invoice','cancel','cancelled',false);
- allows('pending_payment','cancel','cancelled',false);
- allows('payment_review','cancel','cancelled',false);
- denies('completed','cancel');
- denies('cancelled','cancel');
- allows('shipped','tracking','shipped',false);
- allows('completed','tracking','completed',false);
- denies('confirmed','tracking');
-});
 test('public copy corrections do not mutate stored input',()=>{
  const copy=load('src/lib/public-copy.ts');const stored={title:'Insured worldwide shipping',analytics:{bodyScripts:'insured is a script literal'},logoImage:'/images/insured.png'};const out=copy.safeContent(stored);assert.equal(stored.title,'Insured worldwide shipping');assert.ok(!/insured/i.test(out.title));assert.equal(out.analytics.bodyScripts,stored.analytics.bodyScripts);assert.equal(out.logoImage,stored.logoImage);
 });
-test('Hero feedback default is 5000+ while specimen count uses live available inventory',()=>{
- const home=fs.readFileSync('src/app/page.tsx','utf8');
- const seed=fs.readFileSync('src/lib/seed-settings.ts','utf8');
- const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
-  assert.ok(home.includes('{counts.all}</dd>'));
-  assert.ok(home.includes('const counts = inventoryCounts(products)'));
-  assert.ok(seed.includes('feedbacksLabel: "5,000+"'));
-  assert.ok(admin.includes('Verified Feedbacks Label'));
-  assert.ok(admin.includes('Specimens</strong> is not editable'));
+test('eBay quad stripes use the intended 102deg slant and four brand colors',()=>{
+ const css=fs.readFileSync('src/app/globals.css','utf8');
+ assert.match(css,/\.ebay-quad\s*\{[^}]*linear-gradient\(102deg,\s*#E53238\s+0\s+25%,\s*#0064D2\s+25%\s+50%,\s*#F5AF02\s+50%\s+75%,\s*#86B817\s+75%\s+100%\)/);
 });
-test('partial inventory verification status is not rendered on public home or shop pages',()=>{
+test('startup never overwrites content saved in the back-office (deploy keeps Neon data)',()=>{
+ const seed=fs.readFileSync('src/lib/seed.ts','utf8');
+ // Seeding only happens on an empty catalogue.
+ assert.match(seed,/count\(\)/);
+ assert.match(seed,/if \(Number\(value\) > 0\) return;/);
+ // Settings are inserted only when the row is missing, never updated at boot.
+ assert.ok(!/update\(siteSettings\)/.test(seed));
+ const catalog=fs.readFileSync('src/lib/catalog.ts','utf8');
+ const settingsFn=catalog.slice(catalog.indexOf('export async function getSiteSettings'));
+ assert.match(settingsFn,/insert\(siteSettings\)/);
+ assert.ok(!/update\(siteSettings\)\.set/.test(settingsFn.split('export async function')[0]||settingsFn));
+ // Schema changes stay additive: CREATE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS.
+ const migrate=fs.readFileSync('src/lib/schema-migrate.ts','utf8');
+ assert.ok(!/DROP\s+TABLE|TRUNCATE|DELETE\s+FROM|DROP\s+COLUMN/i.test(migrate));
+ assert.match(migrate,/ADD COLUMN IF NOT EXISTS/);
+ assert.match(migrate,/CREATE TABLE IF NOT EXISTS/);
+});
+test('PayPal configuration errors surface the real diagnostic without leaking secrets',async()=>{
+ const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_CLIENT_SECRET:'fixture-only-placeholder',PAYPAL_ENVIRONMENT:'live'},fetch:async()=>new Response(JSON.stringify({name:'invalid_client',message:'Invalid request parameters',details:[{description:'The access token could not be obtained'}]}),{status:401,headers:{'Content-Type':'application/json'}})});
+ await assert.rejects(api.createPaypalOrder({totalCents:100,description:'Fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout',referenceId:'ref-1'}),/PayPal 401 \(invalid_client\)/);
+ const shown=api.paypalErrorMessage(new Error('PayPal 401 (invalid_client): The access token could not be obtained'));
+ assert.ok(!/fixture-only-placeholder/.test(shown));
+ assert.ok(!/fixture-client/.test(shown));
+ assert.equal(api.paypalErrorMessage(new Error('fetch failed')),'Could not reach PayPal. Please try again.');
+});
+test('order e-mail names the reference, buyer, items and total, and never needs a transport',()=>{
+ const mail=load('src/lib/order-email.ts',{env:{}});
+ const input={orderId:'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',reference:'MED-AAAAAAAA',event:'placed',paymentMethod:'Invoice (e-mail)',status:'pending_invoice',firstName:'Ana',lastName:'Silva',email:'ana@example.test',phone:'+351900000000',country:'PT',addressLine1:'Rua 1',addressLine2:null,city:'Lisboa',postalCode:'1000-001',shippingMethod:'free',subtotalCents:135000,shippingCents:0,totalCents:135000,lines:[{name:'Cyphaspis walteri',quantity:1,unitPriceCents:135000}],createdAt:new Date('2026-11-03T10:00:00Z'),shopUrl:'https://mediterranic.vercel.app'};
+ const out=mail.buildOrderEmail(input);
+ assert.match(out.subject,/MED-AAAAAAAA/);assert.match(out.subject,/€1,350/);
+ for(const needle of ['Cyphaspis walteri','ana@example.test','Lisboa','€1,350','/orders/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'])assert.ok(out.text.includes(needle),needle);
+ assert.ok(out.html.includes('Cyphaspis walteri'));
+ assert.equal(mail.mailTransport(),null);
+ assert.equal(mail.orderNotificationRecipient(),'mediterranean.world@gmail.com');
+ assert.equal(mail.orderNotificationRecipient.call({}),'mediterranean.world@gmail.com');
+ const withResend=load('src/lib/order-email.ts',{env:{RESEND_API_KEY:'fixture',ORDER_NOTIFICATION_EMAIL:'owner@example.test'}});
+ assert.equal(withResend.mailTransport(),'resend');assert.equal(withResend.orderNotificationRecipient(),'owner@example.test');
+ const withBrevo=load('src/lib/order-email.ts',{env:{BREVO_API_KEY:'fixture'}});assert.equal(withBrevo.mailTransport(),'brevo');
+});
+
+test('hero stat labels are editable while specimens and eras stay computed',()=>{
+ const content=load('src/lib/site-content.ts');
+ const stats=content.DEFAULT_CONTENT.home.hero.stats;
+ for(const key of ['years','feedbacks','specimens','eras']) assert.ok(typeof stats[key]==='string' && stats[key].length>0,key);
+ const fields=JSON.stringify(content.CONTENT_GROUPS);
+ assert.match(fields,/home.*hero.*stats.*feedbacks/);
+ const page=fs.readFileSync('src/app/page.tsx','utf8');
+ assert.match(page,/c\.hero\.stats\.specimens/);
+ assert.match(page,/c\.hero\.stats\.eras/);
+ // specimens/eras numbers must stay automatic
+ assert.match(page,/\{forSale\.length\}/);
+ assert.match(page,/\{erasOffered\}/);
+ // the old 7,500 figure is gone from defaults
+ assert.ok(!/7,500\+/.test(fs.readFileSync('src/lib/seed-settings.ts','utf8')));
+ assert.ok(!/7,500\+ verified/.test(fs.readFileSync('src/lib/site-content.ts','utf8')));
+});
+test('public pages no longer expose the inventory verification banner',()=>{
  const home=fs.readFileSync('src/app/page.tsx','utf8');
  const shop=fs.readFileSync('src/app/shop/page.tsx','utf8');
- const explorer=fs.readFileSync('src/components/shop-explorer.tsx','utf8');
- assert.equal(home.includes('InventoryStatus'),false);
- assert.equal(shop.includes('InventoryStatus'),false);
- assert.equal(explorer.includes('inventoryStatus'),false);
+ for (const [name,file] of [['home',home],['shop',shop]]) assert.ok(!/InventoryStatus/.test(file), name);
+ // the component may stay for the back-office, but it must not be linked publicly
+ const status=fs.readFileSync('src/components/inventory-status.tsx','utf8');
+ assert.match(status,/export async function InventoryStatus/);
 });
-test('admin cover label identifies the Cambrian era, not the Souss Lagerstätte',()=>{
+test('Cambrian collection cover label says Cambrian, and code version manifest is complete',()=>{
  const content=fs.readFileSync('src/lib/site-content.ts','utf8');
- assert.ok(content.includes('label: "Cover · Cambrian"'));
- assert.equal(content.includes('label: "Cover · Souss Lagerstätte"'),false);
+ assert.match(content,/Cover · Cambrian/);
+ assert.ok(!/Cover · Souss Lagerstätte/.test(content));
+ const version=load('src/lib/version.ts');
+ assert.match(version.CODE_VERSION,/^\d{4}-\d{2}-\d{2}-[a-z]$/);
+ for(const f of ['order-notifications','email-test','editable-hero-stats']) assert.ok(version.REQUIRED_FEATURES.includes(f),f);
+});
+test('buyer note is accepted, trimmed, bounded and never changes the price',async()=>{
+ const mail=load('src/lib/order-email.ts',{env:{}});
+ const base={orderId:'a',reference:'MED-A',event:'placed',paymentMethod:'Invoice (e-mail)',status:'pending_invoice',firstName:'A',lastName:'B',email:'a@b.test',phone:null,country:'PT',addressLine1:'Rua 1',addressLine2:null,city:'Lisboa',postalCode:'1000-001',shippingMethod:'free',subtotalCents:1000,shippingCents:0,totalCents:1000,lines:[{name:'X',quantity:1,unitPriceCents:1000}],createdAt:new Date(),shopUrl:'https://x.test'};
+ const withNote=mail.buildOrderEmail({...base,customerNote:'I would like to pay by bank transfer and make an offer.'});
+ assert.match(withNote.text,/BUYER MESSAGE/);
+ assert.match(withNote.text,/bank transfer/);
+ assert.match(withNote.html,/Buyer message/);
+ const without=mail.buildOrderEmail(base);
+ assert.ok(!/BUYER MESSAGE/.test(without.text));
+ const service=fs.readFileSync('src/lib/order-service.ts','utf8');
+ assert.match(service,/customerNote/);
+ assert.match(service,/too long/);
+ assert.match(service,/slice\(0, 1000\)/);
+ assert.match(service,/customerNote: input\.customerNote/);
+ const form=fs.readFileSync('src/components/checkout-form.tsx','utf8');
+ assert.match(form,/name="customerNote"/);
+ assert.match(form,/customerNote: String\(data\.get\("customerNote"\) \?\? ""\)/);
+});
+test('tracking links are validated and buyer e-mails carry the order reference',()=>{
+ const messages=load('src/lib/order-messages.ts',{imports:{'drizzle-orm':{eq:(...x)=>x},'@/db':{db:{}}, '@/db/schema':{}, '@/lib/mailer':{curatorMailbox:()=>'mediterranean.world@gmail.com',escapeHtml:(v)=>v,mailShell:()=>'',sendMail:async()=>({ok:true,detail:'fixture'})}, '@/lib/order-email':{orderReference:()=> 'MED-FIXTURE'}}});
+ const link=messages.normalizeTracking('https://www.dhl.com/track?id=AB123456789');
+ assert.equal(link.code,'AB123456789');
+ assert.equal(link.url,'https://www.dhl.com/track?id=AB123456789');
+ assert.equal(messages.normalizeTracking('AB123456789PT').url,'AB123456789PT');
+ assert.equal(messages.normalizeTracking(''),null);
+ assert.equal(messages.normalizeTracking('https://bad host/track'),null);
+ assert.equal(messages.normalizeTracking('x'),null);
+ const mailer=load('src/lib/mailer.ts',{env:{}});
+ assert.equal(mailer.mailTransport(),null);
+ assert.equal(mailer.curatorMailbox(),'mediterranean.world@gmail.com');
+ const reports=fs.readFileSync('src/app/api/admin/orders/tracking/route.ts','utf8');
+ assert.match(reports,/sendTrackingEmails/);
+ assert.match(reports,/saveOnly/);
+ const reply=fs.readFileSync('src/app/api/admin/orders/message/route.ts','utf8');
+ assert.match(reply,/sendBuyerMessage/);
+ const dashboard=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+ assert.match(dashboard,/Paste the carrier link/);
+ assert.match(dashboard,/Message buyer/);
 });

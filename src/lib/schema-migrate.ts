@@ -198,10 +198,29 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_active" boolean;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "weight_grams" integer;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_checked_at" timestamp with time zone;
 
--- Order handling in the back-office: dispatch date and tracking (additive).
-ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "shipped_at" timestamp with time zone;
-ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_carrier" text;
-ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_number" text;
+-- Order notifications to the curator. New table only: no order is changed or
+-- deleted by an e-mail that could not be delivered, and retries are idempotent.
+CREATE TABLE IF NOT EXISTS "order_notifications" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "order_id" uuid NOT NULL,
+  "event" text NOT NULL,
+  "channel" text DEFAULT 'email' NOT NULL,
+  "recipient" text NOT NULL,
+  "status" text NOT NULL,
+  "detail" text,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "sent_at" timestamp with time zone
+);
+
+-- Buyer note left at checkout. Additive: existing orders keep NULL.
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "customer_note" text;
+
+-- Tracking link sent to the buyer. Additive only.
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_url" text;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_sent_at" timestamp with time zone;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "order_notifications_order_event"
+  ON "order_notifications" ("order_id", "event");
 
 `;
 

@@ -9,6 +9,7 @@ import {
   serial,
   smallint,
   text,
+  uniqueIndex,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -106,14 +107,16 @@ export const orders = pgTable("orders", {
   shippingCents: integer("shipping_cents").notNull(),
   totalCents: integer("total_cents").notNull(),
   status: text("status").notNull().default("confirmed"),
+  /** Optional message from the buyer (alternative payment method, an offer…). */
+  customerNote: text("customer_note"),
   /** "direct" (placed on the site) or "paypal". */
   paymentMethod: text("payment_method").notNull().default("direct"),
   /** PayPal order id, set once the buyer approves the payment. */
   paypalOrderId: text("paypal_order_id"),
-  /** Dispatch details, set from the back-office when the order ships. */
-  shippedAt: timestamp("shipped_at", { withTimezone: true }),
-  trackingCarrier: text("tracking_carrier"),
-  trackingNumber: text("tracking_number"),
+  /** Carrier tracking link (or tracking number) sent to the buyer. */
+  trackingUrl: text("tracking_url"),
+  /** When the tracking e-mail was accepted by the provider. */
+  trackingSentAt: timestamp("tracking_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -224,6 +227,29 @@ export const inventorySyncState = pgTable("inventory_sync_state", {
   report: jsonb("report").$type<InventorySyncReport>(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * One row per notification attempt for an order (e-mail to the curator).
+ * Additive table: an order is never blocked or changed by a failed e-mail.
+ * The unique (order_id, event) pair makes retries idempotent.
+ */
+export const orderNotifications = pgTable(
+  "order_notifications",
+  {
+    id: serial("id").primaryKey(),
+    orderId: uuid("order_id").notNull(),
+    /** "placed" | "paid" */
+    event: text("event").notNull(),
+    channel: text("channel").notNull().default("email"),
+    recipient: text("recipient").notNull(),
+    /** "sent" | "failed" | "not_configured" */
+    status: text("status").notNull(),
+    detail: text("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (table) => [uniqueIndex("order_notifications_order_event").on(table.orderId, table.event)],
+);
 
 export const productsRelations = relations(products, ({ many }) => ({
   reviews: many(reviews),

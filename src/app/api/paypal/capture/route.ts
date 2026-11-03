@@ -2,7 +2,8 @@ import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orders, products } from "@/db/schema";
 import { confirmOrder, OrderError } from "@/lib/order-service";
-import { capturePaypalOrder, getPaypalOrder, isPaypalConfigured, PaypalApiError } from "@/lib/paypal";
+import { capturePaypalOrder, getPaypalOrder, isPaypalConfigured } from "@/lib/paypal";
+import { notifyOrder } from "@/lib/order-notify";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -54,18 +55,16 @@ export async function POST(request: Request) {
       await confirmOrder(orderId, tx);
       return { ok: true, orderId, paypalOrderId, captureId: receipt.id };
     });
+    // Notify the curator only once the money is confirmed. Never blocks the
+    // buyer: a mail problem is recorded in the back-office instead.
+    if (outcome.ok && !("alreadyConfirmed" in outcome && outcome.alreadyConfirmed)) {
+      await notifyOrder(orderId, "paid");
+    }
     return Response.json(outcome, { status: outcome.ok ? 200 : 202 });
   } catch (error) {
     if (moneyCaptured) {
       await db.update(orders).set({ status: "payment_review" }).where(and(eq(orders.id, orderId), ne(orders.status, "confirmed"))).catch(() => {});
       return Response.json({ error: "PayPal reports a payment, but the order needs manual review. Do not pay again; contact us with your order reference." }, { status: 409 });
-    }
-    if (error instanceof PaypalApiError) {
-      console.error("PayPal confirmation could not be verified", { code: error.code, status: error.status, paypal: error.paypalName, detail: error.message });
-      return Response.json(
-        { error: "The payment result could not be verified. Check your PayPal activity and contact us before paying again.", code: error.code, detail: error.message },
-        { status: 502 },
-      );
     }
     if (error instanceof OrderError) return Response.json({ error: error.message }, { status: error.status });
     console.error("PayPal confirmation could not be verified", error);

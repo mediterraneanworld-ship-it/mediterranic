@@ -101,7 +101,7 @@ export default async function HomePage() {
             >
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
-                  Years in the field
+                  {c.hero.stats.years}
                 </dt>
                 <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">
                   {settings.yearsExperience}
@@ -109,18 +109,23 @@ export default async function HomePage() {
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
-                  Verified feedbacks
+                  {c.hero.stats.feedbacks}
                 </dt>
                 <dd className="mt-1 font-display text-4xl text-brass md:text-5xl">
                   {settings.feedbacksLabel}
                 </dd>
               </div>
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">Specimens</dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{counts.all}</dd>
+                {/* Always the live count of pieces available now (site + eBay + Catawiki). */}
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
+                  {c.hero.stats.specimens}
+                </dt>
+                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{forSale.length}</dd>
               </div>
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">Eras offered</dt>
+                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
+                  {c.hero.stats.eras}
+                </dt>
                 <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{erasOffered}</dd>
               </div>
             </dl>

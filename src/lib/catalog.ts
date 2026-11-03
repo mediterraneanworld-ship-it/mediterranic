@@ -1,6 +1,6 @@
 import { and, asc, avg, count, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { newsletterSubscribers, orderItems, orders, products, reviews, siteSettings } from "@/db/schema";
+import { newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
 import { mergeContent, type SiteContent } from "@/lib/site-content";
@@ -190,9 +190,13 @@ export async function getSiteContent(): Promise<SiteContent> {
 export async function getAllOrdersWithItems() {
   const allOrders = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(50);
   const allItems = await db.select().from(orderItems);
+  const allNotifications = await db.select().from(orderNotifications);
   return allOrders.map((order) => ({
     order,
     items: allItems.filter((i) => i.orderId === order.id),
+    notifications: allNotifications
+      .filter((n) => n.orderId === order.id)
+      .map((n) => ({ event: n.event, status: n.status, recipient: n.recipient, detail: n.detail, sentAt: n.sentAt })),
   }));
 }
 

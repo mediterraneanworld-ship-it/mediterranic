@@ -18,9 +18,6 @@ O meu fluxo de trabalho é:
 - Tu fazes alterações de **código** e entregas-me um **ZIP TODO**.
 - Eu copio o conteúdo do ZIP para a pasta local (mantendo `.env` e `.git`),
   faço **Commit + Push** no GitHub Desktop e a Vercel publica.
-- **Não tenho de repetir as alterações de conteúdo.** O Neon de produção fica
-  ligado ao mesmo deploy; o ZIP é de código e não restabelece nem sobrescreve
-  textos, peças, preços, fotos ou definições guardadas pelo admin.
 
 **Nunca precisas de aceder ao meu Neon. Nunca uses acessos ao Neon de produção.
 Nunca escrevas no Neon de produção a partir do sandbox.**
@@ -32,6 +29,60 @@ node scripts/pull-live.cjs https://mediterranic.vercel.app
 (isto lê apenas páginas públicas e nunca escreve em produção)
 
 E pede-me sempre um **Download backup** do admin antes de um push grande.
+
+---
+
+## 1.1 CONTEÚDO DE PRODUÇÃO vs ZIP DE CÓDIGO (importante)
+
+**O ZIP é só código. O conteúdo que edito no admin de produção vive no Neon e
+NÃO vai dentro do ZIP — e também NÃO é apagado por ele.**
+
+- Um deploy novo **não apaga nem substitui** textos, peças, preços, fotos,
+  encomendas ou subscritores. Nunca é preciso refazer tudo.
+- `ensureSeeded()` só preenche o catálogo **se a tabela estiver vazia**.
+- `getSiteSettings()` só insere a linha inicial **se ela não existir**.
+- `schema-migrate.ts` é **só aditivo** (`CREATE TABLE IF NOT EXISTS`,
+  `ADD COLUMN IF NOT EXISTS`); não tem `DROP`, `TRUNCATE` ou `DELETE`.
+- Há um teste automático que verifica estas três garantias em cada execução.
+- **Passo 0 de cada sessão** (leitura apenas, nunca escreve em produção):
+  `node scripts/pull-live.cjs https://mediterranic.vercel.app`
+  Isto traz o conteúdo real de produção para a base **local/sandbox**, para o
+  preview mostrar o que eu vejo. Não altera produção.
+- Se eu quiser que uma alteração de conteúdo fique também no código (por
+  exemplo para um catálogo inicial), isso tem de ser pedido explicitamente:
+  o código nunca copia a base de produção para dentro do repositório.
+- Antes de um push grande: **Download backup** no admin de produção.
+
+---
+
+
+## 1.2 AVISO DE ENCOMENDAS POR E-MAIL (implementado)
+
+Cada encomenda gera um e-mail para **mediterranean.world@gmail.com** (ou para
+`ORDER_NOTIFICATION_EMAIL`, se definido), com referência, comprador, morada,
+itens e totais.
+
+- **Fatura/e-mail:** o aviso é enviado no momento em que a encomenda é posta.
+- **PayPal:** o aviso é enviado **só depois** da captura confirmada.
+- **Nunca bloqueia a encomenda:** se o e-mail falhar, a encomenda fica como
+  está e a falha é registada na tabela `order_notifications`
+  (`sent` / `failed` / `not_configured`), visível no admin em *Received Orders*,
+  com botão **E-mail curator** para reenviar.
+- O registo `(order_id, event)` é único: reenviar não duplica.
+
+Variáveis necessárias na Vercel (uma das duas):
+
+```
+RESEND_API_KEY=...            # recomendado
+ORDER_EMAIL_FROM="Mediterranic <encomendas@mediterranic.com>"   # domínio verificado
+ORDER_NOTIFICATION_EMAIL=mediterranean.world@gmail.com          # opcional
+
+# ou
+BREVO_API_KEY=...
+```
+
+Sem estas variáveis, o checkout continua a funcionar; o admin mostra
+"no e-mail provider configured".
 
 ---
 
@@ -84,12 +135,6 @@ peça física é reconhecida quando muda de plataforma.
 
 - 11 peças no catálogo; contagens partilhadas entre home, filtros e backend
   (`inventoryCounts`), excluindo arquivo, rascunhos, stock 0 e ofertas inactivas.
-- Estatísticas Hero: `Years of Experience` e `Verified Feedbacks Label` são
-  editáveis em Admin → **2. Site Settings & Fixed Texts** → **Hero Statistics &
-  Provenance** (valor inicial `5,000+`). `Specimens` é sempre calculado de
-  `inventoryCounts.all` (disponíveis Site Only + eBay + Catawiki), nunca editável;
-  `Eras offered` também é automático. Para mudar o valor actual da produção,
-  editar o campo no admin de produção; um ZIP não altera o valor já guardado no Neon.
 - **Ciclo de canais sem duplicar peças:** cada peça guarda links separados
   (`ebay_listing_url`, `catawiki_listing_url`), histórico e referência.
   Um anúncio conhecido é **ligado à ficha existente**, não importado outra vez.
@@ -98,7 +143,7 @@ peça física é reconhecida quando muda de plataforma.
   liga relistagens e importa novas quando inequívocas. Falha nunca é zero.
 - **Painel de sincronização** mostra sempre o **país/marketplace** activo de cada
   canal e a barra dedicada de **excepções** (com distinção clara quando um feed
-  não foi verificado). O estado "partly verified" é só para admin, nunca público.
+  não foi verificado).
 - **"Further from the same shelf"** (`src/lib/shelf-recommendations.ts`): filtra
   pela mesma Era geológica (`period`), apresenta as disponíveis primeiro e só
   coloca *Unavailable* no fim se existirem menos de 4 disponíveis dessa Era.
@@ -108,34 +153,17 @@ peça física é reconhecida quando muda de plataforma.
 - Editor da peça abre **inline, abaixo da linha editada**.
 - **eBay:** Browse API oficial (leilões e preço fixo, categoria 3213).
   Avisos da eBay são lidos como erro, não como zero anúncios.
-- **PayPal** Orders v2 com captura transaccional e chaves de idempotência;
-  dono confirmou que está a funcionar.
-- **Received Orders** no admin: filtros por estado, confirmar invoice/pagamento
-  em revisão, expedir com carrier + tracking (visível ao comprador em
-  `/orders/[id]`), concluir e cancelar; cancelamento de encomenda paga repõe
-  stock, mas **não faz refund PayPal**. Botão **Delete cancelled orders** elimina
-  permanentemente apenas encomendas com status `cancelled` e os seus itens; mostra
-  contagem exacta, pede confirmação e não altera stock nem outros estados.
-- **Email de nova encomenda** integrado server-side via Resend: invoice e ordem
-  PayPal criada enviam aviso para `mediterranean.world@gmail.com` (destinatário
-  predefinido). Para activar em Vercel Production faltam `RESEND_API_KEY` e
-  `RESEND_FROM_EMAIL` (domínio remetente verificado); opcional
-  `ORDER_NOTIFICATION_EMAIL`. No admin, **Received Orders → Send test e-mail**
-  verifica a configuração do deployment sem criar encomenda. O email de falha
-  não desfaz encomendas. Ver `public/PEDIDOS-EMAIL.md`.
-- Botão alternativo no checkout diz
-  **“PLACE ORDER BY INVOICE (EMAIL) - USE FOR ALTERNATIVE PAYMENT METHODS AND OFFERS”**.
+- **PayPal** Orders v2 com captura transaccional e chaves de idempotência.
 - **Envios:** envio grátis único quando activo no admin; senão uma tarifa das
   **5 zonas** (Europa €54, Américas €48, Ásia €60, África €72, Oceania €85).
   **249 destinos ISO**, ordem alfabética. Nunca dizer "insured".
 - **Newsletter** com exportação CSV; **backup v3** inclui imagens e encomendas.
 - **Statcounter** activo, segue navegação interna, não carrega em admin/checkout.
 - Cores: Site Only `#ff9f3d`, Catawiki `#0033FF`, eBay quatro cores
-  (`.ebay-quad`, divisões inclinadas a **102°**, estático), WhatsApp `#25D366`,
-  Instagram/Facebook gradientes.
+  (`.ebay-quad`, 102°, estático), WhatsApp `#25D366`, Instagram/Facebook gradientes.
 - Etiquetas das peças **fora** das fotografias (não tapam no telemóvel).
 - **Next.js 16.4.3**; `npm audit --omit=dev` sem vulnerabilidades conhecidas;
-  **55 testes** offline a passar.
+  **42 testes** offline a passar.
 - Domínio: manter `mediterranic.vercel.app` até ao fim do projecto. O
   `mediterranic.com` continua no site antigo.
 
@@ -149,15 +177,11 @@ peça física é reconhecida quando muda de plataforma.
    pela eBay. Até lá, o diagnóstico mostra erro de acesso — nunca zero anúncios.
 2. **`EBAY_SELLER_USERNAME`:** confirmar o nome real da conta de vendedor
    (a ligação `/str/mederranic` é o nome da loja, não necessariamente o username).
-3. **PayPal:** está a funcionar (confirmado pelo dono). Se o checkout voltar a
-   falhar, correr **Admin → Diagnose PayPal API**.
-4. **Email de novas encomendas:** adicionar na Vercel Production `RESEND_API_KEY`
-   e `RESEND_FROM_EMAIL` (de um domínio verificado no Resend), depois Redeploy.
-   Destinatário já predefinido para `mediterranean.world@gmail.com`.
-5. **Cron-job.org externo** (opcional): corrigir o CRON_SECRET nesse agendador.
-6. **Newsletter:** ainda falta ligar um fornecedor de envio automático; a lista
-   continua disponível para exportar CSV.
-7. **Domínio próprio** (mediterranic.com) só no fim do projecto.
+3. **PayPal:** chaves já criadas; confirmar captura com pagamento real.
+4. **Cron-job.org externo** (opcional): um registo apareceu com secret errado;
+   corrigir o CRON_SECRET nesse agendador.
+5. **Newsletter:** falta fornecedor de envio (Resend/Brevo/Mailchimp).
+6. **Domínio próprio** (mediterranic.com) só no fim do projecto.
 
 ---
 

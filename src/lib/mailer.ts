@@ -1,0 +1,104 @@
+/**
+ * Generic transactional mail: one place for every provider, so tracking
+ * e-mails and direct replies use exactly the same path as order notices.
+ * Server-side only. Never throws for missing configuration.
+ */
+
+export type MailTransport = "resend" | "brevo" | null;
+
+export function mailTransport(): MailTransport {
+  if (process.env.RESEND_API_KEY?.trim()) return "resend";
+  if (process.env.BREVO_API_KEY?.trim()) return "brevo";
+  return null;
+}
+
+export function mailFromAddress(): string {
+  return process.env.ORDER_EMAIL_FROM?.trim() || "Mediterranic <onboarding@resend.dev>";
+}
+
+export function curatorMailbox(): string {
+  return (
+    process.env.ORDER_NOTIFICATION_EMAIL?.trim() ||
+    process.env.ORDER_EMAIL_TO?.trim() ||
+    "mediterranean.world@gmail.com"
+  );
+}
+
+export type SendResult = { ok: true; detail: string } | { ok: false; detail: string; notConfigured?: boolean };
+
+export async function sendMail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  replyTo?: string;
+}): Promise<SendResult> {
+  const transport = mailTransport();
+  if (!transport) {
+    return {
+      ok: false,
+      notConfigured: true,
+      detail: "No e-mail provider configured. Set RESEND_API_KEY (or BREVO_API_KEY) in the environment.",
+    };
+  }
+  const from = mailFromAddress();
+  try {
+    if (transport === "resend") {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from,
+          to: [input.to],
+          subject: input.subject,
+          text: input.text,
+          html: input.html,
+          ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const body = await res.text();
+      if (!res.ok) return { ok: false, detail: `Resend ${res.status}: ${body.slice(0, 200)}` };
+      return { ok: true, detail: "Resend accepted the message." };
+    }
+    const match = from.match(/^(.*)<(.+)>$/);
+    const sender = match
+      ? { name: match[1].trim() || "Mediterranic", email: match[2].trim() }
+      : { name: "Mediterranic", email: from };
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": process.env.BREVO_API_KEY!.trim(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sender,
+        to: [{ email: input.to }],
+        subject: input.subject,
+        textContent: input.text,
+        htmlContent: input.html,
+        ...(input.replyTo ? { replyTo: { email: input.replyTo } } : {}),
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = await res.text();
+    if (!res.ok) return { ok: false, detail: `Brevo ${res.status}: ${body.slice(0, 200)}` };
+    return { ok: true, detail: "Brevo accepted the message." };
+  } catch (error) {
+    return { ok: false, detail: error instanceof Error ? error.message.slice(0, 200) : "Unknown transport error" };
+  }
+}
+
+export function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** Wraps a message body in the Mediterranic e-mail shell. */
+export function mailShell(options: { heading: string; intro: string; bodyHtml: string; footer?: string }): string {
+  return `<!doctype html><html><body style="margin:0;background:#f6f1e7;font-family:Helvetica,Arial,sans-serif;color:#0c1b26">
+  <div style="max-width:600px;margin:0 auto;padding:24px">
+    <p style="font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#a9853f;margin:0 0 6px">Mediterranic</p>
+    <h1 style="font-family:Georgia,serif;font-size:26px;margin:0 0 12px">${escapeHtml(options.heading)}</h1>
+    <p style="margin:0 0 18px;color:#5b6b76;line-height:1.6">${escapeHtml(options.intro)}</p>
+    <div style="background:#fff;border:1px solid #e3dccc;border-radius:4px;padding:18px;line-height:1.6">${options.bodyHtml}</div>
+    ${options.footer ? `<p style="margin:18px 0 0;font-size:12px;color:#5b6b76;line-height:1.6">${options.footer}</p>` : ""}
+    <p style="margin:22px 0 0;font-size:11px;color:#98a4ad">Mediterranic · Moroccan trilobites · mediterranean.world@gmail.com</p>
+  </div></body></html>`;
+}

@@ -80,12 +80,14 @@ export function ShopExplorer({
   initialChannel = "all",
   initialPeriod = "all",
   copy,
+  inventoryStatus,
 }: {
   products: ProductWithStats[];
   initialCollection: string;
   initialChannel?: string;
   initialPeriod?: string;
   copy: SiteContent["shop"];
+  inventoryStatus?: ReactNode;
 }) {
   const validInitialChannel: Channel = normalizeShopChannel(initialChannel);
   const validInitialPeriod = normalizeShopPeriod(initialPeriod);
@@ -212,6 +214,8 @@ export function ShopExplorer({
           {channelCounts.all} specimens currently offered
         </p>
       </header>
+
+      {inventoryStatus}
 
       {/* 3-Channel Quick Switcher Bar */}
       <div className="mb-12 flex flex-wrap items-center justify-between gap-4 rounded-sm border border-ink/10 bg-bone/60 p-3">

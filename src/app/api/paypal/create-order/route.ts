@@ -1,6 +1,5 @@
 import { buildOrder, insertOrder, markOrderStatus, OrderError, parseOrderInput } from "@/lib/order-service";
-import { createPaypalOrder, isPaypalConfigured, PaypalApiError, paypalErrorMessage, PaypalNotConfiguredError } from "@/lib/paypal";
-import { sendNewOrderNotification } from "@/lib/order-notifications";
+import { createPaypalOrder, isPaypalConfigured, paypalEnvironment, paypalErrorMessage, PaypalNotConfiguredError } from "@/lib/paypal";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -78,57 +77,29 @@ export async function POST(request: Request) {
       return Response.json({ error: "PayPal did not return an approval link." }, { status: 502 });
     }
 
-    const notification = await sendNewOrderNotification({
-      order: {
-        id: orderId,
-        email: input.email,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        phone: input.phone,
-        country: input.country,
-        addressLine1: input.addressLine1,
-        addressLine2: input.addressLine2,
-        city: input.city,
-        postalCode: input.postalCode,
-        shippingMethod: built.shippingMethod,
-        subtotalCents: built.subtotalCents,
-        shippingCents: built.shippingCents,
-        totalCents: built.totalCents,
-        status: "pending_payment",
-        paymentMethod: "paypal",
-        paypalOrderId: paypalOrder.id,
-      },
-      items: built.lines,
-      siteUrl: base,
-    });
-    if (!notification.sent) {
-      console.error("Owner order email notification failed", { orderId, reason: notification.reason, status: notification.status, detail: notification.detail });
-    }
-
     return Response.json({ orderId, paypalOrderId: paypalOrder.id, approveUrl: approve.href });
   } catch (error) {
     if (error instanceof PaypalNotConfiguredError) {
       return Response.json({ error: "PayPal is not configured.", code: "PAYPAL_NOT_CONFIGURED" }, { status: 503 });
     }
-    if (error instanceof PaypalApiError) {
-      // Precise cause for the back-office/logs; buyers get the calm sentence.
-      console.error("PayPal create-order failed", { code: error.code, status: error.status, paypal: error.paypalName, detail: error.message });
-      return Response.json(
-        { error: paypalErrorMessage(error), code: error.code, detail: error.message },
-        { status: 502 },
-      );
-    }
     if (error instanceof OrderError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     console.error("PayPal create-order failed", error);
+    // Surface the real PayPal diagnostic (safe: no credentials are ever
+    // included) so a wrong-environment setup is visible instead of a generic
+    // "try again" that hides the cause.
+    const detail = paypalErrorMessage(error);
+    const env = paypalEnvironment();
     return Response.json(
       {
-        error: "Could not start the PayPal payment. Please try again.",
-        code: "CHECKOUT_CREATE_FAILED",
-        detail: error instanceof Error ? error.message.slice(0, 300) : undefined,
+        error:
+          `Could not start the PayPal payment. ${detail} ` +
+          `(Shop is calling the ${env === "live" ? "live" : "sandbox"} PayPal API — ` +
+          `if your keys are live/sandbox keys, set PAYPAL_ENV accordingly in the Vercel environment variables.)`,
+        code: "PAYPAL_CREATE_FAILED",
       },
-      { status: 500 },
+      { status: 502 },
     );
   }
 }

@@ -4,14 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Ban,
   Check,
+  Copy,
+  Download,
   Edit3,
   ExternalLink,
   LogOut,
   Mail,
   Package,
-  PackageCheck,
   Plus,
   Save,
   Settings,
@@ -21,7 +21,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 import type { ProductImage } from "@/db/schema";
 import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import { COLLECTIONS } from "@/lib/collections";
@@ -31,8 +31,8 @@ import { AdminCronStatus } from "@/components/admin-cron-status";
 import { InventorySyncPanel } from "@/components/inventory-sync-panel";
 import type { InventorySyncReport } from "@/lib/inventory-rules";
 import { EbayConnectionCheck } from "@/components/ebay-connection-check";
-import { PaypalConnectionCheck } from "@/components/paypal-connection-check";
 import { readContent, type SiteContent } from "@/lib/site-content";
+import { CODE_VERSION } from "@/lib/version";
 import { listingKey, matchListing, marketplaceOf, savedListing, type ListingMatch } from "@/lib/marketplace-links";
 
 type OrderEntry = {
@@ -54,9 +54,9 @@ type OrderEntry = {
     status: string;
     paymentMethod: string;
     paypalOrderId: string | null;
-    shippedAt: Date | null;
-    trackingCarrier: string | null;
-    trackingNumber: string | null;
+    customerNote: string | null;
+    trackingUrl: string | null;
+    trackingSentAt: Date | null;
     createdAt: Date;
   };
   items: {
@@ -66,35 +66,22 @@ type OrderEntry = {
     unitPriceCents: number;
     quantity: number;
   }[];
+  notifications?: {
+    event: string;
+    status: string;
+    recipient: string;
+    detail: string | null;
+    sentAt: Date | null;
+  }[];
 };
 
-const ORDER_STATUS_META: Record<string, { label: string; className: string }> = {
-  pending_payment: { label: "Awaiting PayPal payment", className: "bg-amber-100 text-amber-900" },
-  payment_pending: { label: "PayPal reviewing payment", className: "bg-amber-100 text-amber-900" },
-  payment_review: { label: "Needs manual review", className: "bg-terracotta/15 text-terracotta" },
-  pending_invoice: { label: "Invoice — awaiting payment", className: "bg-amber-100 text-amber-900" },
-  confirmed: { label: "Paid — ready to ship", className: "bg-sea/15 text-sea" },
-  shipped: { label: "Shipped", className: "bg-[#0033FF]/10 text-[#0033FF]" },
-  completed: { label: "Completed", className: "bg-ink/10 text-ink/70" },
-  cancelled: { label: "Cancelled", className: "bg-ink/10 text-ink/50" },
-};
-
-const ORDER_FILTERS: { id: string; label: string; statuses: string[] | null }[] = [
-  { id: "all", label: "All orders", statuses: null },
-  { id: "awaiting", label: "Awaiting payment", statuses: ["pending_payment", "payment_pending", "payment_review", "pending_invoice"] },
-  { id: "to_ship", label: "To ship", statuses: ["confirmed"] },
-  { id: "shipped", label: "Shipped", statuses: ["shipped"] },
-  { id: "completed", label: "Completed", statuses: ["completed"] },
-  { id: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
-];
-
-type OrderActionName = "confirm" | "ship" | "complete" | "cancel" | "tracking";
-type OrderEmailSetup = {
-  configured: boolean;
-  apiKeyConfigured: boolean;
-  from: string | null;
-  recipient: string;
-  missing: string[];
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  confirmed: "Paid · ready to ship",
+  shipped: "Shipped",
+  pending_payment: "Awaiting payment",
+  payment_pending: "PayPal is reviewing",
+  payment_review: "Needs review",
+  cancelled: "Cancelled",
 };
 
 type SellerLot = { id: string; url: string; title: string; priceCents?: number | null; match?: ListingMatch };
@@ -330,6 +317,12 @@ export function AdminDashboard({
   const [refreshing, setRefreshing] = useState(false);
   const [runsKey, setRunsKey] = useState(0);
   const [restoring, setRestoring] = useState(false);
+  const [orderActionBusy, setOrderActionBusy] = useState<string | null>(null);
+  const [emailTest, setEmailTest] = useState<{ transport: string; recipient: string; from: string; status?: string; detail?: string } | null>(null);
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [trackingDraft, setTrackingDraft] = useState<Record<string, string>>({});
+  const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
+  const [messageOpen, setMessageOpen] = useState<string | null>(null);
   const [priceReport, setPriceReport] = useState<
     {
       name: string;
@@ -373,148 +366,6 @@ export function AdminDashboard({
     window.setTimeout(() => setFeedback(null), 4000);
   }
 
-  /* ---- Received orders: filters, dispatch form and status actions ---- */
-  const [orderFilter, setOrderFilter] = useState("all");
-  const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
-  const [shipOpenId, setShipOpenId] = useState<string | null>(null);
-  const [shipForms, setShipForms] = useState<Record<string, { carrier: string; number: string }>>({});
-  const [orderTestEmailBusy, setOrderTestEmailBusy] = useState(false);
-  const [orderTestEmailMessage, setOrderTestEmailMessage] = useState<string | null>(null);
-  const [orderEmailSetup, setOrderEmailSetup] = useState<OrderEmailSetup | null>(null);
-  const [cancelledCleanupBusy, setCancelledCleanupBusy] = useState(false);
-
-  useEffect(() => {
-    if (tab !== "orders") return;
-    let active = true;
-    fetch("/api/admin/orders/test-email", { cache: "no-store" })
-      .then(async (res) => (res.ok ? ((await res.json()) as OrderEmailSetup) : null))
-      .then((data) => { if (active && data) setOrderEmailSetup(data); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [tab]);
-
-  async function sendTestOrderEmail() {
-    setOrderTestEmailBusy(true);
-    setOrderTestEmailMessage("Sending a test message through the email provider…");
-    try {
-      const response = await fetch("/api/admin/orders/test-email", { method: "POST" });
-      const data = (await response.json().catch(() => ({}))) as {
-        ok?: boolean; recipient?: string; providerId?: string | null; error?: string;
-      };
-      if (!response.ok || !data.ok) {
-        const message = data.error ?? "Could not send the test email.";
-        setOrderTestEmailMessage(`Not sent: ${message}`);
-        notify(message);
-        return;
-      }
-      const message = `Resend accepted the test email for ${data.recipient}. Provider ID: ${data.providerId ?? "not returned"}. Check Inbox and Spam; no order was created.`;
-      setOrderTestEmailMessage(message);
-      notify(`Test email accepted by Resend for ${data.recipient}.`);
-    } catch {
-      const message = "Could not reach the email service. No order was created.";
-      setOrderTestEmailMessage(`Not sent: ${message}`);
-      notify(message);
-    } finally {
-      setOrderTestEmailBusy(false);
-    }
-  }
-
-  async function deleteCancelledOrders() {
-    setCancelledCleanupBusy(true);
-    try {
-      const countResponse = await fetch("/api/admin/orders/cleanup", { cache: "no-store" });
-      const countData = (await countResponse.json().catch(() => ({}))) as { cancelledCount?: number; error?: string };
-      if (!countResponse.ok) {
-        notify(countData.error ?? "Could not count cancelled orders.");
-        return;
-      }
-      const count = Number(countData.cancelledCount ?? 0);
-      if (count === 0) {
-        notify("There are no cancelled orders to delete.");
-        return;
-      }
-      const confirmed = window.confirm(
-        `Permanently delete ${count} cancelled order(s) and their item records? This cannot be undone. Only orders whose status is exactly “cancelled” are eligible; every other order remains untouched. Continue?`,
-      );
-      if (!confirmed) return;
-
-      const response = await fetch("/api/admin/orders/cleanup", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmation: "DELETE_CANCELLED_ORDERS", expectedCount: count }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; deletedCount?: number; error?: string };
-      if (!response.ok || !data.ok) {
-        notify(data.error ?? "Could not delete cancelled orders. Nothing was changed.");
-        return;
-      }
-      notify(`${data.deletedCount ?? 0} cancelled order(s) permanently deleted. Other orders and stock were not changed.`);
-      router.refresh();
-    } catch {
-      notify("Could not reach the order cleanup service. Nothing was changed.");
-    } finally {
-      setCancelledCleanupBusy(false);
-    }
-  }
-
-  function toggleShipForm(order: OrderEntry["order"]) {
-    if (shipOpenId === order.id) {
-      setShipOpenId(null);
-      return;
-    }
-    setShipForms((forms) => ({
-      ...forms,
-      [order.id]: forms[order.id] ?? { carrier: order.trackingCarrier ?? "", number: order.trackingNumber ?? "" },
-    }));
-    setShipOpenId(order.id);
-  }
-
-  async function runOrderAction(order: OrderEntry["order"], action: OrderActionName) {
-    const ref = `MED-${order.id.slice(0, 8).toUpperCase()}`;
-    const paidOrShipped = order.status === "confirmed" || order.status === "shipped";
-    if (action === "confirm") {
-      const message =
-        order.status === "payment_review"
-          ? `Confirm ${ref} after your manual review? The specimens are reserved (stock taken) immediately.`
-          : `Mark ${ref} as paid? Only confirm once the money is actually in your account — the specimens are reserved (stock taken) immediately.`;
-      if (!window.confirm(message)) return;
-    }
-    if (action === "cancel") {
-      const message = paidOrShipped
-        ? `Cancel ${ref}? Its specimens return to stock; a piece that sold out goes back to Site Only. If the buyer paid by PayPal, refund them in PayPal first — cancelling here does NOT refund.`
-        : `Cancel ${ref}? No payment was taken, so no stock changes.`;
-      if (!window.confirm(message)) return;
-    }
-    setOrderBusyId(order.id);
-    try {
-      const form = shipForms[order.id] ?? { carrier: "", number: "" };
-      const res = await fetch("/api/admin/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: order.id, action, trackingCarrier: form.carrier, trackingNumber: form.number }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        notify(data.error ?? "Could not update the order. Nothing was changed.");
-        return;
-      }
-      const notes: Record<OrderActionName, string> = {
-        confirm: `${ref} marked as paid & confirmed. Stock reserved.`,
-        ship: `${ref} marked as shipped.`,
-        complete: `${ref} marked as completed.`,
-        cancel: paidOrShipped ? `${ref} cancelled. Specimens returned to stock.` : `${ref} cancelled.`,
-        tracking: `${ref} tracking updated.`,
-      };
-      notify(notes[action]);
-      setShipOpenId(null);
-      router.refresh();
-    } catch {
-      notify("Network error. The order was not changed.");
-    } finally {
-      setOrderBusyId(null);
-    }
-  }
-
   /** Removes one address when a reader asks to be taken off the list. */
   async function handleRemoveSubscriber(email: string) {
     if (!window.confirm(`Remove ${email} from the newsletter list?`)) return;
@@ -525,6 +376,260 @@ export function AdminDashboard({
     } else {
       notify("Could not remove that address.");
     }
+  }
+
+  /* ---------------- Received orders actions ---------------- */
+
+  function orderRef(order: OrderEntry["order"]): string {
+    return `MED-${order.id.slice(0, 8).toUpperCase()}`;
+  }
+
+  /** Flat delivery summary for the carrier label. */
+  function orderDetailsText(entry: OrderEntry): string {
+    const { order, items } = entry;
+    return [
+      orderRef(order),
+      `${order.firstName} ${order.lastName}`,
+      order.addressLine1 + (order.addressLine2 ? `, ${order.addressLine2}` : ""),
+      `${order.postalCode} ${order.city}, ${order.country}`,
+      order.phone ? `Tel: ${order.phone}` : "",
+      order.email,
+      order.customerNote ? `Message: ${order.customerNote}` : "",
+      "Items: " + items.map((i) => `${i.quantity}x ${i.productName}`).join(", "),
+      `Total: ${formatPrice(order.totalCents)} (${order.paymentMethod})`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  async function copyOrderDetails(entry: OrderEntry) {
+    try {
+      await navigator.clipboard.writeText(orderDetailsText(entry));
+      notify(`${orderRef(entry.order)} copied — paste it on the carrier label.`);
+    } catch {
+      notify("The clipboard is blocked by the browser; select the text and copy manually.");
+    }
+  }
+
+  async function markOrderShipped(entry: OrderEntry) {
+    const { order } = entry;
+    if (!window.confirm(`Mark ${orderRef(order)} as shipped?`)) return;
+    setOrderActionBusy(order.id);
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: order.id, status: "shipped" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.ok) {
+        notify(`${orderRef(order)} marked as shipped.`);
+        router.refresh();
+      } else {
+        notify(data.error ?? "Could not update the order status.");
+      }
+    } catch {
+      notify("The order could not be updated. Try again.");
+    } finally {
+      setOrderActionBusy(null);
+    }
+  }
+
+  /** Test orders and mistakes. Deletion NEVER restores stock — the curator
+      re-lists the piece from the channel box after refunding the buyer. */
+  async function deleteOrder(entry: OrderEntry) {
+    const { order } = entry;
+    const ref = orderRef(order);
+    if (
+      !window.confirm(
+        `Delete ${ref} (${order.firstName} ${order.lastName}, ${formatPrice(order.totalCents)})?\n\n` +
+          "This removes the order record only. Stock is NOT restored and the piece stays as it is — " +
+          "refund the buyer in PayPal first, then re-list the piece from the channel box if you need it back for sale.",
+      )
+    )
+      return;
+    if (!window.confirm(`Really delete ${ref}? This cannot be undone.`)) return;
+    setOrderActionBusy(order.id);
+    try {
+      const res = await fetch("/api/admin/orders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: order.id }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (res.ok) {
+        notify(`${ref} deleted. Stock was not touched.`);
+        router.refresh();
+      } else {
+        notify(data.error ?? "The order could not be deleted.");
+      }
+    } catch {
+      notify("The order could not be deleted. Try again.");
+    } finally {
+      setOrderActionBusy(null);
+    }
+  }
+
+  /** Resends the curator e-mail for one order (never changes the order). */
+  async function resendOrderEmail(entry: OrderEntry) {
+    const { order } = entry;
+    const ref = orderRef(order);
+    setOrderActionBusy(order.id + ":mail");
+    try {
+      const res = await fetch("/api/admin/orders/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: order.id, event: order.paymentMethod === "paypal" ? "paid" : "placed" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        status?: string;
+        detail?: string;
+        error?: string;
+        recipient?: string;
+        transport?: string;
+      };
+      if (res.ok && data.status === "sent") {
+        notify(`E-mail for ${ref} sent to ${data.recipient}.`);
+        router.refresh();
+      } else {
+        notify(
+          data.error ||
+            (data.status === "not_configured"
+              ? `E-mail not sent: no provider configured. Add RESEND_API_KEY (or BREVO_API_KEY) in the environment; the recipient will be ${data.recipient ?? "the curator mailbox"}.`
+              : `E-mail not sent (${data.status ?? "error"}): ${data.detail ?? "unknown error"}`),
+        );
+      }
+    } catch {
+      notify("The e-mail could not be sent. The order was not changed.");
+    } finally {
+      setOrderActionBusy(null);
+    }
+  }
+
+  async function loadEmailStatus() {
+    try {
+      const res = await fetch("/api/admin/email-test", { cache: "no-store" });
+      if (res.ok) setEmailTest((await res.json()) as { transport: string; recipient: string; from: string });
+    } catch {}
+  }
+
+  async function sendTestEmail() {
+    setEmailTesting(true);
+    try {
+      const res = await fetch("/api/admin/email-test", { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as { transport?: string; recipient?: string; from?: string; status?: string; detail?: string };
+      setEmailTest({ transport: data.transport ?? "none", recipient: data.recipient ?? "", from: data.from ?? "", status: data.status, detail: data.detail });
+      notify(
+        data.status === "sent"
+          ? `Test e-mail accepted by ${data.transport}. Check ${data.recipient} (and the spam folder).`
+          : data.detail || "The test e-mail could not be sent.",
+      );
+    } catch {
+      notify("The test e-mail could not be sent.");
+    } finally {
+      setEmailTesting(false);
+    }
+  }
+
+  async function sendTracking(entry: OrderEntry, saveOnly: boolean) {
+    const { order } = entry;
+    const value = (trackingDraft[order.id] ?? order.trackingUrl ?? "").trim();
+    if (!value) {
+      notify("Paste the carrier tracking link or number first.");
+      return;
+    }
+    if (!saveOnly && !window.confirm(`Send the tracking details for ${orderRef(order)} to ${order.email}?`)) return;
+    setOrderActionBusy(`${order.id}:tracking`);
+    try {
+      const res = await fetch("/api/admin/orders/tracking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: order.id, tracking: value, saveOnly }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        sent?: boolean;
+        buyer?: { ok: boolean; detail: string };
+      };
+      if (res.ok && data.sent) {
+        notify(`Tracking sent to ${order.email} and copied to your mailbox.`);
+        router.refresh();
+      } else if (res.ok) {
+        notify("Tracking saved. It was not e-mailed yet.");
+        router.refresh();
+      } else {
+        notify(data.error ?? "The tracking details could not be saved.");
+        router.refresh();
+      }
+    } catch {
+      notify("The tracking details could not be saved. Try again.");
+    } finally {
+      setOrderActionBusy(null);
+    }
+  }
+
+  async function sendMessageToBuyer(entry: OrderEntry) {
+    const { order } = entry;
+    const message = (messageDraft[order.id] ?? "").trim();
+    if (message.length < 2) {
+      notify("Write the message you want to send.");
+      return;
+    }
+    setOrderActionBusy(`${order.id}:message`);
+    try {
+      const res = await fetch("/api/admin/orders/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: order.id, message }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; to?: string };
+      if (res.ok) {
+        notify(`Message sent to ${data.to ?? order.email}.`);
+        setMessageDraft((d) => ({ ...d, [order.id]: "" }));
+        setMessageOpen(null);
+        router.refresh();
+      } else {
+        notify(data.error ?? "The message was not sent.");
+      }
+    } catch {
+      notify("The message was not sent. Try again.");
+    } finally {
+      setOrderActionBusy(null);
+    }
+  }
+
+  function exportOrdersCsv() {
+    const esc = (value: string | number) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const header = [
+      "Reference", "Date", "Status", "Payment", "Buyer", "Email", "Phone", "Country",
+      "Address", "City", "Postal code", "Buyer message", "Items", "Subtotal (EUR)", "Shipping (EUR)", "Total (EUR)",
+    ];
+    const rows = orders.map(({ order, items }) => [
+      orderRef(order),
+      new Date(order.createdAt).toISOString(),
+      order.status,
+      order.paymentMethod,
+      `${order.firstName} ${order.lastName}`,
+      order.email,
+      order.phone ?? "",
+      order.country,
+      order.addressLine1 + (order.addressLine2 ? `, ${order.addressLine2}` : ""),
+      order.city,
+      order.postalCode,
+      order.customerNote ?? "",
+      items.map((i) => `${i.quantity}x ${i.productName}`).join("; "),
+      (order.subtotalCents / 100).toFixed(2),
+      (order.shippingCents / 100).toFixed(2),
+      (order.totalCents / 100).toFixed(2),
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(esc).join(",")).join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `mediterranic-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
 
@@ -2137,19 +2242,6 @@ export function AdminDashboard({
             )}
           </div>
 
-          {/* PayPal connection diagnosis */}
-          <div className="mb-4 rounded-sm border-2 border-[#003087]/25 bg-[#003087]/5 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
-              PayPal connection
-            </p>
-            <p className="mt-1 text-xs text-ink/65">
-              If checkout answers &ldquo;Could not start the PayPal payment&rdquo;, diagnose here first: the test asks
-              PayPal for a token with the keys of THIS deployment and names the exact failing step (a sandbox/live
-              mix-up is the usual cause). It creates no order and no charge.
-            </p>
-            <div className="mt-3"><PaypalConnectionCheck /></div>
-          </div>
-
           {/* eBay store sync */}
           <div className="mb-4 rounded-sm border-2 border-sea/30 bg-sea/5 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
@@ -2544,13 +2636,7 @@ export function AdminDashboard({
           </div>
 
           <div className="space-y-4 border-t border-ink/10 pt-6">
-            <h3 className="font-display text-2xl text-ink">2. Hero Statistics &amp; Provenance</h3>
-            <p className="rounded-sm border border-sea/20 bg-sea/5 p-3 text-xs leading-relaxed text-ink/70">
-              <strong>Editable hero figures:</strong> update years of experience and the verified-feedbacks label below.
-              <strong> Specimens</strong> is not editable: it is always the live count of available stock across Site Only,
-              eBay and Catawiki. <strong>Eras offered</strong> is also calculated automatically. Archive, drafts, zero stock
-              and verified-inactive marketplace listings never count.
-            </p>
+            <h3 className="font-display text-2xl text-ink">2. Provenance &amp; 23 Years Reputation</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className={labelClass}>Years of Experience</label>
@@ -2566,9 +2652,14 @@ export function AdminDashboard({
                 <input
                   value={settingsForm.feedbacksLabel}
                   onChange={(e) => setSettingsForm({ ...settingsForm, feedbacksLabel: e.target.value })}
-                  placeholder="5,000+"
                   className={inputClass}
                 />
+                <p className="mt-1 text-[11px] leading-relaxed text-ink/55">
+                  Shown in the hero as “Verified feedbacks”. The <strong>Specimens</strong> and{" "}
+                  <strong>Eras offered</strong> numbers are always calculated from pieces available now (Site Only +
+                  eBay + Catawiki) and cannot be typed here. The four labels themselves are edited in{" "}
+                  <strong>5. Page texts &amp; photos</strong>.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>Provenance Eyebrow</label>
@@ -2741,276 +2832,271 @@ export function AdminDashboard({
       {/* TAB 3: ORDERS */}
       {tab === "orders" && (
         <div className="mt-10 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="font-display text-3xl text-ink">Received Orders</h2>
-              <p className="mt-1 max-w-3xl text-sm text-ink/60">
-                Work each order through its life: confirm invoice payments, dispatch with tracking, complete, or
-                cancel (paid orders return their specimens to stock). Refunds themselves always happen in PayPal —
-                cancelling here never moves money.
+              <p className="mt-1 max-w-2xl text-sm text-ink/60">
+                Copy the delivery details for the carrier, mark a paid order as shipped, export the list as CSV, or
+                delete a test order. Deleting an order <strong>never restores stock</strong> — refund the buyer in
+                PayPal first and re-list the piece from the channel box if it should go back on sale.
               </p>
             </div>
-            <div className="flex flex-wrap items-start justify-end gap-3">
-              <div>
-                <button
-                  type="button"
-                  onClick={sendTestOrderEmail}
-                  disabled={orderTestEmailBusy}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-sea/35 bg-sea/5 px-5 text-[11px] uppercase tracking-[0.14em] text-sea transition hover:bg-sea hover:text-white disabled:cursor-wait disabled:opacity-50"
-                >
-                  <Mail size={14} />
-                  {orderTestEmailBusy ? "Sending test email…" : "Send test e-mail"}
-                </button>
-                <p className="mt-1 text-right text-[10px] text-ink/50">Sends a test only; creates no order.</p>
-                {orderEmailSetup && (
-                  <p className={`mt-1 max-w-sm text-right text-[10px] leading-relaxed ${orderEmailSetup.configured ? "text-sea" : "text-terracotta"}`}>
-                    {orderEmailSetup.configured
-                      ? `Resend configured · ${orderEmailSetup.from} → ${orderEmailSetup.recipient}`
-                      : `Resend not configured · missing ${orderEmailSetup.missing.join(" and ")}`}
-                  </p>
-                )}
-                {orderTestEmailMessage && (
-                  <p role="status" className="mt-2 max-w-sm rounded-sm border border-ink/10 bg-white px-3 py-2 text-right text-[11px] leading-relaxed text-ink/75">
-                    {orderTestEmailMessage}
-                  </p>
-                )}
-              </div>
-              <div>
-                <button
-                  type="button"
-                  onClick={deleteCancelledOrders}
-                  disabled={cancelledCleanupBusy}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-terracotta/35 bg-terracotta/5 px-5 text-[11px] uppercase tracking-[0.14em] text-terracotta transition hover:bg-terracotta hover:text-white disabled:cursor-wait disabled:opacity-50"
-                >
-                  <Trash2 size={14} />
-                  {cancelledCleanupBusy ? "Deleting…" : "Delete cancelled orders"}
-                </button>
-                <p className="mt-1 text-right text-[10px] text-ink/50">Permanent; only status “cancelled”.</p>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={exportOrdersCsv}
+              disabled={orders.length === 0}
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-sea disabled:opacity-40"
+            >
+              <Download size={15} /> Download CSV
+            </button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {ORDER_FILTERS.map((f) => {
-              const count = f.statuses ? orders.filter((o) => f.statuses!.includes(o.order.status)).length : orders.length;
-              const active = orderFilter === f.id;
-              return (
+          <div className="rounded-sm border border-sea/30 bg-sea/5 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink">Order notification e-mail</p>
+                <p className="mt-1 text-xs text-ink/65">
+                  Every order is e-mailed to <strong>{emailTest?.recipient || "mediterranean.world@gmail.com"}</strong>.
+                  {" "}Provider: <strong>{emailTest?.transport && emailTest.transport !== "none" ? emailTest.transport : "not configured"}</strong>
+                  {emailTest?.from ? ` · from ${emailTest.from}` : ""}
+                </p>
+                <p className="mt-1 text-[11px] text-ink/45">Code version: {CODE_VERSION}</p>
+                {emailTest?.status && (
+                  <p className={`mt-1 text-xs ${emailTest.status === "sent" ? "text-sea" : "text-terracotta"}`}>
+                    {emailTest.status === "sent" ? "Test sent — check that mailbox (and spam)." : emailTest.detail}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={f.id}
                   type="button"
-                  onClick={() => setOrderFilter(f.id)}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.14em] transition ${
-                    active ? "border-ink bg-ink text-parchment" : "border-ink/20 text-ink/70 hover:border-ink/50"
-                  }`}
+                  onClick={() => void loadEmailStatus()}
+                  className="inline-flex h-10 items-center gap-2 rounded-full border border-ink/25 px-4 text-[11px] uppercase tracking-[0.14em] text-ink transition hover:border-ink"
                 >
-                  {f.label}
-                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${active ? "bg-parchment/20" : "bg-ink/10"}`}>{count}</span>
+                  Check settings
                 </button>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => void sendTestEmail()}
+                  disabled={emailTesting}
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-sea px-4 text-[11px] uppercase tracking-[0.14em] text-white transition hover:brightness-110 disabled:opacity-50"
+                >
+                  <Mail size={13} /> {emailTesting ? "Sending…" : "Send test e-mail"}
+                </button>
+              </div>
+            </div>
           </div>
 
           {orders.length === 0 ? (
             <div className="rounded-sm border border-dashed border-ink/20 p-12 text-center text-sm text-ink/60">
               No direct orders recorded yet.
             </div>
-          ) : orders.filter(({ order }) => {
-              const f = ORDER_FILTERS.find((x) => x.id === orderFilter) ?? ORDER_FILTERS[0];
-              return !f.statuses || f.statuses.includes(order.status);
-            }).length === 0 ? (
-            <div className="rounded-sm border border-dashed border-ink/20 p-12 text-center text-sm text-ink/60">
-              No orders in this state right now.
-            </div>
           ) : (
-            orders
-              .filter(({ order }) => {
-                const f = ORDER_FILTERS.find((x) => x.id === orderFilter) ?? ORDER_FILTERS[0];
-                return !f.statuses || f.statuses.includes(order.status);
-              })
-              .map(({ order, items }) => {
-                const meta = ORDER_STATUS_META[order.status] ?? { label: order.status, className: "bg-ink/10 text-ink/70" };
-                const busy = orderBusyId === order.id;
-                const btn =
-                  "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[11px] uppercase tracking-[0.14em] transition disabled:opacity-50";
-                const primaryBtn = `${btn} border-sea bg-sea text-white hover:bg-ink`;
-                const ghostBtn = `${btn} border-ink/20 text-ink/75 hover:border-ink/60`;
-                const dangerBtn = `${btn} border-terracotta/40 text-terracotta hover:bg-terracotta hover:text-white`;
-                return (
-                  <div key={order.id} className="rounded-sm border border-ink/10 bg-white/75 p-6">
-                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-4">
-                      <div>
-                        <p className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.2em] text-brass">
-                          <span>
-                            MED-{order.id.slice(0, 8).toUpperCase()} · {formatDate(order.createdAt)}
-                          </span>
-                          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${meta.className}`}>
-                            {meta.label}
-                          </span>
-                        </p>
-                        <p className="mt-1 font-display text-2xl text-ink">
-                          {order.firstName} {order.lastName} ({order.email})
-                        </p>
-                        <p className="mt-1 text-xs text-ink/55">
-                          {order.paymentMethod === "paypal"
-                            ? `Paid via PayPal${order.paypalOrderId ? ` · Order ${order.paypalOrderId}` : ""}`
-                            : "Invoice (pay by bank transfer / arrangement)"}
-                          {order.phone ? ` · ${order.phone}` : ""}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-display text-3xl text-ink">{formatPrice(order.totalCents)}</p>
-                        <p className="text-xs text-ink/55">
-                          Shipping: {order.shippingMethod} · {order.country}
-                        </p>
+            orders.map(({ order, items, notifications }) => {
+              const entryNotifications = notifications ?? [];
+              const busy = orderActionBusy === order.id;
+              const busyMail = orderActionBusy === `${order.id}:mail`;
+              const busyTracking = orderActionBusy === `${order.id}:tracking`;
+              const busyMessage = orderActionBusy === `${order.id}:message`;
+              const statusLabel = ORDER_STATUS_LABEL[order.status] ?? order.status;
+              const awaitingPayment = ["pending_payment", "payment_pending", "payment_review"].includes(order.status);
+              return (
+                <div key={order.id} className="rounded-sm border border-ink/10 bg-white/75 p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-brass">
+                        {orderRef(order)} · {formatDate(order.createdAt)}
+                      </p>
+                      <p className="mt-1 font-display text-2xl text-ink">
+                        {order.firstName} {order.lastName} ({order.email})
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-[0.16em] ${
+                            awaitingPayment
+                              ? "bg-brass/15 text-[#8a6a1f]"
+                              : order.status === "shipped"
+                                ? "bg-sea/10 text-sea"
+                                : "bg-bone text-ink/75"
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                        <span className="rounded-full bg-bone px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-ink/60">
+                          Paid via {order.paymentMethod === "paypal" ? "PayPal" : "invoice"}
+                          {order.paypalOrderId ? ` · ${order.paypalOrderId}` : ""}
+                        </span>
                       </div>
                     </div>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <div className="text-xs text-ink/70">
-                        <p className="font-medium uppercase tracking-wider text-ink">Delivery Address:</p>
-                        <p className="mt-1">
-                          {order.addressLine1} {order.addressLine2 ? `, ${order.addressLine2}` : ""} — {order.postalCode}{" "}
-                          {order.city}, {order.country}
-                        </p>
-                        {order.shippedAt && (
-                          <p className="mt-3 flex items-start gap-1.5 text-ink/70">
-                            <Truck size={13} className="mt-0.5 shrink-0 text-sea" />
-                            <span>
-                              Dispatched {formatDate(order.shippedAt)}
-                              {order.trackingCarrier ? ` via ${order.trackingCarrier}` : ""}
-                              {order.trackingNumber ? ` · Tracking ${order.trackingNumber}` : ""}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wider text-ink">Items:</p>
-                        <ul className="mt-1 space-y-1 text-xs text-ink/80">
-                          {items.map((item) => (
-                            <li key={item.id}>
-                              {item.quantity}× {item.productName} ({formatPrice(item.unitPriceCents)})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                    <div className="text-right">
+                      <p className="font-display text-3xl text-ink">{formatPrice(order.totalCents)}</p>
+                      <p className="text-xs text-ink/55">
+                        Shipping: {order.shippingMethod} · {order.country}
+                      </p>
                     </div>
-
-                    {/* Actions */}
-                    <div className="mt-5 flex flex-wrap gap-2 border-t border-ink/10 pt-4">
-                      {order.status === "pending_invoice" && (
-                        <>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "confirm")} className={primaryBtn}>
-                            <Check size={13} /> Mark as paid &amp; confirm
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
-                            <Ban size={13} /> Cancel order
-                          </button>
-                        </>
-                      )}
-                      {order.status === "payment_review" && (
-                        <>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "confirm")} className={primaryBtn}>
-                            <Check size={13} /> Confirm after review
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
-                            <Ban size={13} /> Cancel order
-                          </button>
-                        </>
-                      )}
-                      {(order.status === "pending_payment" || order.status === "payment_pending") && (
-                        <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
-                          <Ban size={13} /> Cancel order
-                        </button>
-                      )}
-                      {order.status === "confirmed" && (
-                        <>
-                          <button type="button" disabled={busy} onClick={() => toggleShipForm(order)} className={primaryBtn}>
-                            <Truck size={13} /> Mark as shipped
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "complete")} className={ghostBtn}>
-                            <PackageCheck size={13} /> Mark as completed
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
-                            <Ban size={13} /> Cancel &amp; restore stock
-                          </button>
-                        </>
-                      )}
-                      {order.status === "shipped" && (
-                        <>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "complete")} className={primaryBtn}>
-                            <PackageCheck size={13} /> Mark as completed
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => toggleShipForm(order)} className={ghostBtn}>
-                            <Truck size={13} /> Update tracking
-                          </button>
-                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
-                            <Ban size={13} /> Cancel &amp; restore stock
-                          </button>
-                        </>
-                      )}
-                      {order.status === "completed" && (
-                        <button type="button" disabled={busy} onClick={() => toggleShipForm(order)} className={ghostBtn}>
-                          <Truck size={13} /> Update tracking
-                        </button>
-                      )}
-                      {order.status === "cancelled" && <p className="text-xs text-ink/50">This order is closed.</p>}
-                      {busy && <span className="self-center text-xs text-ink/55">Working…</span>}
-                    </div>
-
-                    {shipOpenId === order.id &&
-                      (order.status === "confirmed" || order.status === "shipped" || order.status === "completed") && (
-                        <div className="mt-4 rounded-sm border border-ink/10 bg-bone/50 p-4">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block">
-                              <span className={labelClass}>Carrier</span>
-                              <input
-                                value={shipForms[order.id]?.carrier ?? ""}
-                                onChange={(e) =>
-                                  setShipForms((forms) => ({
-                                    ...forms,
-                                    [order.id]: { carrier: e.target.value, number: forms[order.id]?.number ?? "" },
-                                  }))
-                                }
-                                placeholder="e.g. CTT Expresso, DHL, UPS"
-                                className={inputClass}
-                              />
-                            </label>
-                            <label className="block">
-                              <span className={labelClass}>Tracking number</span>
-                              <input
-                                value={shipForms[order.id]?.number ?? ""}
-                                onChange={(e) =>
-                                  setShipForms((forms) => ({
-                                    ...forms,
-                                    [order.id]: { carrier: forms[order.id]?.carrier ?? "", number: e.target.value },
-                                  }))
-                                }
-                                placeholder="e.g. RR123456789PT"
-                                className={inputClass}
-                              />
-                            </label>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => runOrderAction(order, order.status === "confirmed" ? "ship" : "tracking")}
-                              className={primaryBtn}
-                            >
-                              <Truck size={13} /> {order.status === "confirmed" ? "Dispatch order" : "Save tracking"}
-                            </button>
-                            <button type="button" disabled={busy} onClick={() => setShipOpenId(null)} className={ghostBtn}>
-                              Close
-                            </button>
-                          </div>
-                          <p className="mt-2 text-[11px] leading-relaxed text-ink/55">
-                            Shown to the buyer on their order page ({`/orders/…`}). No email is sent automatically —
-                            tracking fields can be saved empty and completed later.
-                          </p>
-                        </div>
-                      )}
                   </div>
-                );
-              })
+                  {order.customerNote && (
+                    <div className="mt-4 rounded-sm border-l-2 border-brass bg-brass/10 px-4 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brass">
+                        Buyer message
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink/80">{order.customerNote}</p>
+                    </div>
+                  )}
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="text-xs text-ink/70">
+                      <p className="font-medium uppercase tracking-wider text-ink">Delivery Address:</p>
+                      <p className="mt-1">
+                        {order.addressLine1} {order.addressLine2 ? `, ${order.addressLine2}` : ""} — {order.postalCode}{" "}
+                        {order.city}, {order.country}
+                      </p>
+                      {order.phone && <p className="mt-1">Phone: {order.phone}</p>}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-ink">Items:</p>
+                      <ul className="mt-1 space-y-1 text-xs text-ink/80">
+                        {items.map((item) => (
+                          <li key={item.id}>
+                            {item.quantity}× {item.productName} ({formatPrice(item.unitPriceCents)})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  {(() => {
+                    const latest = (entryNotifications ?? [])[0];
+                    return (
+                      <p className="mt-3 text-[11px] text-ink/60">
+                        Curator e-mail:{" "}
+                        {latest ? (
+                          <strong className={latest.status === "sent" ? "text-sea" : "text-terracotta"}>
+                            {latest.status === "sent"
+                              ? `sent to ${latest.recipient}${latest.sentAt ? ` · ${formatDate(latest.sentAt)}` : ""}`
+                              : latest.status === "not_configured"
+                                ? "no e-mail provider configured — add RESEND_API_KEY"
+                                : `not sent (${latest.detail ?? latest.status})`}
+                          </strong>
+                        ) : (
+                          <span>not recorded yet</span>
+                        )}
+                      </p>
+                    );
+                  })()}
+                  <div className="mt-4 rounded-sm border border-brass/40 bg-brass/5 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brass">Tracking</p>
+                    <div className="mt-2 flex flex-col gap-2 md:flex-row">
+                      <input
+                        value={trackingDraft[order.id] ?? order.trackingUrl ?? ""}
+                        onChange={(e) => setTrackingDraft((d) => ({ ...d, [order.id]: e.target.value }))}
+                        placeholder="Paste the carrier link (https://…) or the tracking number"
+                        className="min-h-11 w-full min-w-0 rounded-sm border border-ink/20 bg-white px-3 text-sm outline-none focus:border-sea"
+                      />
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void sendTracking({ order, items }, false)}
+                          disabled={busy || busyTracking}
+                          className="inline-flex h-11 items-center gap-2 rounded-full bg-sea px-4 text-[11px] uppercase tracking-[0.14em] text-white transition hover:brightness-110 disabled:opacity-50"
+                        >
+                          <Truck size={13} /> {busyTracking ? "Sending…" : "Save & send"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void sendTracking({ order, items }, true)}
+                          disabled={busy || busyTracking}
+                          className="inline-flex h-11 items-center rounded-full border border-ink/25 px-4 text-[11px] uppercase tracking-[0.14em] text-ink transition hover:border-ink disabled:opacity-50"
+                        >
+                          Save only
+                        </button>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-[11px] text-ink/55">
+                      {order.trackingSentAt
+                        ? `Buyer notified ${formatDate(order.trackingSentAt)}.`
+                        : order.trackingUrl
+                          ? "Saved, not sent yet."
+                          : "The buyer and your mailbox both receive the tracking details."}
+                    </p>
+                  </div>
+
+                  {messageOpen === order.id && (
+                    <div className="mt-3 rounded-sm border border-sea/40 bg-sea/5 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sea">
+                        Message to {order.firstName} ({order.email})
+                      </p>
+                      <textarea
+                        rows={4}
+                        value={messageDraft[order.id] ?? ""}
+                        onChange={(e) => setMessageDraft((d) => ({ ...d, [order.id]: e.target.value }))}
+                        placeholder="Write your reply. The order reference and items are added automatically."
+                        className="mt-2 w-full min-h-24 resize-y rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm outline-none focus:border-sea"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void sendMessageToBuyer({ order, items })}
+                          disabled={busyMessage}
+                          className="inline-flex h-10 items-center gap-2 rounded-full bg-sea px-4 text-[11px] uppercase tracking-[0.14em] text-white transition hover:brightness-110 disabled:opacity-50"
+                        >
+                          <Mail size={13} /> {busyMessage ? "Sending…" : "Send to buyer"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMessageOpen(null)}
+                          className="inline-flex h-10 items-center rounded-full border border-ink/25 px-4 text-[11px] uppercase tracking-[0.14em] text-ink"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink/10 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setMessageOpen((open) => (open === order.id ? null : order.id))}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-ink/25 px-4 text-[11px] uppercase tracking-[0.14em] text-ink transition hover:border-ink"
+                    >
+                      <Mail size={13} /> Message buyer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void resendOrderEmail({ order, items, notifications: entryNotifications })}
+                      disabled={busy || busyMail}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-sea/40 bg-sea/5 px-4 text-[11px] uppercase tracking-[0.14em] text-sea transition hover:bg-sea/10 disabled:opacity-50"
+                    >
+                      <Mail size={13} /> {busyMail ? "Sending…" : "E-mail curator"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copyOrderDetails({ order, items })}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-ink/25 px-4 text-[11px] uppercase tracking-[0.14em] text-ink transition hover:border-ink"
+                    >
+                      <Copy size={13} /> Copy details
+                    </button>
+                    {order.status === "confirmed" && (
+                      <button
+                        type="button"
+                        onClick={() => void markOrderShipped({ order, items })}
+                        disabled={busy}
+                        className="inline-flex h-10 items-center gap-2 rounded-full bg-sea px-4 text-[11px] uppercase tracking-[0.14em] text-white transition hover:brightness-110 disabled:opacity-50"
+                      >
+                        <Truck size={13} /> {busy ? "Working…" : "Mark as shipped"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void deleteOrder({ order, items })}
+                      disabled={busy || awaitingPayment}
+                      title={awaitingPayment ? "Cannot delete an order that is still awaiting payment." : "Delete this order record (stock is not restored)"}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-terracotta/40 px-4 text-[11px] uppercase tracking-[0.14em] text-terracotta transition hover:bg-terracotta/10 disabled:opacity-40"
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       )}

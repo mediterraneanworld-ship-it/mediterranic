@@ -84,6 +84,39 @@ test('PayPal config summary exposes variable names and an ID tail, never secrets
  assert.equal(summary.configured,true);assert.equal(summary.clientIdTail,'wxyz');assert.equal(summary.secretSource,'PAYPAL_SECRET');
  assert.equal(summary.explicitEnvironment,null);assert.equal(JSON.stringify(summary).includes('a-very-secret-value'),false);
 });
+test('new order notification goes to the owner with idempotency and safely escaped order content',async()=>{
+ let request;
+ const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-resend-secret',RESEND_FROM_EMAIL:'Mediterranic <orders@example.test>'},fetch:async(url,options)=>{request={url:String(url),options};return new Response(JSON.stringify({id:'email-fixture-1'}),{status:200,headers:{'Content-Type':'application/json'}})}});
+ const result=await mail.sendNewOrderNotification({order:{id:'12345678-1234-4234-8234-123456789012',email:'buyer@example.test',firstName:'<script>alert(1)</script>',lastName:'Buyer',phone:null,country:'PT',addressLine1:'Street & <b>one</b>',addressLine2:null,city:'Lisbon',postalCode:'1000-001',shippingMethod:'free',subtotalCents:10000,shippingCents:0,totalCents:10000,status:'pending_invoice',paymentMethod:'direct'},items:[{productName:'Fossil <one>',productSlug:'fossil-one',unitPriceCents:10000,quantity:1}],siteUrl:'https://mediterranic.vercel.app'});
+ const body=JSON.parse(request.options.body);
+ assert.equal(result.sent,true);assert.equal(result.providerId,'email-fixture-1');assert.deepEqual(body.to,['mediterranean.world@gmail.com']);
+ assert.equal(request.options.headers['Idempotency-Key'],'mediterranic-order-12345678-1234-4234-8234-123456789012');
+ assert.ok(body.html.includes('&lt;script&gt;'));assert.ok(!body.html.includes('<script>alert(1)</script>'));
+ assert.ok(body.text.includes('MED-12345678'));assert.ok(body.subject.includes('€100.00'));
+ assert.ok(!JSON.stringify(body).includes('fixture-resend-secret'));
+});
+test('missing email provider never throws or attempts network, so checkout can still place the order',async()=>{
+ let called=false;
+ const mail=load('src/lib/order-notifications.ts',{env:{},fetch:async()=>{called=true;throw Error('must not call')}});
+ const result=await mail.sendNewOrderNotification({order:{id:'12345678-1234-4234-8234-123456789012',email:'buyer@example.test',firstName:'Test',lastName:'Buyer',phone:null,country:'PT',addressLine1:'Street 1',addressLine2:null,city:'Lisbon',postalCode:'1000-001',shippingMethod:'free',subtotalCents:10000,shippingCents:0,totalCents:10000,status:'pending_invoice',paymentMethod:'direct'},items:[]});
+ assert.equal(result.sent,false);assert.equal(result.reason,'not_configured');assert.equal(called,false);
+});
+test('Resend rejection returns a safe failure result without throwing',async()=>{
+ const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-key',RESEND_FROM_EMAIL:'orders@example.test'},fetch:async()=>new Response(JSON.stringify({message:'Domain is not verified'}),{status:403,headers:{'Content-Type':'application/json'}})});
+ const result=await mail.sendNewOrderNotification({order:{id:'12345678-1234-4234-8234-123456789012',email:'buyer@example.test',firstName:'Test',lastName:'Buyer',phone:null,country:'PT',addressLine1:'Street 1',addressLine2:null,city:'Lisbon',postalCode:'1000-001',shippingMethod:'free',subtotalCents:10000,shippingCents:0,totalCents:10000,status:'pending_invoice',paymentMethod:'direct'},items:[]});
+ assert.equal(result.sent,false);assert.equal(result.reason,'provider_rejected');assert.equal(result.status,403);assert.match(result.detail,/Domain is not verified/);
+});
+test('admin test email reaches the configured owner, has a unique key, and creates no order',async()=>{
+ let request;
+ const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-key',RESEND_FROM_EMAIL:'orders@example.test'},fetch:async(url,options)=>{request={url:String(url),options};return new Response(JSON.stringify({id:'test-mail-1'}),{status:200,headers:{'Content-Type':'application/json'}})}});
+ const result=await mail.sendOrderNotificationTest('click-unique-123');
+ const body=JSON.parse(request.options.body);
+ assert.equal(result.sent,true);assert.equal(result.recipient,'mediterranean.world@gmail.com');
+ assert.deepEqual(body.to,['mediterranean.world@gmail.com']);
+ assert.equal(body.subject,'TEST — Mediterranic order notifications');
+ assert.match(body.text,/No order has been created/);
+ assert.equal(request.options.headers['Idempotency-Key'],'mediterranic-order-email-test-click-unique-123');
+});
 function orderService(row, free = true) {
   return load('src/lib/order-service.ts', {
     imports: {
@@ -130,4 +163,14 @@ test('order status transitions guard payment, shipping and stock restoration',()
 });
 test('public copy corrections do not mutate stored input',()=>{
  const copy=load('src/lib/public-copy.ts');const stored={title:'Insured worldwide shipping',analytics:{bodyScripts:'insured is a script literal'},logoImage:'/images/insured.png'};const out=copy.safeContent(stored);assert.equal(stored.title,'Insured worldwide shipping');assert.ok(!/insured/i.test(out.title));assert.equal(out.analytics.bodyScripts,stored.analytics.bodyScripts);assert.equal(out.logoImage,stored.logoImage);
+});
+test('Hero feedback default is 5000+ while specimen count uses live available inventory',()=>{
+ const home=fs.readFileSync('src/app/page.tsx','utf8');
+ const seed=fs.readFileSync('src/lib/seed-settings.ts','utf8');
+ const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+  assert.ok(home.includes('{counts.all}</dd>'));
+  assert.ok(home.includes('const counts = inventoryCounts(products)'));
+  assert.ok(seed.includes('feedbacksLabel: "5,000+"'));
+  assert.ok(admin.includes('Verified Feedbacks Label'));
+  assert.ok(admin.includes('Specimens</strong> is not editable'));
 });

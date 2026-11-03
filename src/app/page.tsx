@@ -118,7 +118,7 @@ export default async function HomePage() {
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">Specimens</dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{forSale.length}</dd>
+                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{counts.all}</dd>
               </div>
               <div>
                 <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">Eras offered</dt>

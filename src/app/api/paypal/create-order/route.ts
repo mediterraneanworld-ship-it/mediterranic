@@ -1,5 +1,6 @@
 import { buildOrder, insertOrder, markOrderStatus, OrderError, parseOrderInput } from "@/lib/order-service";
 import { createPaypalOrder, isPaypalConfigured, PaypalApiError, paypalErrorMessage, PaypalNotConfiguredError } from "@/lib/paypal";
+import { sendNewOrderNotification } from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -75,6 +76,33 @@ export async function POST(request: Request) {
     const approve = paypalOrder.links.find((l) => l.rel === "approve");
     if (!approve) {
       return Response.json({ error: "PayPal did not return an approval link." }, { status: 502 });
+    }
+
+    const notification = await sendNewOrderNotification({
+      order: {
+        id: orderId,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        phone: input.phone,
+        country: input.country,
+        addressLine1: input.addressLine1,
+        addressLine2: input.addressLine2,
+        city: input.city,
+        postalCode: input.postalCode,
+        shippingMethod: built.shippingMethod,
+        subtotalCents: built.subtotalCents,
+        shippingCents: built.shippingCents,
+        totalCents: built.totalCents,
+        status: "pending_payment",
+        paymentMethod: "paypal",
+        paypalOrderId: paypalOrder.id,
+      },
+      items: built.lines,
+      siteUrl: base,
+    });
+    if (!notification.sent) {
+      console.error("Owner order email notification failed", { orderId, reason: notification.reason, status: notification.status, detail: notification.detail });
     }
 
     return Response.json({ orderId, paypalOrderId: paypalOrder.id, approveUrl: approve.href });

@@ -19,7 +19,7 @@ export const SEED_SETTINGS: Omit<SiteSettings, "updatedAt"> = {
   provenanceTitleItalic: "Proven across thousands of shipments.",
   provenanceBody: "For nearly 23 years we have worked directly with licensed quarry families across Morocco. Every specimen here is a real, hand-prepared piece currently listed on Catawiki or eBay.",
   yearsExperience: 23,
-  feedbacksLabel: "7,500+",
+  feedbacksLabel: "5,000+",
   ebayUrl: "https://www.ebay.com/str/mederranic",
   catawikiUrl: "https://www.catawiki.com/en/u/3881635-mediterranic",
   instagramUrl: "https://www.instagram.com/mediterranic.store/",

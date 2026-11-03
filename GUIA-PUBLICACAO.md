@@ -363,12 +363,24 @@ Aplicado na loja, na página da peça, no cartão de produto e no botão de comp
 O preço de reserva interno (“When in Site Only”) também nunca sai do servidor
 para peças indisponíveis.
 
-### 13.2 O número de peças no hero é real
+### 13.2 Estatísticas do hero: duas editáveis, inventário automático
 
-“Specimens”, no bloco *Five hundred million years, in your keeping.*, conta
-apenas peças **à venda** (com stock, não arquivadas, com canal). As peças do
-catálogo/arquivo não contam. “Eras offered” também passou a ser calculado a
-partir dos períodos realmente presentes.
+Em `/admin` → **2. Site Settings & Fixed Texts** → **Hero Statistics & Provenance**:
+
+- **Years of Experience** e **Verified Feedbacks Label** são editáveis pelo
+  proprietário. O valor inicial do campo de feedbacks é agora `5,000+`.
+- **Specimens não é editável**: usa `inventoryCounts.all`, a mesma contagem
+  partilhada dos espécimes actualmente disponíveis em **Site Only + eBay +
+  Catawiki**. Exclui rascunhos, arquivo, stock zero e ofertas verificadas como
+  inactivas. Nunca é substituído por um número escrito à mão.
+- **Eras offered** também é calculado automaticamente a partir das eras das
+  peças disponíveis.
+
+Como os valores editados pelo admin vivem no Neon, um deploy **não** muda uma
+base de produção já existente. Para ver `5,000+` na loja publicada, altera
+**Verified Feedbacks Label** para `5,000+` nesse campo do admin e carrega em
+**Save Texts to Database**. Não precisas de voltar a editar as peças nem de
+repetir qualquer outro conteúdo.
 
 ### 13.3 Uma peça nova no eBay não aparecia — porquê
 
@@ -1112,3 +1124,41 @@ comprador vê a data de expedição e o tracking na página dele
 Colunas novas em `orders` (`shipped_at`, `tracking_carrier`,
 `tracking_number`) são aditivas no `UPGRADE_SQL` e criadas sozinhas no
 arranque. Encomendas antigas ficam intactas.
+
+### Apagar encomendas canceladas de teste
+
+No topo de **Received Orders** existe **Delete cancelled orders**. O admin
+consulta a contagem directamente à base, mostra-a antes de confirmar, e volta a
+verificar a mesma contagem dentro da transacção antes de apagar. Apaga apenas
+linhas cujo estado continua exactamente `cancelled` e os respectivos
+`order_items`; **encomendas abertas, pagas, enviadas ou concluídas nunca são
+seleccionadas**. Stock não é alterado (a reposição aconteceu quando o pedido
+pago foi cancelado). A operação é permanente e não tem undo: usar apenas para
+limpar encomendas de teste; fazer backup primeiro se houver qualquer dúvida.
+
+---
+
+## 34. Botão de factura e email ao proprietário
+
+- O botão alternativo do checkout apresenta:
+  **“PLACE ORDER BY INVOICE (EMAIL) - USE FOR ALTERNATIVE PAYMENT METHODS AND OFFERS”**.
+  Continua a criar uma encomenda **por pagar**; não confirma pagamento nem retira
+  stock até o proprietário clicar **Mark as paid & confirm**.
+- Quando uma encomenda é registada, o servidor tenta enviar uma notificação para
+  **mediterranean.world@gmail.com** (tanto invoice como ordem PayPal criada).
+  As notificações PayPal dizem claramente **awaiting buyer approval** — nunca
+  dizem que foi paga sem captura confirmada.
+- **Activação obrigatória na Vercel:** `RESEND_API_KEY` + `RESEND_FROM_EMAIL`
+  (remetente de um domínio verificado no Resend). O destinatário pode ser
+  `ORDER_NOTIFICATION_EMAIL`; por omissão é `mediterranean.world@gmail.com`.
+  Criar estas variáveis para **Production / All Branches** e fazer Redeploy.
+- Sem a API key/remetente verificado, a encomenda continua a ser gravada, mas não
+  chega email; o motivo aparece em **Vercel → Functions → Logs**. Falha de email
+  nunca apaga a encomenda nem bloqueia o checkout.
+- Integração server-side em `src/lib/order-notifications.ts`; API oficial:
+  `POST https://api.resend.com/emails`, Bearer API key, `Idempotency-Key` por
+  encomenda. O segredo nunca vai para o browser.
+- Depois de configurar e fazer Redeploy, testar em **Admin → Received Orders →
+  Send test e-mail**. O teste não cria nem altera encomendas; a resposta indica
+  o destinatário ou a causa de falha.
+- Configuração passo a passo: `public/PEDIDOS-EMAIL.md`.

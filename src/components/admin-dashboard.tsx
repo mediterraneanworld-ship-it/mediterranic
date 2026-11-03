@@ -371,6 +371,63 @@ export function AdminDashboard({
   const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
   const [shipOpenId, setShipOpenId] = useState<string | null>(null);
   const [shipForms, setShipForms] = useState<Record<string, { carrier: string; number: string }>>({});
+  const [orderTestEmailBusy, setOrderTestEmailBusy] = useState(false);
+  const [cancelledCleanupBusy, setCancelledCleanupBusy] = useState(false);
+
+  async function sendTestOrderEmail() {
+    setOrderTestEmailBusy(true);
+    try {
+      const response = await fetch("/api/admin/orders/test-email", { method: "POST" });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; recipient?: string; error?: string };
+      if (!response.ok || !data.ok) {
+        notify(data.error ?? "Could not send the test email.");
+        return;
+      }
+      notify(`Test email sent to ${data.recipient}. Check your inbox and spam folder. No order was created.`);
+    } catch {
+      notify("Could not reach the email service. No order was created.");
+    } finally {
+      setOrderTestEmailBusy(false);
+    }
+  }
+
+  async function deleteCancelledOrders() {
+    setCancelledCleanupBusy(true);
+    try {
+      const countResponse = await fetch("/api/admin/orders/cleanup", { cache: "no-store" });
+      const countData = (await countResponse.json().catch(() => ({}))) as { cancelledCount?: number; error?: string };
+      if (!countResponse.ok) {
+        notify(countData.error ?? "Could not count cancelled orders.");
+        return;
+      }
+      const count = Number(countData.cancelledCount ?? 0);
+      if (count === 0) {
+        notify("There are no cancelled orders to delete.");
+        return;
+      }
+      const confirmed = window.confirm(
+        `Permanently delete ${count} cancelled order(s) and their item records? This cannot be undone. Only orders whose status is exactly “cancelled” are eligible; every other order remains untouched. Continue?`,
+      );
+      if (!confirmed) return;
+
+      const response = await fetch("/api/admin/orders/cleanup", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "DELETE_CANCELLED_ORDERS", expectedCount: count }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; deletedCount?: number; error?: string };
+      if (!response.ok || !data.ok) {
+        notify(data.error ?? "Could not delete cancelled orders. Nothing was changed.");
+        return;
+      }
+      notify(`${data.deletedCount ?? 0} cancelled order(s) permanently deleted. Other orders and stock were not changed.`);
+      router.refresh();
+    } catch {
+      notify("Could not reach the order cleanup service. Nothing was changed.");
+    } finally {
+      setCancelledCleanupBusy(false);
+    }
+  }
 
   function toggleShipForm(order: OrderEntry["order"]) {
     if (shipOpenId === order.id) {
@@ -2459,7 +2516,13 @@ export function AdminDashboard({
           </div>
 
           <div className="space-y-4 border-t border-ink/10 pt-6">
-            <h3 className="font-display text-2xl text-ink">2. Provenance &amp; 23 Years Reputation</h3>
+            <h3 className="font-display text-2xl text-ink">2. Hero Statistics &amp; Provenance</h3>
+            <p className="rounded-sm border border-sea/20 bg-sea/5 p-3 text-xs leading-relaxed text-ink/70">
+              <strong>Editable hero figures:</strong> update years of experience and the verified-feedbacks label below.
+              <strong> Specimens</strong> is not editable: it is always the live count of available stock across Site Only,
+              eBay and Catawiki. <strong>Eras offered</strong> is also calculated automatically. Archive, drafts, zero stock
+              and verified-inactive marketplace listings never count.
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className={labelClass}>Years of Experience</label>
@@ -2475,6 +2538,7 @@ export function AdminDashboard({
                 <input
                   value={settingsForm.feedbacksLabel}
                   onChange={(e) => setSettingsForm({ ...settingsForm, feedbacksLabel: e.target.value })}
+                  placeholder="5,000+"
                   className={inputClass}
                 />
               </div>
@@ -2649,13 +2713,41 @@ export function AdminDashboard({
       {/* TAB 3: ORDERS */}
       {tab === "orders" && (
         <div className="mt-10 space-y-4">
-          <div>
-            <h2 className="font-display text-3xl text-ink">Received Orders</h2>
-            <p className="mt-1 max-w-3xl text-sm text-ink/60">
-              Work each order through its life: confirm invoice payments, dispatch with tracking, complete, or
-              cancel (paid orders return their specimens to stock). Refunds themselves always happen in PayPal —
-              cancelling here never moves money.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="font-display text-3xl text-ink">Received Orders</h2>
+              <p className="mt-1 max-w-3xl text-sm text-ink/60">
+                Work each order through its life: confirm invoice payments, dispatch with tracking, complete, or
+                cancel (paid orders return their specimens to stock). Refunds themselves always happen in PayPal —
+                cancelling here never moves money.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-start justify-end gap-3">
+              <div>
+                <button
+                  type="button"
+                  onClick={sendTestOrderEmail}
+                  disabled={orderTestEmailBusy}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-sea/35 bg-sea/5 px-5 text-[11px] uppercase tracking-[0.14em] text-sea transition hover:bg-sea hover:text-white disabled:cursor-wait disabled:opacity-50"
+                >
+                  <Mail size={14} />
+                  {orderTestEmailBusy ? "Sending test email…" : "Send test e-mail"}
+                </button>
+                <p className="mt-1 text-right text-[10px] text-ink/50">Sends a test only; creates no order.</p>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={deleteCancelledOrders}
+                  disabled={cancelledCleanupBusy}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-terracotta/35 bg-terracotta/5 px-5 text-[11px] uppercase tracking-[0.14em] text-terracotta transition hover:bg-terracotta hover:text-white disabled:cursor-wait disabled:opacity-50"
+                >
+                  <Trash2 size={14} />
+                  {cancelledCleanupBusy ? "Deleting…" : "Delete cancelled orders"}
+                </button>
+                <p className="mt-1 text-right text-[10px] text-ink/50">Permanent; only status “cancelled”.</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">

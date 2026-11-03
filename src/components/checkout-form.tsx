@@ -351,9 +351,9 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
             name="payment"
             value="invoice"
             disabled={submitting || paypalBusy}
-            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-ink/25 text-[12px] uppercase tracking-[0.2em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex min-h-12 h-auto w-full items-center justify-center gap-3 rounded-full border border-ink/25 px-5 py-3 text-center text-[10px] leading-relaxed tracking-[0.12em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60 sm:text-[11px]"
           >
-            {submitting ? "Placing order…" : "Place order by invoice (email)"}
+            {submitting ? "Placing order…" : "PLACE ORDER BY INVOICE (EMAIL) - USE FOR ALTERNATIVE PAYMENT METHODS AND OFFERS"}
           </button>
           <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
             <ShieldCheck size={14} strokeWidth={1.5} />

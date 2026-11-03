@@ -21,7 +21,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { ProductImage } from "@/db/schema";
 import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import { COLLECTIONS } from "@/lib/collections";
@@ -318,7 +318,16 @@ export function AdminDashboard({
   const [runsKey, setRunsKey] = useState(0);
   const [restoring, setRestoring] = useState(false);
   const [orderActionBusy, setOrderActionBusy] = useState<string | null>(null);
-  const [emailTest, setEmailTest] = useState<{ transport: string; recipient: string; from: string; status?: string; detail?: string } | null>(null);
+  const [emailTest, setEmailTest] = useState<{
+    transport: string;
+    recipient: string;
+    from: string;
+    status?: string;
+    detail?: string;
+    customersReachable?: boolean;
+    warning?: string | null;
+  } | null>(null);
+  const [testRecipient, setTestRecipient] = useState("");
   const [emailTesting, setEmailTesting] = useState(false);
   const [trackingDraft, setTrackingDraft] = useState<Record<string, string>>({});
   const [messageDraft, setMessageDraft] = useState<Record<string, string>>({});
@@ -509,20 +518,41 @@ export function AdminDashboard({
   async function loadEmailStatus() {
     try {
       const res = await fetch("/api/admin/email-test", { cache: "no-store" });
-      if (res.ok) setEmailTest((await res.json()) as { transport: string; recipient: string; from: string });
+      if (res.ok) setEmailTest((await res.json()) as NonNullable<typeof emailTest>);
     } catch {}
   }
 
   async function sendTestEmail() {
     setEmailTesting(true);
     try {
-      const res = await fetch("/api/admin/email-test", { method: "POST" });
-      const data = (await res.json().catch(() => ({}))) as { transport?: string; recipient?: string; from?: string; status?: string; detail?: string };
-      setEmailTest({ transport: data.transport ?? "none", recipient: data.recipient ?? "", from: data.from ?? "", status: data.status, detail: data.detail });
+      const res = await fetch("/api/admin/email-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: testRecipient.trim() }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        transport?: string;
+        recipient?: string;
+        from?: string;
+        status?: string;
+        detail?: string;
+        error?: string;
+        customersReachable?: boolean;
+        warning?: string | null;
+      };
+      setEmailTest({
+        transport: data.transport ?? "none",
+        recipient: data.recipient ?? "",
+        from: data.from ?? "",
+        status: data.status,
+        detail: data.error ?? data.detail,
+        customersReachable: data.customersReachable,
+        warning: data.warning,
+      });
       notify(
         data.status === "sent"
-          ? `Test e-mail accepted by ${data.transport}. Check ${data.recipient} (and the spam folder).`
-          : data.detail || "The test e-mail could not be sent.",
+          ? `Test e-mail accepted by ${data.transport} for ${data.recipient}. Check that inbox (and spam).`
+          : data.error || data.detail || "The test e-mail could not be sent.",
       );
     } catch {
       notify("The test e-mail could not be sent.");
@@ -530,6 +560,11 @@ export function AdminDashboard({
       setEmailTesting(false);
     }
   }
+
+  useEffect(() => {
+    if (tab === "orders" && !emailTest) void loadEmailStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   async function sendTracking(entry: OrderEntry, saveOnly: boolean) {
     const { order } = entry;
@@ -2852,22 +2887,30 @@ export function AdminDashboard({
           </div>
 
           <div className="rounded-sm border border-sea/30 bg-sea/5 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink">Order notification e-mail</p>
-                <p className="mt-1 text-xs text-ink/65">
-                  Every order is e-mailed to <strong>{emailTest?.recipient || "mediterranean.world@gmail.com"}</strong>.
-                  {" "}Provider: <strong>{emailTest?.transport && emailTest.transport !== "none" ? emailTest.transport : "not configured"}</strong>
-                  {emailTest?.from ? ` · from ${emailTest.from}` : ""}
-                </p>
-                <p className="mt-1 text-[11px] text-ink/45">Code version: {CODE_VERSION}</p>
-                {emailTest?.status && (
-                  <p className={`mt-1 text-xs ${emailTest.status === "sent" ? "text-sea" : "text-terracotta"}`}>
-                    {emailTest.status === "sent" ? "Test sent — check that mailbox (and spam)." : emailTest.detail}
-                  </p>
-                )}
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink">E-mail delivery</p>
+            <p className="mt-1 text-xs text-ink/65">
+              Your copies go to <strong>{emailTest?.recipient && !testRecipient ? emailTest.recipient : "mediterranean.world@gmail.com"}</strong>.
+              {" "}Provider: <strong>{emailTest?.transport && emailTest.transport !== "none" ? emailTest.transport : "not configured"}</strong>
+              {emailTest?.from ? ` · from ${emailTest.from}` : ""}
+            </p>
+            {emailTest?.warning && (
+              <div className="mt-3 rounded-sm border border-terracotta/40 bg-terracotta/5 p-3 text-xs leading-relaxed text-terracotta">
+                <p className="font-semibold uppercase tracking-[0.14em]">Customers are not receiving e-mails</p>
+                <p className="mt-1">{emailTest.warning}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+            )}
+            {emailTest && emailTest.customersReachable && (
+              <p className="mt-2 text-xs text-sea">Sender domain is verified — customers can receive order, tracking and reply e-mails.</p>
+            )}
+            <div className="mt-3 flex flex-col gap-2 md:flex-row">
+              <input
+                type="email"
+                value={testRecipient}
+                onChange={(e) => setTestRecipient(e.target.value)}
+                placeholder="Test address (leave empty = your mailbox). Try a non-Gmail customer address."
+                className="min-h-10 w-full min-w-0 rounded-sm border border-ink/20 bg-white px-3 text-sm outline-none focus:border-sea"
+              />
+              <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={() => void loadEmailStatus()}
@@ -2885,6 +2928,14 @@ export function AdminDashboard({
                 </button>
               </div>
             </div>
+            {emailTest?.status && (
+              <p className={`mt-2 text-xs ${emailTest.status === "sent" ? "text-sea" : "text-terracotta"}`}>
+                {emailTest.status === "sent"
+                  ? `Test accepted for ${emailTest.recipient} — check that inbox (and spam).`
+                  : emailTest.detail}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] text-ink/45">Code version: {CODE_VERSION}</p>
           </div>
 
           {orders.length === 0 ? (

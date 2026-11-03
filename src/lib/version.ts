@@ -5,7 +5,7 @@
  * glance: if the admin says an older version, or /api/version reports a
  * feature as false, the deployment is not carrying the whole codebase.
  */
-export const CODE_VERSION = "2026-11-03-j";
+export const CODE_VERSION = "2026-11-03-k";
 
 export const REQUIRED_FEATURES = [
   "order-notifications",
@@ -19,6 +19,8 @@ export const REQUIRED_FEATURES = [
   "buyer-note",
   "tracking-email",
   "message-buyer",
+  "invoice-note-dialog",
+  "customer-delivery-check",
 ] as const;
 
 export function codeManifest() {
@@ -37,6 +39,14 @@ export function codeManifest() {
         process.env.ORDER_NOTIFICATION_EMAIL?.trim() ||
         process.env.ORDER_EMAIL_TO?.trim() ||
         "mediterranean.world@gmail.com",
+      /** False while the sender is Resend's shared test address: only the
+       *  account owner receives mail; customers do not. */
+      customersReachable:
+        Boolean(process.env.RESEND_API_KEY?.trim() || process.env.BREVO_API_KEY?.trim()) &&
+        !(
+          Boolean(process.env.RESEND_API_KEY?.trim()) &&
+          /@resend\.dev>?\s*$/i.test(process.env.ORDER_EMAIL_FROM?.trim() || "Mediterranic <onboarding@resend.dev>")
+        ),
     },
   };
 }

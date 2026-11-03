@@ -191,3 +191,26 @@ test('tracking links are validated and buyer e-mails carry the order reference',
  assert.match(dashboard,/Paste the carrier link/);
  assert.match(dashboard,/Message buyer/);
 });
+test('Resend test sender is flagged: customers unreachable until a domain is verified',async()=>{
+ const restricted=load('src/lib/mailer.ts',{env:{RESEND_API_KEY:'fixture'},fetch:async()=>new Response(JSON.stringify({statusCode:403,name:'validation_error',message:'You can only send testing emails to your own email address (owner@example.test). To send emails to other recipients, please verify a domain at resend.com/domains'}),{status:403})});
+ assert.equal(restricted.usesRestrictedSender(),true);
+ const out=await restricted.sendMail({to:'buyer@example.test',subject:'s',text:'t',html:'h'});
+ assert.equal(out.ok,false);assert.equal(out.restrictedSender,true);assert.match(out.detail,/Verify your domain/);
+ const verified=load('src/lib/mailer.ts',{env:{RESEND_API_KEY:'fixture',ORDER_EMAIL_FROM:'Mediterranic <orders@mediterranic.com>'},fetch:async()=>new Response('{"id":"x"}',{status:200})});
+ assert.equal(verified.usesRestrictedSender(),false);
+ assert.equal((await verified.sendMail({to:'buyer@example.test',subject:'s',text:'t',html:'h'})).ok,true);
+ const v=load('src/lib/version.ts',{env:{RESEND_API_KEY:'fixture'}});
+ assert.equal(v.codeManifest().email.customersReachable,false);
+ const v2=load('src/lib/version.ts',{env:{RESEND_API_KEY:'fixture',ORDER_EMAIL_FROM:'Mediterranic <orders@mediterranic.com>'}});
+ assert.equal(v2.codeManifest().email.customersReachable,true);
+});
+test('invoice note opens as a dialog from the invoice button, PayPal path untouched',()=>{
+ const form=fs.readFileSync('src/components/checkout-form.tsx','utf8');
+ assert.ok(!/Section number="04" title="A note for the curator"/.test(form));
+ assert.match(form,/role="dialog"/);
+ assert.match(form,/onClick=\{openInvoiceBox\}/);
+ assert.match(form,/name="customerNote"/);
+ assert.match(form,/value="invoice"/);
+ assert.match(form,/reportValidity\(\)/);
+ assert.match(form,/value="paypal"/);
+});

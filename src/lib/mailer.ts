@@ -24,7 +24,30 @@ export function curatorMailbox(): string {
   );
 }
 
-export type SendResult = { ok: true; detail: string } | { ok: false; detail: string; notConfigured?: boolean };
+export type SendResult =
+  | { ok: true; detail: string }
+  | { ok: false; detail: string; notConfigured?: boolean; restrictedSender?: boolean };
+
+/**
+ * Resend's shared test sender (…@resend.dev) only delivers to the e-mail of
+ * the Resend account owner. Every other recipient (i.e. every customer) is
+ * refused until a domain is verified and ORDER_EMAIL_FROM uses it.
+ */
+export function usesRestrictedSender(): boolean {
+  return mailTransport() === "resend" && /@resend\.dev>?\s*$/i.test(mailFromAddress());
+}
+
+export const RESTRICTED_SENDER_HELP =
+  "Customers cannot receive e-mails yet: the sender onboarding@resend.dev only delivers to the Resend account owner. " +
+  "Verify your domain in Resend → Domains (add the DNS records it shows), then set ORDER_EMAIL_FROM to an address on " +
+  "that domain, e.g. \"Mediterranic <orders@mediterranic.com>\", and redeploy.";
+
+function isRestrictedRefusal(status: number, body: string): boolean {
+  return (
+    (status === 403 || status === 422 || status === 400) &&
+    /only send testing emails|verify a domain|testing emails to your own|domain is not verified|not verified/i.test(body)
+  );
+}
 
 export async function sendMail(input: {
   to: string;
@@ -58,7 +81,12 @@ export async function sendMail(input: {
         signal: AbortSignal.timeout(15_000),
       });
       const body = await res.text();
-      if (!res.ok) return { ok: false, detail: `Resend ${res.status}: ${body.slice(0, 200)}` };
+      if (!res.ok) {
+        if (isRestrictedRefusal(res.status, body)) {
+          return { ok: false, restrictedSender: true, detail: RESTRICTED_SENDER_HELP };
+        }
+        return { ok: false, detail: `Resend ${res.status}: ${body.slice(0, 200)}` };
+      }
       return { ok: true, detail: "Resend accepted the message." };
     }
     const match = from.match(/^(.*)<(.+)>$/);

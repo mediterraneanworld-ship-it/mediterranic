@@ -37,6 +37,10 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [paypalNote, setPaypalNote] = useState<string | null>(null);
+  /** The invoice option opens a small box for the buyer's note before confirming. */
+  const [invoiceBoxOpen, setInvoiceBoxOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
   const paypalHandledRef = useRef(false);
 
@@ -181,6 +185,23 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
     }
   }
 
+  function openInvoiceBox() {
+    setError(null);
+    const form = formRef.current;
+    if (form && !form.reportValidity()) return;
+    setInvoiceBoxOpen(true);
+  }
+
+  useEffect(() => {
+    if (!invoiceBoxOpen) return;
+    noteRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !submitting) setInvoiceBoxOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [invoiceBoxOpen, submitting]);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -202,6 +223,7 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
 
       if (!response.ok || !payload.id) {
         setError(payload.error ?? "We could not place your order. Please try again.");
+        setInvoiceBoxOpen(false);
         setSubmitting(false);
         return;
       }
@@ -217,7 +239,7 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
 
   return (
     <div className="grid gap-14 lg:grid-cols-[1fr_400px]">
-      <form onSubmit={onSubmit} className="space-y-12" noValidate={false}>
+      <form ref={formRef} onSubmit={onSubmit} className="space-y-12" noValidate={false}>
         <Section number="01" title="Contact">
           <div className="grid gap-5 sm:grid-cols-2">
             <label className="space-y-2 sm:col-span-2">
@@ -301,27 +323,7 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
           </p>
         </Section>
 
-        <Section number="04" title="A note for the curator">
-          <div className="space-y-3 rounded-sm border border-ink/15 bg-white/80 p-6">
-            <label className="block space-y-2">
-              <span className={label}>Message (optional)</span>
-              <textarea
-                name="customerNote"
-                rows={4}
-                maxLength={1000}
-                className={`${field} min-h-28 resize-y`}
-                placeholder="Alternative payment method, an offer for this piece, a question about shipping…"
-              />
-            </label>
-            <p className="text-xs leading-relaxed text-ink/55">
-              Tell us what you have in mind. Nothing is charged automatically with this option: we reply by e-mail to
-              confirm the payment method (bank transfer, another currency, an offer) before anything is arranged. The
-              price shown stays as listed until we agree otherwise in writing.
-            </p>
-          </div>
-        </Section>
-
-        <Section number="05" title="Payment">
+        <Section number="04" title="Payment">
           <div className="space-y-5 rounded-sm bg-bone/70 p-6 md:p-8">
             <div className="flex flex-col items-center gap-4 rounded-sm bg-white p-6 text-center">
               <p className="text-[11px] uppercase tracking-[0.24em] text-ink/55">You will be redirected to PayPal</p>
@@ -365,16 +367,73 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
             {!paypalBusy && <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />}
           </button>
           <button
-            type="submit"
-            name="payment"
-            value="invoice"
+            type="button"
+            onClick={openInvoiceBox}
             disabled={submitting || paypalBusy}
-            className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-full border border-ink/25 text-[12px] uppercase tracking-[0.2em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
+            aria-haspopup="dialog"
+            aria-expanded={invoiceBoxOpen}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-full border border-ink/25 px-5 py-3 text-center text-[12px] uppercase leading-snug tracking-[0.2em] text-ink transition hover:border-ink disabled:cursor-wait disabled:opacity-60"
           >
             {submitting
               ? "Placing order…"
               : "PLACE ORDER BY INVOICE (EMAIL) - USE FOR ALTERNATIVE PAYMENT METHODS AND OFFERS"}
           </button>
+
+          {invoiceBoxOpen && (
+            <div
+              className="fixed inset-0 z-50 grid place-items-center bg-ink/50 p-4 backdrop-blur-sm"
+              onClick={(e) => {
+                if (e.target === e.currentTarget && !submitting) setInvoiceBoxOpen(false);
+              }}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="invoice-note-title"
+                className="w-full max-w-lg rounded-sm border border-ink/15 bg-parchment p-6 shadow-2xl"
+              >
+                <p className="text-[10px] uppercase tracking-[0.28em] text-brass">Order by invoice</p>
+                <h2 id="invoice-note-title" className="mt-2 font-display text-3xl text-ink">
+                  A note for the curator
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-ink/65">
+                  Tell us how you would like to proceed — an alternative payment method (bank transfer, another
+                  currency), an offer for this piece, or any question. Nothing is charged now: we reply by e-mail to
+                  agree the details. The listed price stays until we confirm otherwise in writing.
+                </p>
+                <label className="mt-4 block space-y-2">
+                  <span className={label}>Your message (optional)</span>
+                  <textarea
+                    ref={noteRef}
+                    name="customerNote"
+                    rows={5}
+                    maxLength={1000}
+                    className={`${field} min-h-32 resize-y`}
+                    placeholder="e.g. I would like to pay by bank transfer, or offer €… for this specimen."
+                  />
+                </label>
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
+                  <button
+                    type="submit"
+                    name="payment"
+                    value="invoice"
+                    disabled={submitting}
+                    className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-ink px-6 text-[12px] uppercase tracking-[0.2em] text-parchment transition hover:bg-sea disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {submitting ? "Placing order…" : "Send order request"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceBoxOpen(false)}
+                    disabled={submitting}
+                    className="inline-flex h-12 items-center justify-center rounded-full border border-ink/25 px-6 text-[12px] uppercase tracking-[0.2em] text-ink transition hover:border-ink disabled:opacity-50"
+                  >
+                    Back
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <p className="flex items-center justify-center gap-2 text-center text-xs text-ink/55">
             <ShieldCheck size={14} strokeWidth={1.5} />
             Stock is reserved as you order. Returns accepted within 30 days.

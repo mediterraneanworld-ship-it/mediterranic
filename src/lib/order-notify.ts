@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orderNotifications, orders } from "@/db/schema";
 import { ensureSchema } from "@/lib/schema-migrate";
+import { sendMail as sendSharedMail, usesRestrictedSender, RESTRICTED_SENDER_HELP } from "@/lib/mailer";
 import {
   buildOrderEmail,
   mailTransport,
@@ -62,46 +63,32 @@ async function compose(orderId: string, event: OrderEvent): Promise<{ input: Ord
 }
 
 async function sendMail(to: string, subject: string, text: string, html: string): Promise<string> {
-  const transport = mailTransport();
-  const from = orderEmailFrom();
-  if (transport === "resend") {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject, text, html }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
-    return "Resend accepted the message.";
-  }
-  if (transport === "brevo") {
-    const match = from.match(/^(.*)<(.+)>$/);
-    const sender = match ? { name: match[1].trim() || "Mediterranic", email: match[2].trim() } : { name: "Mediterranic", email: from };
-    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: { "api-key": process.env.BREVO_API_KEY!.trim(), "Content-Type": "application/json" },
-      body: JSON.stringify({ sender, to: [{ email: to }], subject, textContent: text, htmlContent: html }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`Brevo ${res.status}: ${body.slice(0, 200)}`);
-    return "Brevo accepted the message.";
-  }
-  throw new Error("NO_TRANSPORT");
+  const result = await sendSharedMail({ to, subject, text, html });
+  if (result.ok) return result.detail;
+  if ("notConfigured" in result && result.notConfigured) throw new Error("NO_TRANSPORT");
+  throw new Error(result.detail);
 }
 
-/** One-click check used by the back-office to prove the mail path works. */
-export async function sendTestEmail(to = orderNotificationRecipient()): Promise<{ status: "sent" | "failed" | "not_configured"; detail: string; transport: string }> {
+/**
+ * One-click check used by the back-office. `to` may be any address: testing a
+ * customer-style address proves whether buyers can actually receive mail.
+ */
+export async function sendTestEmail(to = orderNotificationRecipient()): Promise<{
+  status: "sent" | "failed" | "not_configured" | "restricted";
+  detail: string;
+  transport: string;
+  to: string;
+}> {
   const transport = mailTransport();
   if (!transport) {
     return {
       status: "not_configured",
       transport: "none",
+      to,
       detail: "No provider configured. Set RESEND_API_KEY (or BREVO_API_KEY) in the environment and redeploy.",
     };
   }
-  const subject = "[Mediterranic] Test e-mail — order notifications";
+  const subject = "[Mediterranic] Test e-mail";
   const text = [
     "This is a test from the Mediterranic back-office.",
     "",
@@ -109,16 +96,18 @@ export async function sendTestEmail(to = orderNotificationRecipient()): Promise<
     `Recipient: ${to}`,
     `Site: ${shopUrl()}`,
     "",
-    "If you can read this, every new order will also reach this mailbox.",
+    "If this reached the inbox, order, tracking and reply e-mails will reach this address too.",
   ].join("\n");
-  const html = `<div style="font-family:Helvetica,Arial,sans-serif;color:#0c1b26"><h2 style="font-family:Georgia,serif">Test e-mail</h2><p>This is a test from the Mediterranic back-office.</p><p>Provider: <strong>${transport}</strong><br>Recipient: <strong>${to}</strong><br>Site: ${shopUrl()}</p><p style="color:#5b6b76">If you can read this, every new order will also reach this mailbox.</p></div>`;
-  try {
-    const detail = await sendMail(to, subject, text, html);
-    return { status: "sent", transport, detail };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown transport error";
-    return { status: "failed", transport, detail: message.slice(0, 300) };
-  }
+  const html = `<div style="font-family:Helvetica,Arial,sans-serif;color:#0c1b26"><h2 style="font-family:Georgia,serif">Test e-mail</h2><p>This is a test from the Mediterranic back-office.</p><p>Provider: <strong>${transport}</strong><br>Recipient: <strong>${to}</strong><br>Site: ${shopUrl()}</p><p style="color:#5b6b76">If this reached the inbox, order, tracking and reply e-mails will reach this address too.</p></div>`;
+  const result = await sendSharedMail({ to, subject, text, html });
+  if (result.ok) return { status: "sent", transport, to, detail: result.detail };
+  if ("restrictedSender" in result && result.restrictedSender) return { status: "restricted", transport, to, detail: result.detail };
+  return { status: "failed", transport, to, detail: result.detail };
+}
+
+/** True when customers cannot receive mail with the current sender. */
+export function customerDeliveryBlocked(): { blocked: boolean; reason: string | null } {
+  return usesRestrictedSender() ? { blocked: true, reason: RESTRICTED_SENDER_HELP } : { blocked: false, reason: null };
 }
 
 /**

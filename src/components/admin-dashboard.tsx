@@ -21,7 +21,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { ProductImage } from "@/db/schema";
 import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import { COLLECTIONS } from "@/lib/collections";
@@ -89,6 +89,13 @@ const ORDER_FILTERS: { id: string; label: string; statuses: string[] | null }[] 
 ];
 
 type OrderActionName = "confirm" | "ship" | "complete" | "cancel" | "tracking";
+type OrderEmailSetup = {
+  configured: boolean;
+  apiKeyConfigured: boolean;
+  from: string | null;
+  recipient: string;
+  missing: string[];
+};
 
 type SellerLot = { id: string; url: string; title: string; priceCents?: number | null; match?: ListingMatch };
 
@@ -372,20 +379,41 @@ export function AdminDashboard({
   const [shipOpenId, setShipOpenId] = useState<string | null>(null);
   const [shipForms, setShipForms] = useState<Record<string, { carrier: string; number: string }>>({});
   const [orderTestEmailBusy, setOrderTestEmailBusy] = useState(false);
+  const [orderTestEmailMessage, setOrderTestEmailMessage] = useState<string | null>(null);
+  const [orderEmailSetup, setOrderEmailSetup] = useState<OrderEmailSetup | null>(null);
   const [cancelledCleanupBusy, setCancelledCleanupBusy] = useState(false);
+
+  useEffect(() => {
+    if (tab !== "orders") return;
+    let active = true;
+    fetch("/api/admin/orders/test-email", { cache: "no-store" })
+      .then(async (res) => (res.ok ? ((await res.json()) as OrderEmailSetup) : null))
+      .then((data) => { if (active && data) setOrderEmailSetup(data); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [tab]);
 
   async function sendTestOrderEmail() {
     setOrderTestEmailBusy(true);
+    setOrderTestEmailMessage("Sending a test message through the email provider…");
     try {
       const response = await fetch("/api/admin/orders/test-email", { method: "POST" });
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; recipient?: string; error?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean; recipient?: string; providerId?: string | null; error?: string;
+      };
       if (!response.ok || !data.ok) {
-        notify(data.error ?? "Could not send the test email.");
+        const message = data.error ?? "Could not send the test email.";
+        setOrderTestEmailMessage(`Not sent: ${message}`);
+        notify(message);
         return;
       }
-      notify(`Test email sent to ${data.recipient}. Check your inbox and spam folder. No order was created.`);
+      const message = `Resend accepted the test email for ${data.recipient}. Provider ID: ${data.providerId ?? "not returned"}. Check Inbox and Spam; no order was created.`;
+      setOrderTestEmailMessage(message);
+      notify(`Test email accepted by Resend for ${data.recipient}.`);
     } catch {
-      notify("Could not reach the email service. No order was created.");
+      const message = "Could not reach the email service. No order was created.";
+      setOrderTestEmailMessage(`Not sent: ${message}`);
+      notify(message);
     } finally {
       setOrderTestEmailBusy(false);
     }
@@ -2734,6 +2762,18 @@ export function AdminDashboard({
                   {orderTestEmailBusy ? "Sending test email…" : "Send test e-mail"}
                 </button>
                 <p className="mt-1 text-right text-[10px] text-ink/50">Sends a test only; creates no order.</p>
+                {orderEmailSetup && (
+                  <p className={`mt-1 max-w-sm text-right text-[10px] leading-relaxed ${orderEmailSetup.configured ? "text-sea" : "text-terracotta"}`}>
+                    {orderEmailSetup.configured
+                      ? `Resend configured · ${orderEmailSetup.from} → ${orderEmailSetup.recipient}`
+                      : `Resend not configured · missing ${orderEmailSetup.missing.join(" and ")}`}
+                  </p>
+                )}
+                {orderTestEmailMessage && (
+                  <p role="status" className="mt-2 max-w-sm rounded-sm border border-ink/10 bg-white px-3 py-2 text-right text-[11px] leading-relaxed text-ink/75">
+                    {orderTestEmailMessage}
+                  </p>
+                )}
               </div>
               <div>
                 <button

@@ -3,6 +3,17 @@
 const DEFAULT_OWNER_EMAIL = "mediterranean.world@gmail.com";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
+/** Safe server-side configuration summary; never returns the Resend API key. */
+export function getOrderNotificationConfiguration() {
+  const apiKeyConfigured = Boolean(process.env.RESEND_API_KEY?.trim());
+  const from = process.env.RESEND_FROM_EMAIL?.trim() || null;
+  const recipient = process.env.ORDER_NOTIFICATION_EMAIL?.trim() || DEFAULT_OWNER_EMAIL;
+  const missing: string[] = [];
+  if (!apiKeyConfigured) missing.push("RESEND_API_KEY");
+  if (!from) missing.push("RESEND_FROM_EMAIL");
+  return { configured: missing.length === 0, apiKeyConfigured, from, recipient, missing };
+}
+
 export type OrderNotificationInput = {
   order: {
     id: string;

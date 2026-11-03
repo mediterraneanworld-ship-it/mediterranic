@@ -1162,3 +1162,13 @@ limpar encomendas de teste; fazer backup primeiro se houver qualquer dúvida.
   Send test e-mail**. O teste não cria nem altera encomendas; a resposta indica
   o destinatário ou a causa de falha.
 - Configuração passo a passo: `public/PEDIDOS-EMAIL.md`.
+
+---
+
+## 35. Estado de sincronização é privado do admin
+
+A mensagem **“Inventory partly verified — some listings may need confirmation”**
+e o timestamp de sincronização não podem aparecer na Home, Shop ou outra página
+pública. São informação operacional do curador e só devem aparecer em
+`/admin` → *Inventory synchronization*. A contagem pública de peças disponíveis
+continua a ser apresentada; apenas avisos e falhas de verificação são privados.

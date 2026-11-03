@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Award, ExternalLink, Gem, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
-import { InventoryStatus } from "@/components/inventory-status";
 import { Reveal } from "@/components/reveal";
 import { StarRating } from "@/components/star-rating";
 import { COLLECTIONS } from "@/lib/collections";
@@ -213,7 +212,6 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <InventoryStatus />
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             <Link
               href="/shop?channel=direct"

@@ -98,7 +98,7 @@ peça física é reconhecida quando muda de plataforma.
   liga relistagens e importa novas quando inequívocas. Falha nunca é zero.
 - **Painel de sincronização** mostra sempre o **país/marketplace** activo de cada
   canal e a barra dedicada de **excepções** (com distinção clara quando um feed
-  não foi verificado).
+  não foi verificado). O estado "partly verified" é só para admin, nunca público.
 - **"Further from the same shelf"** (`src/lib/shelf-recommendations.ts`): filtra
   pela mesma Era geológica (`period`), apresenta as disponíveis primeiro e só
   coloca *Unavailable* no fim se existirem menos de 4 disponíveis dessa Era.
@@ -135,7 +135,7 @@ peça física é reconhecida quando muda de plataforma.
   Instagram/Facebook gradientes.
 - Etiquetas das peças **fora** das fotografias (não tapam no telemóvel).
 - **Next.js 16.4.3**; `npm audit --omit=dev` sem vulnerabilidades conhecidas;
-  **53 testes** offline a passar.
+  **55 testes** offline a passar.
 - Domínio: manter `mediterranic.vercel.app` até ao fim do projecto. O
   `mediterranic.com` continua no site antigo.
 

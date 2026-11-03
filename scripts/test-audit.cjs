@@ -111,8 +111,11 @@ test('admin test email reaches the configured owner, has a unique key, and creat
  const mail=load('src/lib/order-notifications.ts',{env:{RESEND_API_KEY:'fixture-key',RESEND_FROM_EMAIL:'orders@example.test'},fetch:async(url,options)=>{request={url:String(url),options};return new Response(JSON.stringify({id:'test-mail-1'}),{status:200,headers:{'Content-Type':'application/json'}})}});
  const result=await mail.sendOrderNotificationTest('click-unique-123');
  const body=JSON.parse(request.options.body);
- assert.equal(result.sent,true);assert.equal(result.recipient,'mediterranean.world@gmail.com');
- assert.deepEqual(body.to,['mediterranean.world@gmail.com']);
+  assert.equal(result.sent,true);assert.equal(result.recipient,'mediterranean.world@gmail.com');
+  const config=mail.getOrderNotificationConfiguration();
+  assert.equal(config.configured,true);assert.equal(config.from,'orders@example.test');assert.equal(config.recipient,'mediterranean.world@gmail.com');
+  assert.equal(JSON.stringify(config).includes('fixture-key'),false);
+  assert.deepEqual(body.to,['mediterranean.world@gmail.com']);
  assert.equal(body.subject,'TEST — Mediterranic order notifications');
  assert.match(body.text,/No order has been created/);
  assert.equal(request.options.headers['Idempotency-Key'],'mediterranic-order-email-test-click-unique-123');
@@ -173,4 +176,17 @@ test('Hero feedback default is 5000+ while specimen count uses live available in
   assert.ok(seed.includes('feedbacksLabel: "5,000+"'));
   assert.ok(admin.includes('Verified Feedbacks Label'));
   assert.ok(admin.includes('Specimens</strong> is not editable'));
+});
+test('partial inventory verification status is not rendered on public home or shop pages',()=>{
+ const home=fs.readFileSync('src/app/page.tsx','utf8');
+ const shop=fs.readFileSync('src/app/shop/page.tsx','utf8');
+ const explorer=fs.readFileSync('src/components/shop-explorer.tsx','utf8');
+ assert.equal(home.includes('InventoryStatus'),false);
+ assert.equal(shop.includes('InventoryStatus'),false);
+ assert.equal(explorer.includes('inventoryStatus'),false);
+});
+test('admin cover label identifies the Cambrian era, not the Souss Lagerstätte',()=>{
+ const content=fs.readFileSync('src/lib/site-content.ts','utf8');
+ assert.ok(content.includes('label: "Cover · Cambrian"'));
+ assert.equal(content.includes('label: "Cover · Souss Lagerstätte"'),false);
 });

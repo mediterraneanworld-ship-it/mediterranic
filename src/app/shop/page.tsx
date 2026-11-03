@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { ShopExplorer } from "@/components/shop-explorer";
-import { InventoryStatus } from "@/components/inventory-status";
 import { getAllProducts, getSiteContent } from "@/lib/catalog";
 import { publicProducts } from "@/lib/product-visibility";
 import { offeredSpecimen } from "@/lib/inventory-rules";
@@ -36,7 +35,6 @@ export default async function ShopPage({ searchParams }: Props) {
       initialChannel={channel ?? "all"}
       initialPeriod={period ?? "all"}
       copy={content.shop}
-      inventoryStatus={<InventoryStatus />}
     />
   );
 }

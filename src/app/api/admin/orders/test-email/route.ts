@@ -1,9 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
-import { sendOrderNotificationTest } from "@/lib/order-notifications";
+import { getOrderNotificationConfiguration, sendOrderNotificationTest } from "@/lib/order-notifications";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
+
+export async function GET() {
+  if (!(await isAdminAuthenticated())) {
+    return Response.json({ error: "Unauthorized." }, { status: 401 });
+  }
+  return Response.json(getOrderNotificationConfiguration(), {
+    headers: { "Cache-Control": "private, no-store" },
+  });
+}
 
 export async function POST() {
   if (!(await isAdminAuthenticated())) {

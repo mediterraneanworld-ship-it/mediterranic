@@ -595,7 +595,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
         label: "Cover · Ordovician Mariners",
         type: "image",
       },
-      { path: ["home", "collections", "covers", "cambrianDawn"], label: "Cover · Souss Lagerstätte", type: "image" },
+      { path: ["home", "collections", "covers", "cambrianDawn"], label: "Cover · Cambrian", type: "image" },
       { path: ["home", "collections", "covers", "connoisseur"], label: "Cover · The Connoisseur", type: "image" },
     ],
   },

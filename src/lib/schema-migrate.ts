@@ -198,6 +198,11 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_active" boolean;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "weight_grams" integer;
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "marketplace_checked_at" timestamp with time zone;
 
+-- Order handling in the back-office: dispatch date and tracking (additive).
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "shipped_at" timestamp with time zone;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_carrier" text;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_number" text;
+
 `;
 
 let migrated: Promise<void> | null = null;

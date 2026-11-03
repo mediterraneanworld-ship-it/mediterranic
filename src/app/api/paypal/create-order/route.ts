@@ -1,5 +1,5 @@
 import { buildOrder, insertOrder, markOrderStatus, OrderError, parseOrderInput } from "@/lib/order-service";
-import { createPaypalOrder, isPaypalConfigured, PaypalNotConfiguredError } from "@/lib/paypal";
+import { createPaypalOrder, isPaypalConfigured, PaypalApiError, paypalErrorMessage, PaypalNotConfiguredError } from "@/lib/paypal";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -82,10 +82,25 @@ export async function POST(request: Request) {
     if (error instanceof PaypalNotConfiguredError) {
       return Response.json({ error: "PayPal is not configured.", code: "PAYPAL_NOT_CONFIGURED" }, { status: 503 });
     }
+    if (error instanceof PaypalApiError) {
+      // Precise cause for the back-office/logs; buyers get the calm sentence.
+      console.error("PayPal create-order failed", { code: error.code, status: error.status, paypal: error.paypalName, detail: error.message });
+      return Response.json(
+        { error: paypalErrorMessage(error), code: error.code, detail: error.message },
+        { status: 502 },
+      );
+    }
     if (error instanceof OrderError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     console.error("PayPal create-order failed", error);
-    return Response.json({ error: "Could not start the PayPal payment. Please try again." }, { status: 500 });
+    return Response.json(
+      {
+        error: "Could not start the PayPal payment. Please try again.",
+        code: "CHECKOUT_CREATE_FAILED",
+        detail: error instanceof Error ? error.message.slice(0, 300) : undefined,
+      },
+      { status: 500 },
+    );
   }
 }

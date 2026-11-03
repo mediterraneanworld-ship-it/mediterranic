@@ -51,8 +51,38 @@ test('PayPal create/capture requests carry stable idempotency keys and EUR',asyn
  const requests=[];
  const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_SECRET:'fixture-only-placeholder',PAYPAL_ENV:'sandbox'},fetch:async(url,options)=>{requests.push({url,options});return new Response(JSON.stringify(String(url).includes('oauth2/token')?{access_token:'fixture-token',expires_in:3600}:{id:'TESTORDER12345',status:'CREATED',links:[]}),{status:200,headers:{'Content-Type':'application/json'}})}});
  await api.createPaypalOrder({totalCents:12345,description:'Fixture',referenceId:'test-reference',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'});await api.capturePaypalOrder('TESTORDER12345');
- const create=requests.find(r=>r.url.endsWith('/v2/checkout/orders'));assert.equal(create.options.headers['PayPal-Request-Id'],'create-test-reference');const unit=JSON.parse(create.options.body).purchase_units[0];assert.equal(unit.amount.currency_code,'EUR');assert.equal(unit.amount.value,'123.45');
- assert.equal(requests.at(-1).options.headers['PayPal-Request-Id'],'capture-TESTORDER12345');
+  const create=requests.find(r=>r.url.endsWith('/v2/checkout/orders'));assert.equal(create.options.headers['PayPal-Request-Id'],'create-test-reference');const unit=JSON.parse(create.options.body).purchase_units[0];assert.equal(unit.amount.currency_code,'EUR');assert.equal(unit.amount.value,'123.45');
+  assert.equal(requests.at(-1).options.headers['PayPal-Request-Id'],'capture-TESTORDER12345');
+});
+test('PayPal auth failure is classified and never leaks the secret',async()=>{
+ const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_CLIENT_SECRET:'fixture-secret-value',PAYPAL_ENV:'sandbox'},fetch:async()=>new Response(JSON.stringify({error:'invalid_client',error_description:'The client credentials are invalid'}),{status:401,headers:{'Content-Type':'application/json'}})});
+ await assert.rejects(
+  api.createPaypalOrder({totalCents:100,description:'Fixture',referenceId:'auth-fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'}),
+  (error)=>error.code==='PAYPAL_AUTH_FAILED'&&error.paypalName==='invalid_client'&&/sandbox/.test(error.message)&&!error.message.includes('fixture-secret-value'));
+});
+test('PayPal environment auto-detects live keys when PAYPAL_ENV is unset',async()=>{
+ const hosts=[];
+ const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'live-fixture-client',PAYPAL_CLIENT_SECRET:'live-fixture-secret'},fetch:async(url)=>{const u=String(url);hosts.push(new URL(u).hostname);
+  if(u.includes('sandbox')&&u.includes('oauth2/token'))return new Response(JSON.stringify({error:'invalid_client'}),{status:401,headers:{'Content-Type':'application/json'}});
+  if(u.includes('oauth2/token'))return new Response(JSON.stringify({access_token:'fixture-live-token',expires_in:3600}),{status:200,headers:{'Content-Type':'application/json'}});
+  return new Response(JSON.stringify({id:'LIVEORDER1',status:'CREATED',links:[{rel:'approve',href:'https://www.paypal.com/checkoutnow?token=LIVEORDER1'}]}),{status:200,headers:{'Content-Type':'application/json'}});}});
+ const order=await api.createPaypalOrder({totalCents:500,description:'Fixture',referenceId:'detect-fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'});
+ assert.equal(order.id,'LIVEORDER1');assert.ok(hosts.includes('api-m.paypal.com'));
+ const summary=api.paypalConfigSummary();assert.equal(summary.resolvedEnvironment,'live');assert.equal(api.paypalEnvironment(),'live');
+});
+test('PayPal order rejection keeps the issue code for diagnosis',async()=>{
+ const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'fixture-client',PAYPAL_CLIENT_SECRET:'fixture-secret',PAYPAL_ENV:'live'},fetch:async(url)=>String(url).includes('oauth2/token')
+  ?new Response(JSON.stringify({access_token:'fixture-token',expires_in:3600}),{status:200,headers:{'Content-Type':'application/json'}})
+  :new Response(JSON.stringify({name:'UNPROCESSABLE_ENTITY',message:'The requested action could not be performed.',details:[{issue:'DUPLICATE_INVOICE_ID',description:'Invoice ID already used.'}],debug_id:'debug-fixture'}),{status:422,headers:{'Content-Type':'application/json'}})});
+ await assert.rejects(
+  api.createPaypalOrder({totalCents:100,description:'Fixture',referenceId:'reject-fixture',returnUrl:'https://example.test/checkout',cancelUrl:'https://example.test/checkout'}),
+  (error)=>error.code==='PAYPAL_ORDER_REJECTED'&&/DUPLICATE_INVOICE_ID/.test(error.message)&&/debug-fixture/.test(error.message));
+});
+test('PayPal config summary exposes variable names and an ID tail, never secrets',()=>{
+ const api=load('src/lib/paypal.ts',{env:{PAYPAL_CLIENT_ID:'abcdefghwxyz',PAYPAL_SECRET:'a-very-secret-value'}});
+ const summary=api.paypalConfigSummary();
+ assert.equal(summary.configured,true);assert.equal(summary.clientIdTail,'wxyz');assert.equal(summary.secretSource,'PAYPAL_SECRET');
+ assert.equal(summary.explicitEnvironment,null);assert.equal(JSON.stringify(summary).includes('a-very-secret-value'),false);
 });
 function orderService(row, free = true) {
   return load('src/lib/order-service.ts', {
@@ -72,6 +102,31 @@ test('checkout refuses marketplace, draft, archive and zero-price specimens',asy
 });
 test('checkout recomputes price and ignores a free-shipping claim from the browser',async()=>{
  const service=orderService({id:1,slug:'test',name:'Fixture',published:true,stock:1,archived:false,listingChannel:'direct',priceCents:12345},false);const built=await service.buildOrder(buyer);assert.equal(built.subtotalCents,12345);assert.equal(built.shippingCents,5400);assert.equal(built.totalCents,17745);assert.equal(built.shippingMethod,'protected');
+});
+test('order status transitions guard payment, shipping and stock restoration',()=>{
+ const service=orderService({id:1,slug:'test',name:'Fixture',published:true,stock:1,archived:false,listingChannel:'direct',priceCents:12345});
+ const plan=service.planOrderTransition;
+ const allows=(status,action,to,restoreStock)=>{const p=plan(status,action);assert.equal(p.ok,true,`${status} + ${action}`);assert.equal(p.to,to);assert.equal(p.restoreStock,restoreStock)};
+ const denies=(status,action)=>assert.equal(plan(status,action).ok,false,`${status} + ${action}`);
+ allows('pending_invoice','confirm','confirmed',false);
+ allows('payment_review','confirm','confirmed',false);
+ denies('pending_payment','confirm');
+ denies('confirmed','confirm');
+ allows('confirmed','ship','shipped',false);
+ denies('pending_invoice','ship');
+ allows('shipped','complete','completed',false);
+ allows('confirmed','complete','completed',false);
+ denies('pending_invoice','complete');
+ allows('confirmed','cancel','cancelled',true);
+ allows('shipped','cancel','cancelled',true);
+ allows('pending_invoice','cancel','cancelled',false);
+ allows('pending_payment','cancel','cancelled',false);
+ allows('payment_review','cancel','cancelled',false);
+ denies('completed','cancel');
+ denies('cancelled','cancel');
+ allows('shipped','tracking','shipped',false);
+ allows('completed','tracking','completed',false);
+ denies('confirmed','tracking');
 });
 test('public copy corrections do not mutate stored input',()=>{
  const copy=load('src/lib/public-copy.ts');const stored={title:'Insured worldwide shipping',analytics:{bodyScripts:'insured is a script literal'},logoImage:'/images/insured.png'};const out=copy.safeContent(stored);assert.equal(stored.title,'Insured worldwide shipping');assert.ok(!/insured/i.test(out.title));assert.equal(out.analytics.bodyScripts,stored.analytics.bodyScripts);assert.equal(out.logoImage,stored.logoImage);

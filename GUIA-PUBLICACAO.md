@@ -27,6 +27,23 @@ node scripts/pull-live.cjs https://mediterranic.vercel.app
   pública não substitui um backup autenticado. Nunca prometer que é um espelho
   completo nem restaurar esse espelho para produção.
 
+### Conteúdo editado no admin de produção: não repetir
+
+- Os textos, peças, preços, fotos, encomendas e definições editados no admin de
+  produção vivem no **Neon de produção**. O ZIP é **só código/ficheiros públicos**:
+  não leva uma cópia dessas alterações nem é suposto levar.
+- Um deploy de código **não restabelece os dados de exemplo**, não sobrescreve
+  campos editados no admin e não os apaga. **Não precisas de voltar a fazer as
+  alterações de conteúdo.** A Vercel continua a ligar ao mesmo Neon de produção.
+- `pull-live.cjs` actualiza apenas a **base PostgreSQL local** a partir do que é
+  publicamente visível. Não lê o back-office nem consegue copiar rascunhos,
+  preços internos ou todos os textos privados; **nunca grava no Neon de produção**.
+- Se quiseres ver o conteúdo privado de produção no preview, faz
+  `/admin` → **Download backup** e restaura-o apenas no admin do preview. O backup
+  não entra no ZIP de código; nunca usar o Neon de produção como destino local.
+- Portanto: edita conteúdo **uma vez na produção**; para publicar mudanças de
+  código, usa o ZIP e faz Push. As duas coisas são independentes.
+
 Se o dono da loja enviar um ficheiro de backup (`⬇ Download backup`), esse
 ficheiro é ainda mais completo (inclui campos privados como "When in Site
 Only", colecções, destaque, certificados) e deve ser usado por cima:
@@ -1019,3 +1036,79 @@ peça. Se a REF não for introduzida, a loja tenta aprendê-la do link do anúnc
 - **Instruções para novo chat (`CONTEXTO-NOVO-CHAT.md`):** inclui a regra
   obrigatória de apresentar em **todas** as respostas os links de **Produção** e
   os links actuais de **Sandbox / Preview**.
+
+---
+
+## 32. Se voltar “Could not start the PayPal payment”
+
+Diagnóstico completo em `public/PAYPAL-DIAGNOSTICO.md`.
+
+**O que acontece:** a mensagem é genérica, mas o erro real fica registado no
+servidor. A causa típica é um **desencontro sandbox/live**: o Client ID/Secret
+vem de uma app REST *Sandbox* mas a loja fala com a API *live* (ou o inverso) —
+o PayPal rejeita o token com `invalid_client` e o checkout mostra a frase
+genérica.
+
+**Como diagnosticar (1 minuto):** `/admin` → cartão **PayPal connection** →
+**Diagnose PayPal API**. O teste pede um token ao PayPal no ambiente que a loja
+usaria e, se as chaves forem rejeitadas, também no outro ambiente — e diz
+exactamente onde está o problema. Não cria encomendas nem cobranças.
+
+**Correcções incorporadas no código:**
+
+1. Se `PAYPAL_ENVIRONMENT` / `PAYPAL_ENV` **não estiver definido**, a loja
+   **detecta o ambiente pelas próprias credenciais** (sandbox primeiro; se o
+   PayPal rejeitar, live). As credenciais nunca obtêm token no ambiente errado,
+   por isso a detecção não pode cobrar dinheiro real por engano.
+2. O checkout devolve um código preciso (`PAYPAL_AUTH_FAILED`,
+   `PAYPAL_ORDER_REJECTED`, `PAYPAL_UNAVAILABLE`) com a causa em `detail`, em
+   vez de esconder tudo na frase genérica.
+3. **Recomendado mesmo assim:** fixar `PAYPAL_ENVIRONMENT=live` na Vercel
+   (ambiente Production) quando as chaves forem as *Live*, e fazer **Redeploy**.
+
+**Regra de ouro:** Client ID e Secret têm de vir da **mesma** app REST. No
+developer.paypal.com, os separadores **Sandbox** e **Live** têm apps e secrets
+**diferentes** — misturar um de cada lado dá sempre `invalid_client`.
+
+---
+
+## 33. Gestão de encomendas no admin (Received Orders)
+
+O separador **3. Received Orders** deixou de ser só de leitura. Cada encomenda
+tem um estado e botões próprios; **tudo é transaccional** — ou muda tudo, ou
+não muda nada.
+
+### Estados e o que podes fazer
+
+| Estado | Significado | Acções |
+|---|---|---|
+| *Awaiting PayPal payment* | Ordem PayPal criada, comprador ainda não aprovou/pagou | Cancel |
+| *PayPal reviewing payment* | PayPal está a rever a captura | Cancel |
+| *Needs manual review* | Dinheiro capturado mas algo precisa do teu olho | **Confirm after review**, Cancel |
+| *Invoice — awaiting payment* | Encomenda por factura, ainda não paga | **Mark as paid & confirm**, Cancel |
+| *Paid — ready to ship* | Pago e stock retirado | **Mark as shipped**, Mark as completed, Cancel & restore stock |
+| *Shipped* | Expedida | Mark as completed, Update tracking, Cancel & restore stock |
+| *Completed* | Entregue/fechada | Update tracking |
+| *Cancelled* | Fechada | — |
+
+### Regras de stock (importantes)
+
+- O stock **só sai** quando a encomenda é confirmada como paga (captura PayPal
+  ou o teu “Mark as paid”). Encomendas por factura **não** reservam stock
+  enquanto não confirmares o pagamento — se confirmares tarde e a peça já tiver
+  sido vendida por outro canal, a acção falha com a explicação e **nada muda**.
+- **Cancelar** uma encomenda paga/enviada **repõe o stock**. Se a peça tinha
+  esgotado e ido para o arquivo automático, volta a **Site Only** como estava.
+- Cancelar **não faz refund**. Se o comprador pagou por PayPal, faz primeiro o
+  refund no PayPal e só depois cancela aqui (o diálogo avisa-te disso).
+
+### Envio e tracking
+
+**Mark as shipped** abre um formulário com *Carrier* e *Tracking number*
+(podem ficar vazios e ser completados depois em **Update tracking**). O
+comprador vê a data de expedição e o tracking na página dele
+(`/orders/MED-…`). **Não é enviado email automático** — continua a ser contigo.
+
+Colunas novas em `orders` (`shipped_at`, `tracking_carrier`,
+`tracking_number`) são aditivas no `UPGRADE_SQL` e criadas sozinhas no
+arranque. Encomendas antigas ficam intactas.

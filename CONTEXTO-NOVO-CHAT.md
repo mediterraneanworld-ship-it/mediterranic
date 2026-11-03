@@ -18,6 +18,9 @@ O meu fluxo de trabalho é:
 - Tu fazes alterações de **código** e entregas-me um **ZIP TODO**.
 - Eu copio o conteúdo do ZIP para a pasta local (mantendo `.env` e `.git`),
   faço **Commit + Push** no GitHub Desktop e a Vercel publica.
+- **Não tenho de repetir as alterações de conteúdo.** O Neon de produção fica
+  ligado ao mesmo deploy; o ZIP é de código e não restabelece nem sobrescreve
+  textos, peças, preços, fotos ou definições guardadas pelo admin.
 
 **Nunca precisas de aceder ao meu Neon. Nunca uses acessos ao Neon de produção.
 Nunca escrevas no Neon de produção a partir do sandbox.**
@@ -110,7 +113,7 @@ peça física é reconhecida quando muda de plataforma.
   Instagram/Facebook gradientes.
 - Etiquetas das peças **fora** das fotografias (não tapam no telemóvel).
 - **Next.js 16.4.3**; `npm audit --omit=dev` sem vulnerabilidades conhecidas;
-  **42 testes** offline a passar.
+  **48 testes** offline a passar.
 - Domínio: manter `mediterranic.vercel.app` até ao fim do projecto. O
   `mediterranic.com` continua no site antigo.
 
@@ -124,7 +127,10 @@ peça física é reconhecida quando muda de plataforma.
    pela eBay. Até lá, o diagnóstico mostra erro de acesso — nunca zero anúncios.
 2. **`EBAY_SELLER_USERNAME`:** confirmar o nome real da conta de vendedor
    (a ligação `/str/mederranic` é o nome da loja, não necessariamente o username).
-3. **PayPal:** chaves já criadas; confirmar captura com pagamento real.
+3. **PayPal:** chaves já criadas; confirmar captura com pagamento real. Se o
+   checkout mostrar *"Could not start the PayPal payment"*, correr primeiro
+   **Admin → Diagnose PayPal API** (causa típica: chaves Sandbox contra API
+   Live, ou vice-versa — `invalid_client`).
 4. **Cron-job.org externo** (opcional): um registo apareceu com secret errado;
    corrigir o CRON_SECRET nesse agendador.
 5. **Newsletter:** falta fornecedor de envio (Resend/Brevo/Mailchimp).

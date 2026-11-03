@@ -168,7 +168,10 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
         if (payload.code === "PAYPAL_NOT_CONFIGURED") {
           setError("Online payment is not enabled yet — please use the button below to place the order by invoice.");
         } else {
-          setError(payload.error ?? "Could not start the PayPal payment. Please try again.");
+          // Show the stable error code next to the sentence: it names the exact
+          // failing step (auth, rejection, network) without exposing secrets.
+          const sentence = payload.error ?? "Could not start the PayPal payment. Please try again.";
+          setError(payload.code ? `${sentence} [${payload.code}]` : sentence);
         }
         setPaypalBusy(false);
         return;

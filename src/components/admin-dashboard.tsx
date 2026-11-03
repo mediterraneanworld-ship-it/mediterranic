@@ -4,17 +4,20 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Ban,
   Check,
   Edit3,
   ExternalLink,
   LogOut,
   Mail,
   Package,
+  PackageCheck,
   Plus,
   Save,
   Settings,
   ShoppingBag,
   Trash2,
+  Truck,
   Upload,
   X,
 } from "lucide-react";
@@ -28,6 +31,7 @@ import { AdminCronStatus } from "@/components/admin-cron-status";
 import { InventorySyncPanel } from "@/components/inventory-sync-panel";
 import type { InventorySyncReport } from "@/lib/inventory-rules";
 import { EbayConnectionCheck } from "@/components/ebay-connection-check";
+import { PaypalConnectionCheck } from "@/components/paypal-connection-check";
 import { readContent, type SiteContent } from "@/lib/site-content";
 import { listingKey, matchListing, marketplaceOf, savedListing, type ListingMatch } from "@/lib/marketplace-links";
 
@@ -48,6 +52,11 @@ type OrderEntry = {
     shippingCents: number;
     totalCents: number;
     status: string;
+    paymentMethod: string;
+    paypalOrderId: string | null;
+    shippedAt: Date | null;
+    trackingCarrier: string | null;
+    trackingNumber: string | null;
     createdAt: Date;
   };
   items: {
@@ -58,6 +67,28 @@ type OrderEntry = {
     quantity: number;
   }[];
 };
+
+const ORDER_STATUS_META: Record<string, { label: string; className: string }> = {
+  pending_payment: { label: "Awaiting PayPal payment", className: "bg-amber-100 text-amber-900" },
+  payment_pending: { label: "PayPal reviewing payment", className: "bg-amber-100 text-amber-900" },
+  payment_review: { label: "Needs manual review", className: "bg-terracotta/15 text-terracotta" },
+  pending_invoice: { label: "Invoice — awaiting payment", className: "bg-amber-100 text-amber-900" },
+  confirmed: { label: "Paid — ready to ship", className: "bg-sea/15 text-sea" },
+  shipped: { label: "Shipped", className: "bg-[#0033FF]/10 text-[#0033FF]" },
+  completed: { label: "Completed", className: "bg-ink/10 text-ink/70" },
+  cancelled: { label: "Cancelled", className: "bg-ink/10 text-ink/50" },
+};
+
+const ORDER_FILTERS: { id: string; label: string; statuses: string[] | null }[] = [
+  { id: "all", label: "All orders", statuses: null },
+  { id: "awaiting", label: "Awaiting payment", statuses: ["pending_payment", "payment_pending", "payment_review", "pending_invoice"] },
+  { id: "to_ship", label: "To ship", statuses: ["confirmed"] },
+  { id: "shipped", label: "Shipped", statuses: ["shipped"] },
+  { id: "completed", label: "Completed", statuses: ["completed"] },
+  { id: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
+];
+
+type OrderActionName = "confirm" | "ship" | "complete" | "cancel" | "tracking";
 
 type SellerLot = { id: string; url: string; title: string; priceCents?: number | null; match?: ListingMatch };
 
@@ -333,6 +364,70 @@ export function AdminDashboard({
   function notify(msg: string) {
     setFeedback(msg);
     window.setTimeout(() => setFeedback(null), 4000);
+  }
+
+  /* ---- Received orders: filters, dispatch form and status actions ---- */
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [orderBusyId, setOrderBusyId] = useState<string | null>(null);
+  const [shipOpenId, setShipOpenId] = useState<string | null>(null);
+  const [shipForms, setShipForms] = useState<Record<string, { carrier: string; number: string }>>({});
+
+  function toggleShipForm(order: OrderEntry["order"]) {
+    if (shipOpenId === order.id) {
+      setShipOpenId(null);
+      return;
+    }
+    setShipForms((forms) => ({
+      ...forms,
+      [order.id]: forms[order.id] ?? { carrier: order.trackingCarrier ?? "", number: order.trackingNumber ?? "" },
+    }));
+    setShipOpenId(order.id);
+  }
+
+  async function runOrderAction(order: OrderEntry["order"], action: OrderActionName) {
+    const ref = `MED-${order.id.slice(0, 8).toUpperCase()}`;
+    const paidOrShipped = order.status === "confirmed" || order.status === "shipped";
+    if (action === "confirm") {
+      const message =
+        order.status === "payment_review"
+          ? `Confirm ${ref} after your manual review? The specimens are reserved (stock taken) immediately.`
+          : `Mark ${ref} as paid? Only confirm once the money is actually in your account — the specimens are reserved (stock taken) immediately.`;
+      if (!window.confirm(message)) return;
+    }
+    if (action === "cancel") {
+      const message = paidOrShipped
+        ? `Cancel ${ref}? Its specimens return to stock; a piece that sold out goes back to Site Only. If the buyer paid by PayPal, refund them in PayPal first — cancelling here does NOT refund.`
+        : `Cancel ${ref}? No payment was taken, so no stock changes.`;
+      if (!window.confirm(message)) return;
+    }
+    setOrderBusyId(order.id);
+    try {
+      const form = shipForms[order.id] ?? { carrier: "", number: "" };
+      const res = await fetch("/api/admin/orders", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id, action, trackingCarrier: form.carrier, trackingNumber: form.number }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        notify(data.error ?? "Could not update the order. Nothing was changed.");
+        return;
+      }
+      const notes: Record<OrderActionName, string> = {
+        confirm: `${ref} marked as paid & confirmed. Stock reserved.`,
+        ship: `${ref} marked as shipped.`,
+        complete: `${ref} marked as completed.`,
+        cancel: paidOrShipped ? `${ref} cancelled. Specimens returned to stock.` : `${ref} cancelled.`,
+        tracking: `${ref} tracking updated.`,
+      };
+      notify(notes[action]);
+      setShipOpenId(null);
+      router.refresh();
+    } catch {
+      notify("Network error. The order was not changed.");
+    } finally {
+      setOrderBusyId(null);
+    }
   }
 
   /** Removes one address when a reader asks to be taken off the list. */
@@ -1957,6 +2052,19 @@ export function AdminDashboard({
             )}
           </div>
 
+          {/* PayPal connection diagnosis */}
+          <div className="mb-4 rounded-sm border-2 border-[#003087]/25 bg-[#003087]/5 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
+              PayPal connection
+            </p>
+            <p className="mt-1 text-xs text-ink/65">
+              If checkout answers &ldquo;Could not start the PayPal payment&rdquo;, diagnose here first: the test asks
+              PayPal for a token with the keys of THIS deployment and names the exact failing step (a sandbox/live
+              mix-up is the usual cause). It creates no order and no charge.
+            </p>
+            <div className="mt-3"><PaypalConnectionCheck /></div>
+          </div>
+
           {/* eBay store sync */}
           <div className="mb-4 rounded-sm border-2 border-sea/30 bg-sea/5 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink">
@@ -2541,51 +2649,236 @@ export function AdminDashboard({
       {/* TAB 3: ORDERS */}
       {tab === "orders" && (
         <div className="mt-10 space-y-4">
-          <h2 className="font-display text-3xl text-ink">Received Orders</h2>
+          <div>
+            <h2 className="font-display text-3xl text-ink">Received Orders</h2>
+            <p className="mt-1 max-w-3xl text-sm text-ink/60">
+              Work each order through its life: confirm invoice payments, dispatch with tracking, complete, or
+              cancel (paid orders return their specimens to stock). Refunds themselves always happen in PayPal —
+              cancelling here never moves money.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {ORDER_FILTERS.map((f) => {
+              const count = f.statuses ? orders.filter((o) => f.statuses!.includes(o.order.status)).length : orders.length;
+              const active = orderFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setOrderFilter(f.id)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.14em] transition ${
+                    active ? "border-ink bg-ink text-parchment" : "border-ink/20 text-ink/70 hover:border-ink/50"
+                  }`}
+                >
+                  {f.label}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${active ? "bg-parchment/20" : "bg-ink/10"}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {orders.length === 0 ? (
             <div className="rounded-sm border border-dashed border-ink/20 p-12 text-center text-sm text-ink/60">
               No direct orders recorded yet.
             </div>
+          ) : orders.filter(({ order }) => {
+              const f = ORDER_FILTERS.find((x) => x.id === orderFilter) ?? ORDER_FILTERS[0];
+              return !f.statuses || f.statuses.includes(order.status);
+            }).length === 0 ? (
+            <div className="rounded-sm border border-dashed border-ink/20 p-12 text-center text-sm text-ink/60">
+              No orders in this state right now.
+            </div>
           ) : (
-            orders.map(({ order, items }) => (
-              <div key={order.id} className="rounded-sm border border-ink/10 bg-white/75 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-brass">
-                      MED-{order.id.slice(0, 8).toUpperCase()} · {formatDate(order.createdAt)}
-                    </p>
-                    <p className="mt-1 font-display text-2xl text-ink">
-                      {order.firstName} {order.lastName} ({order.email})
-                    </p>
+            orders
+              .filter(({ order }) => {
+                const f = ORDER_FILTERS.find((x) => x.id === orderFilter) ?? ORDER_FILTERS[0];
+                return !f.statuses || f.statuses.includes(order.status);
+              })
+              .map(({ order, items }) => {
+                const meta = ORDER_STATUS_META[order.status] ?? { label: order.status, className: "bg-ink/10 text-ink/70" };
+                const busy = orderBusyId === order.id;
+                const btn =
+                  "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[11px] uppercase tracking-[0.14em] transition disabled:opacity-50";
+                const primaryBtn = `${btn} border-sea bg-sea text-white hover:bg-ink`;
+                const ghostBtn = `${btn} border-ink/20 text-ink/75 hover:border-ink/60`;
+                const dangerBtn = `${btn} border-terracotta/40 text-terracotta hover:bg-terracotta hover:text-white`;
+                return (
+                  <div key={order.id} className="rounded-sm border border-ink/10 bg-white/75 p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-4">
+                      <div>
+                        <p className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.2em] text-brass">
+                          <span>
+                            MED-{order.id.slice(0, 8).toUpperCase()} · {formatDate(order.createdAt)}
+                          </span>
+                          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal ${meta.className}`}>
+                            {meta.label}
+                          </span>
+                        </p>
+                        <p className="mt-1 font-display text-2xl text-ink">
+                          {order.firstName} {order.lastName} ({order.email})
+                        </p>
+                        <p className="mt-1 text-xs text-ink/55">
+                          {order.paymentMethod === "paypal"
+                            ? `Paid via PayPal${order.paypalOrderId ? ` · Order ${order.paypalOrderId}` : ""}`
+                            : "Invoice (pay by bank transfer / arrangement)"}
+                          {order.phone ? ` · ${order.phone}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-display text-3xl text-ink">{formatPrice(order.totalCents)}</p>
+                        <p className="text-xs text-ink/55">
+                          Shipping: {order.shippingMethod} · {order.country}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className="text-xs text-ink/70">
+                        <p className="font-medium uppercase tracking-wider text-ink">Delivery Address:</p>
+                        <p className="mt-1">
+                          {order.addressLine1} {order.addressLine2 ? `, ${order.addressLine2}` : ""} — {order.postalCode}{" "}
+                          {order.city}, {order.country}
+                        </p>
+                        {order.shippedAt && (
+                          <p className="mt-3 flex items-start gap-1.5 text-ink/70">
+                            <Truck size={13} className="mt-0.5 shrink-0 text-sea" />
+                            <span>
+                              Dispatched {formatDate(order.shippedAt)}
+                              {order.trackingCarrier ? ` via ${order.trackingCarrier}` : ""}
+                              {order.trackingNumber ? ` · Tracking ${order.trackingNumber}` : ""}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wider text-ink">Items:</p>
+                        <ul className="mt-1 space-y-1 text-xs text-ink/80">
+                          {items.map((item) => (
+                            <li key={item.id}>
+                              {item.quantity}× {item.productName} ({formatPrice(item.unitPriceCents)})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="mt-5 flex flex-wrap gap-2 border-t border-ink/10 pt-4">
+                      {order.status === "pending_invoice" && (
+                        <>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "confirm")} className={primaryBtn}>
+                            <Check size={13} /> Mark as paid &amp; confirm
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
+                            <Ban size={13} /> Cancel order
+                          </button>
+                        </>
+                      )}
+                      {order.status === "payment_review" && (
+                        <>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "confirm")} className={primaryBtn}>
+                            <Check size={13} /> Confirm after review
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
+                            <Ban size={13} /> Cancel order
+                          </button>
+                        </>
+                      )}
+                      {(order.status === "pending_payment" || order.status === "payment_pending") && (
+                        <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
+                          <Ban size={13} /> Cancel order
+                        </button>
+                      )}
+                      {order.status === "confirmed" && (
+                        <>
+                          <button type="button" disabled={busy} onClick={() => toggleShipForm(order)} className={primaryBtn}>
+                            <Truck size={13} /> Mark as shipped
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "complete")} className={ghostBtn}>
+                            <PackageCheck size={13} /> Mark as completed
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
+                            <Ban size={13} /> Cancel &amp; restore stock
+                          </button>
+                        </>
+                      )}
+                      {order.status === "shipped" && (
+                        <>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "complete")} className={primaryBtn}>
+                            <PackageCheck size={13} /> Mark as completed
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => toggleShipForm(order)} className={ghostBtn}>
+                            <Truck size={13} /> Update tracking
+                          </button>
+                          <button type="button" disabled={busy} onClick={() => runOrderAction(order, "cancel")} className={dangerBtn}>
+                            <Ban size={13} /> Cancel &amp; restore stock
+                          </button>
+                        </>
+                      )}
+                      {order.status === "completed" && (
+                        <button type="button" disabled={busy} onClick={() => toggleShipForm(order)} className={ghostBtn}>
+                          <Truck size={13} /> Update tracking
+                        </button>
+                      )}
+                      {order.status === "cancelled" && <p className="text-xs text-ink/50">This order is closed.</p>}
+                      {busy && <span className="self-center text-xs text-ink/55">Working…</span>}
+                    </div>
+
+                    {shipOpenId === order.id &&
+                      (order.status === "confirmed" || order.status === "shipped" || order.status === "completed") && (
+                        <div className="mt-4 rounded-sm border border-ink/10 bg-bone/50 p-4">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block">
+                              <span className={labelClass}>Carrier</span>
+                              <input
+                                value={shipForms[order.id]?.carrier ?? ""}
+                                onChange={(e) =>
+                                  setShipForms((forms) => ({
+                                    ...forms,
+                                    [order.id]: { carrier: e.target.value, number: forms[order.id]?.number ?? "" },
+                                  }))
+                                }
+                                placeholder="e.g. CTT Expresso, DHL, UPS"
+                                className={inputClass}
+                              />
+                            </label>
+                            <label className="block">
+                              <span className={labelClass}>Tracking number</span>
+                              <input
+                                value={shipForms[order.id]?.number ?? ""}
+                                onChange={(e) =>
+                                  setShipForms((forms) => ({
+                                    ...forms,
+                                    [order.id]: { carrier: forms[order.id]?.carrier ?? "", number: e.target.value },
+                                  }))
+                                }
+                                placeholder="e.g. RR123456789PT"
+                                className={inputClass}
+                              />
+                            </label>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => runOrderAction(order, order.status === "confirmed" ? "ship" : "tracking")}
+                              className={primaryBtn}
+                            >
+                              <Truck size={13} /> {order.status === "confirmed" ? "Dispatch order" : "Save tracking"}
+                            </button>
+                            <button type="button" disabled={busy} onClick={() => setShipOpenId(null)} className={ghostBtn}>
+                              Close
+                            </button>
+                          </div>
+                          <p className="mt-2 text-[11px] leading-relaxed text-ink/55">
+                            Shown to the buyer on their order page ({`/orders/…`}). No email is sent automatically —
+                            tracking fields can be saved empty and completed later.
+                          </p>
+                        </div>
+                      )}
                   </div>
-                  <div className="text-right">
-                    <p className="font-display text-3xl text-ink">{formatPrice(order.totalCents)}</p>
-                    <p className="text-xs text-ink/55">
-                      Shipping: {order.shippingMethod} · {order.country}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="text-xs text-ink/70">
-                    <p className="font-medium uppercase tracking-wider text-ink">Delivery Address:</p>
-                    <p className="mt-1">
-                      {order.addressLine1} {order.addressLine2 ? `, ${order.addressLine2}` : ""} — {order.postalCode}{" "}
-                      {order.city}, {order.country}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-ink">Items:</p>
-                    <ul className="mt-1 space-y-1 text-xs text-ink/80">
-                      {items.map((item) => (
-                        <li key={item.id}>
-                          {item.quantity}× {item.productName} ({formatPrice(item.unitPriceCents)})
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            ))
+                );
+              })
           )}
         </div>
       )}

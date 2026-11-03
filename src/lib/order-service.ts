@@ -187,7 +187,7 @@ export async function confirmOrder(orderId: string, transaction?: OrderTransacti
     const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1).for("update");
     if (!order) throw new OrderError("Order not found.", 404);
     if (order.status === "confirmed") return;
-    if (order.status !== "pending_payment" && order.status !== "payment_pending" && order.status !== "payment_review") {
+    if (order.status !== "pending_payment" && order.status !== "payment_pending" && order.status !== "payment_review" && order.status !== "pending_invoice") {
       throw new OrderError("This order is no longer awaiting payment.", 409);
     }
     const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
@@ -216,4 +216,105 @@ export async function markOrderStatus(
     .update(orders)
     .set({ status, ...(paypalOrderId !== undefined ? { paypalOrderId } : {}) })
     .where(eq(orders.id, orderId));
+}
+
+/* ------------------------------------------------------------------ */
+/* Back-office order handling                                          */
+/* ------------------------------------------------------------------ */
+
+export type OrderAction = "confirm" | "ship" | "complete" | "cancel" | "tracking";
+
+export type OrderTransitionPlan =
+  | { ok: true; to: string; restoreStock: boolean }
+  | { ok: false; error: string };
+
+/**
+ * Which back-office actions make sense from each order status. Stock is only
+ * ever taken by `confirmOrder` (at payment), so cancelling an unpaid order
+ * touches no stock, while cancelling a paid/shipped one must give it back.
+ * Pure — the admin UI and the tests share these exact rules.
+ */
+export function planOrderTransition(status: string, action: OrderAction): OrderTransitionPlan {
+  switch (action) {
+    case "confirm":
+      return status === "pending_invoice" || status === "payment_review"
+        ? { ok: true, to: "confirmed", restoreStock: false }
+        : { ok: false, error: `Only an invoice order or an order under review can be confirmed manually (current status: ${status}).` };
+    case "ship":
+      return status === "confirmed"
+        ? { ok: true, to: "shipped", restoreStock: false }
+        : { ok: false, error: `Only a paid, confirmed order can be marked as shipped (current status: ${status}).` };
+    case "complete":
+      return status === "shipped" || status === "confirmed"
+        ? { ok: true, to: "completed", restoreStock: false }
+        : { ok: false, error: `Only a shipped order can be marked as completed (current status: ${status}).` };
+    case "cancel":
+      if (status === "pending_payment" || status === "payment_pending" || status === "pending_invoice" || status === "payment_review") {
+        return { ok: true, to: "cancelled", restoreStock: false };
+      }
+      if (status === "confirmed" || status === "shipped") {
+        return { ok: true, to: "cancelled", restoreStock: true };
+      }
+      return { ok: false, error: `This order can no longer be cancelled (current status: ${status}).` };
+    case "tracking":
+      return status === "shipped" || status === "completed"
+        ? { ok: true, to: status, restoreStock: false }
+        : { ok: false, error: "Tracking can only be recorded once the order has shipped." };
+  }
+}
+
+/**
+ * Applies one back-office action to an order, transactionally. "confirm"
+ * reuses the guarded stock decrement (it fails, changing nothing, if a
+ * specimen was meanwhile sold through another channel). Cancelling a paid
+ * order returns its specimens to stock; a piece that sold out and was
+ * auto-archived by the sale returns to Site Only, exactly as it was.
+ * Refunds are NOT issued here — PayPal refunds happen in PayPal.
+ */
+export async function applyOrderAction(
+  orderId: string,
+  action: OrderAction,
+  tracking: { carrier?: string | null; number?: string | null } = {},
+): Promise<typeof orders.$inferSelect> {
+  const carrier = tracking.carrier?.trim().slice(0, 80) || null;
+  const number = tracking.number?.trim().slice(0, 120) || null;
+
+  return db.transaction(async (tx) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1).for("update");
+    if (!order) throw new OrderError("Order not found.", 404);
+    const plan = planOrderTransition(order.status, action);
+    if (!plan.ok) throw new OrderError(plan.error, 409);
+
+    if (action === "confirm") {
+      await confirmOrder(orderId, tx);
+    } else {
+      if (plan.restoreStock) {
+        const lines = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+        for (const line of [...lines].sort((a, b) => a.productId - b.productId)) {
+          const [p] = await tx
+            .update(products)
+            .set({ stock: sql`${products.stock} + ${line.quantity}` })
+            .where(eq(products.id, line.productId))
+            .returning({ id: products.id, stock: products.stock, archived: products.archived, listingChannel: products.listingChannel });
+          if (p && p.archived && p.listingChannel === null && p.stock > 0) {
+            await tx.update(products).set({ archived: false, listingChannel: "direct" }).where(eq(products.id, p.id));
+          }
+        }
+      }
+      const patch: { status: string; shippedAt?: Date; trackingCarrier?: string | null; trackingNumber?: string | null } = { status: plan.to };
+      if (action === "ship") {
+        patch.shippedAt = new Date();
+        patch.trackingCarrier = carrier;
+        patch.trackingNumber = number;
+      }
+      if (action === "tracking") {
+        patch.trackingCarrier = carrier;
+        patch.trackingNumber = number;
+      }
+      await tx.update(orders).set(patch).where(eq(orders.id, orderId));
+    }
+
+    const [updated] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    return updated;
+  });
 }

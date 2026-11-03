@@ -24,7 +24,9 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
   if (!data) notFound();
 
   const { order, items } = data;
-  const paid = order.status === "confirmed";
+  const paid = order.status === "confirmed" || order.status === "shipped" || order.status === "completed";
+  const cancelled = order.status === "cancelled";
+  const shipped = order.status === "shipped" || order.status === "completed";
   const specimens = await Promise.all(items.map((item) => getProductBySlug(item.productSlug)));
   const photoBySlug = new Map(specimens.filter((p) => p !== null).map((p) => [p.slug, p.images[0]?.src]));
   const methodLabel = shippingLabel(order.country, order.shippingMethod === "insured" ? "protected" : order.shippingMethod);
@@ -37,14 +39,20 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-sea text-parchment">
           <Check size={28} strokeWidth={1.6} />
         </div>
-        <p className="mt-8 text-[11px] uppercase tracking-[0.32em] text-brass">{paid ? "Order confirmed" : "Order request received — awaiting payment"} · {reference}</p>
+        <p className="mt-8 text-[11px] uppercase tracking-[0.32em] text-brass">
+          {cancelled ? "Order cancelled" : shipped ? "Order dispatched" : paid ? "Order confirmed" : "Order request received — awaiting payment"} · {reference}
+        </p>
         <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">
           Thank you, {order.firstName}.
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink/70">
-          {paid
-            ? "Your payment is confirmed. We will prepare your specimens for safe transit and provide tracking details."
-            : "Your request has been recorded, but no payment is confirmed. Contact the studio to arrange payment; dispatch starts only after payment is confirmed."}
+          {cancelled
+            ? "This order was cancelled, so nothing will be charged or dispatched. If a payment was taken, it returns to the original payment method — contact the studio with this reference if you need anything."
+            : shipped
+              ? "Your specimens are on their way. The dispatch and tracking details are on this page, below."
+              : paid
+                ? "Your payment is confirmed. We will prepare your specimens for safe transit and provide tracking details."
+                : "Your request has been recorded, but no payment is confirmed. Contact the studio to arrange payment; dispatch starts only after payment is confirmed."}
         </p>
       </div>
 
@@ -116,6 +124,19 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <br />
               {countryName}
             </address>
+            {(order.shippedAt || order.trackingCarrier || order.trackingNumber) && (
+              <div className="mt-5 border-t border-ink/10 pt-4 text-sm">
+                <p className="font-medium text-ink">
+                  Dispatched{order.shippedAt ? ` on ${formatDate(order.shippedAt)}` : ""}
+                </p>
+                {order.trackingCarrier && <p className="mt-1 text-ink/60">Carrier: {order.trackingCarrier}</p>}
+                {order.trackingNumber && (
+                  <p className="mt-1 text-ink/60">
+                    Tracking: <span className="font-medium text-ink">{order.trackingNumber}</span>
+                  </p>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="rounded-sm bg-midnight p-6 text-parchment md:p-8">
@@ -124,10 +145,14 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <p className="text-[11px] uppercase tracking-[0.25em]">What happens next</p>
             </div>
             <ol className="mt-5 space-y-4 text-sm leading-relaxed text-parchment/75">
-              {!paid && <li>Payment must be confirmed before preparation and dispatch.</li>}
+              {!paid && !cancelled && <li>Payment must be confirmed before preparation and dispatch.</li>}
               <li>1. Specialists verify each specimen and prepare its documentation.</li>
               <li>2. Your piece is packed in archival materials for safe transit.</li>
-              <li>3. A tracking link arrives by email on dispatch.</li>
+              {shipped ? (
+                <li>3. Dispatched — the tracking details are shown on this page, above.</li>
+              ) : (
+                <li>3. Tracking details appear on this page the moment your order is dispatched.</li>
+              )}
             </ol>
           </section>
 

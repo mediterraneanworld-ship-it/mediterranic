@@ -110,6 +110,10 @@ export const orders = pgTable("orders", {
   paymentMethod: text("payment_method").notNull().default("direct"),
   /** PayPal order id, set once the buyer approves the payment. */
   paypalOrderId: text("paypal_order_id"),
+  /** Dispatch details, set from the back-office when the order ships. */
+  shippedAt: timestamp("shipped_at", { withTimezone: true }),
+  trackingCarrier: text("tracking_carrier"),
+  trackingNumber: text("tracking_number"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

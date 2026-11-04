@@ -138,6 +138,9 @@ export async function SiteFooter() {
             <Link href="/shop" className="transition hover:text-parchment">
               Shop
             </Link>
+            <Link href="/featured" className="transition hover:text-parchment">
+              Featured &amp; New
+            </Link>
             <Link href="/archive" className="transition hover:text-parchment">
               Archive
             </Link>

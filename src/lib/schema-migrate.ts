@@ -255,6 +255,13 @@ CREATE TABLE IF NOT EXISTS "newsletter_sends" (
   "created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 
+-- Compatibility with earlier code-only ZIPs. Keep every existing log row,
+-- setting and unsubscribe token; do not reconstruct or overwrite history.
+ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "piece_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "piece_slugs" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'legacy' NOT NULL;
+ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "detail" text;
+
 `;
 
 let migrated: Promise<void> | null = null;

@@ -12,16 +12,13 @@ import {
   type OrderEmailInput,
   type OrderEmailLine,
 } from "@/lib/order-email";
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 
 export type OrderEvent = "placed" | "paid";
 export type NotifyResult = { status: "sent" | "failed" | "not_configured" | "skipped"; detail: string };
 
 function shopUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
-    "https://mediterranic.vercel.app"
-  ).replace(/\/$/, "");
+  return PUBLIC_SITE_URL;
 }
 
 /** Reads one order + its lines and renders the curator e-mail. */

@@ -3,13 +3,10 @@ import { db } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { curatorMailbox, escapeHtml, mailShell, sendMail, type SendResult } from "@/lib/mailer";
 import { orderReference } from "@/lib/order-email";
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 
 function siteBase(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
-    "https://mediterranic.vercel.app"
-  ).replace(/\/$/, "");
+  return PUBLIC_SITE_URL;
 }
 
 export type OrderContext = {

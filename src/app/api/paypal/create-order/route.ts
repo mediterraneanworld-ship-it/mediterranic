@@ -1,5 +1,6 @@
 import { buildOrder, insertOrder, markOrderStatus, OrderError, parseOrderInput } from "@/lib/order-service";
 import { createPaypalOrder, isPaypalConfigured, paypalEnvironment, paypalErrorMessage, PaypalNotConfiguredError } from "@/lib/paypal";
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -13,10 +14,7 @@ function siteBase(request: Request): string {
     const scheme = proto || (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
     return `${scheme}://${host}`.replace(/\/$/, "");
   }
-  if (process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
-    return process.env.NEXT_PUBLIC_SITE_URL.trim().replace(/\/$/, "");
-  }
-  return new URL(request.url).origin.replace(/\/$/, "");
+  return PUBLIC_SITE_URL;
 }
 
 /**

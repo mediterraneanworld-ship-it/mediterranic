@@ -212,6 +212,8 @@ export const newsletterSettings = pgTable("newsletter_settings", {
 export const newsletterSends = pgTable("newsletter_sends", {
   id: serial("id").primaryKey(),
   subject: text("subject").notNull(),
+  /** Older sandbox releases logged slugs. Keep that column and its history. */
+  pieceSlugs: jsonb("piece_slugs").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   pieceIds: jsonb("piece_ids").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
   recipientCount: integer("recipient_count").notNull().default(0),
   sentCount: integer("sent_count").notNull().default(0),

@@ -29,6 +29,7 @@ import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
 import { AdminContentEditor } from "@/components/admin-content-editor";
 import { AdminCronStatus } from "@/components/admin-cron-status";
+import { AdminNewsletterCronStatus } from "@/components/admin-newsletter-cron-status";
 import { InventorySyncPanel } from "@/components/inventory-sync-panel";
 import type { InventorySyncReport } from "@/lib/inventory-rules";
 import { EbayConnectionCheck } from "@/components/ebay-connection-check";
@@ -89,6 +90,8 @@ type SellerLot = { id: string; url: string; title: string; priceCents?: number |
 
 type EditableProduct = {
   id: number | null;
+  /** Source row for the inline duplicate editor; never a database identity. */
+  duplicateOfId: number | null;
   slug: string;
   name: string;
   species: string;
@@ -123,6 +126,7 @@ type EditableProduct = {
 
 const EMPTY_PRODUCT: EditableProduct = {
   id: null,
+  duplicateOfId: null,
   slug: "",
   name: "",
   species: "",
@@ -160,6 +164,7 @@ const EMPTY_PRODUCT: EditableProduct = {
 function toEditable(p: ProductWithStats): EditableProduct {
   return {
     id: p.id,
+    duplicateOfId: null,
     slug: p.slug,
     name: p.name,
     species: p.species,
@@ -296,6 +301,7 @@ export function AdminDashboard({
     initialNewsletter?.settings.pieceIds ?? [],
   );
   const [newsletterAuto, setNewsletterAuto] = useState(initialNewsletter?.settings.autoEnabled ?? false);
+  const [newsletterSavingAuto, setNewsletterSavingAuto] = useState(false);
   const [newsletterSending, setNewsletterSending] = useState(false);
   const [newsletterNotice, setNewsletterNotice] = useState<string | null>(null);
   const [newsletterCadenceWarning, setNewsletterCadenceWarning] = useState<string | null>(null);
@@ -934,6 +940,26 @@ export function AdminDashboard({
     }
   }
 
+  /** Prepare a new draft without altering the original or following its old listings. */
+  function handleDuplicate(product: ProductWithStats) {
+    setEditing({
+      ...toEditable(product),
+      id: null,
+      duplicateOfId: product.id,
+      slug: `${product.slug}-copy`,
+      specimenReference: EMPTY_PRODUCT.specimenReference,
+      externalListingUrl: "",
+      ebayListingUrl: "",
+      catawikiListingUrl: "",
+      published: false,
+      archived: false,
+      listingChannel: "direct",
+      videoUrl: "",
+      stock: "1",
+    });
+  }
+
+
   async function handleDeleteProduct(product: ProductWithStats) {
     if (!window.confirm(`Remove "${product.name}" from the storefront? The record, photos and history will be kept as an archive draft.`)) return;
     const res = await fetch(`/api/admin/products?id=${product.id}`, { method: "DELETE" });
@@ -1481,7 +1507,7 @@ export function AdminDashboard({
             >
               <div className="flex items-center justify-between border-b border-ink/10 pb-4">
                 <h3 className="font-display text-3xl text-ink">
-                  {editing.id ? `Edit Specimen: ${editing.name}` : "Add New Specimen"}
+                  {editing.duplicateOfId ? `Duplicate: ${editing.name}` : editing.id ? `Edit Specimen: ${editing.name}` : "Add New Specimen"}
                 </h3>
                 <button
                   type="button"
@@ -2498,7 +2524,7 @@ export function AdminDashboard({
           </div>
 
           {/* New specimen (no row yet): the editor sits above the table. */}
-          {editing && editing.id === null && editorForm}
+          {editing && editing.id === null && !editing.duplicateOfId && editorForm}
 
 
           {/* Product Table */}
@@ -2635,6 +2661,14 @@ export function AdminDashboard({
                           </button>
                           <button
                             type="button"
+                            onClick={() => handleDuplicate(p)}
+                            aria-label={`Duplicate ${p.name}`}
+                            className="inline-flex items-center gap-1 rounded-full border border-ink/20 px-3.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink hover:border-ink"
+                          >
+                            <Copy size={12} /> Duplicate
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDeleteProduct(p)}
                             aria-label={`Delete ${p.name}`}
                             className="rounded-full p-2 text-ink/40 hover:bg-terracotta/10 hover:text-terracotta"
@@ -2645,7 +2679,7 @@ export function AdminDashboard({
                       </td>
                     </tr>
                     {/* Editor inline, immediately below the piece being edited */}
-                    {editing && editing.id === p.id && (
+                    {editing && (editing.id === p.id || editing.duplicateOfId === p.id) && (
                       <tr className="hover:bg-transparent">
                         <td colSpan={5} className="bg-bone/40 p-0 align-top">
                           <div className="m-3 md:m-4 [&>form]:mb-0 [&>form]:shadow-none">
@@ -3245,6 +3279,8 @@ export function AdminDashboard({
             </a>
           </div>
 
+          <AdminNewsletterCronStatus automaticEnabled={newsletterAuto} />
+
           {/* Cadence + send */}
           <div className="rounded-sm border border-ink/10 bg-white/75 p-6">
             <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
@@ -3315,11 +3351,20 @@ export function AdminDashboard({
               <input
                 type="checkbox"
                 checked={newsletterAuto}
+                disabled={newsletterSavingAuto}
                 onChange={async (e) => {
                   const next = e.target.checked;
-                  setNewsletterAuto(next);
-                  await saveNewsletterSettings({ autoEnabled: next });
-                  notify(next ? "Automatic sending on: the daily check sends once 15 days have passed." : "Automatic sending off: mailings are manual.");
+                  setNewsletterSavingAuto(true);
+                  try {
+                    if (await saveNewsletterSettings({ autoEnabled: next })) {
+                      setNewsletterAuto(next);
+                      notify(next ? "Automatic sending on: the daily check sends once 15 days have passed." : "Automatic sending off: mailings are manual.");
+                    }
+                  } catch {
+                    notify("Could not save automatic sending. The saved setting has not been confirmed; please retry.");
+                  } finally {
+                    setNewsletterSavingAuto(false);
+                  }
                 }}
                 className="h-4 w-4 accent-sea"
               />

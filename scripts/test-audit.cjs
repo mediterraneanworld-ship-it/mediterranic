@@ -171,7 +171,7 @@ test('buyer note is accepted, trimmed, bounded and never changes the price',asyn
  assert.match(form,/customerNote: String\(data\.get\("customerNote"\) \?\? ""\)/);
 });
 test('tracking links are validated and buyer e-mails carry the order reference',()=>{
- const messages=load('src/lib/order-messages.ts',{imports:{'drizzle-orm':{eq:(...x)=>x},'@/db':{db:{}}, '@/db/schema':{}, '@/lib/mailer':{curatorMailbox:()=>'mediterranean.world@gmail.com',escapeHtml:(v)=>v,mailShell:()=>'',sendMail:async()=>({ok:true,detail:'fixture'})}, '@/lib/order-email':{orderReference:()=> 'MED-FIXTURE'}}});
+ const messages=load('src/lib/order-messages.ts',{imports:{'drizzle-orm':{eq:(...x)=>x},'@/db':{db:{}}, '@/db/schema':{}, '@/lib/mailer':{curatorMailbox:()=>'mediterranean.world@gmail.com',escapeHtml:(v)=>v,mailShell:()=>'',sendMail:async()=>({ok:true,detail:'fixture'})}, '@/lib/order-email':{orderReference:()=> 'MED-FIXTURE'}, '@/lib/site-url':load('src/lib/site-url.ts')}});
  const link=messages.normalizeTracking('https://www.dhl.com/track?id=AB123456789');
  assert.equal(link.code,'AB123456789');
  assert.equal(link.url,'https://www.dhl.com/track?id=AB123456789');
@@ -237,7 +237,7 @@ test('admin table Edit opens inline below the row without scrolling the page',()
  assert.ok(editBlock.includes('setEditing(toEditable(p))'));
  assert.ok(!/scrollTo|scrollIntoView/.test(editBlock),'Edit must not move the page');
  // The editor still renders inline, directly under the edited row.
- assert.match(admin,/editing && editing\.id === p\.id/);
+ assert.match(admin,/editing\.id === p\.id \|\| editing\.duplicateOfId === p\.id/);
  assert.match(admin,/colSpan=\{5\}/);
 });
 test('product gallery fits the viewport and never widens the phone layout',()=>{
@@ -325,4 +325,25 @@ test('newsletter copy says twice a month and the cadence is 15 days',()=>{
  assert.match(cron,/autoEnabled/);assert.match(cron,/CRON_SECRET/);
  const vercel=fs.readFileSync('vercel.json','utf8');
  assert.match(vercel,/api\/cron\/newsletter/);
+});
+test('canonical URL is hardcoded: the dead shop subdomain is never used',()=>{
+ const siteUrl=fs.readFileSync('src/lib/site-url.ts','utf8');
+ assert.match(siteUrl,/export const PUBLIC_SITE_URL = "https:\/\/mediterranic\.vercel\.app"/);
+ assert.ok(!/process\.env\.NEXT_PUBLIC_SITE_URL/.test(siteUrl));
+ for(const file of ['src/lib/order-messages.ts','src/lib/order-notify.ts','src/app/api/paypal/create-order/route.ts']){
+  const src=fs.readFileSync(file,'utf8');
+  assert.ok(!/NEXT_PUBLIC_SITE_URL/.test(src),file);
+  assert.match(src,/PUBLIC_SITE_URL/);
+ }
+});
+test('admin Duplicate copies the piece as a draft below the source row',()=>{
+ const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+ assert.match(admin,/function handleDuplicate\(product: ProductWithStats\)/);
+ assert.match(admin,/duplicateOfId: product\.id/);
+ assert.match(admin,/slug: `\$\{product\.slug\}-copy`/);
+ assert.match(admin,/specimenReference: EMPTY_PRODUCT\.specimenReference/);
+ assert.match(admin,/published: false/);
+ assert.match(admin,/editing\.id === p\.id \|\| editing\.duplicateOfId === p\.id/);
+ assert.match(admin,/editing\.id === null && !editing\.duplicateOfId/);
+ assert.match(admin,/<Copy size=\{12\} \/> Duplicate/);
 });

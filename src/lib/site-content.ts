@@ -178,7 +178,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       "Museum-grade Moroccan trilobites, documented from quarry to study. Sourced under licence, prepared by specialists, delivered with care.",
     newsletterTitle: "Field notes",
     newsletterCopy:
-      "New specimens, preparation stories and auction dates. About once a month, never more.",
+      "New specimens, preparation stories and auction dates. Twice a month, never more.",
     clientCare: [
       "Worldwide delivery",
       "30-day considered returns",
@@ -404,7 +404,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     },
     newsletterTitle: "Stay in touch",
     newsletterCopy:
-      "Delivery notices, new quarry batches and auction dates. About once a month.",
+      "Delivery notices, new quarry batches and auction dates. Twice a month.",
     contactNote:
       "Questions about a specific order? Write to us with your order reference — we answer personally, usually the same day.",
   },

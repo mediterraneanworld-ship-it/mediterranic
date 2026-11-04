@@ -166,7 +166,9 @@ function firstMatch(html, re) {
     const hasCertificate = html.includes("certificate of authenticity and geological data card included");
     const videoMatch = html.match(/src="(https:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|player\.vimeo\.com)[^"]+)"/);
     const period = specs["Period"] || null;
-    const lengthMm = specs["Length"] ? parseInt(specs["Length"], 10) || null : null;
+    // Dimensions are free text on the live page ("Specimen: 8.7 x 9.0 cm");
+    // older pages still label the row "Length". Keep exactly what is shown.
+    const lengthMm = specs["Dimensions"] || specs["Length"] || null;
     const collection =
       period === "Devonian" ? "devonian-crown" : period === "Ordovician" ? "ordovician-mariners" : "cambrian-dawn";
     const archived = archivedSlugs.has(slug);
@@ -256,6 +258,23 @@ function firstMatch(html, re) {
       );
       console.log(`→ textos do hero sincronizados ("${stripTags(heroBlock[1])} ${stripTags(heroBlock[2])}")`);
     }
+
+    // Public social links are also the source used by the storefront cards.
+    // Mirroring them keeps WhatsApp visible in the sandbox. COALESCE means a
+    // temporarily missing link never clears a value already stored locally.
+    const ebayUrl = home.match(/href="(https:\/\/(?:www\.)?ebay\.[^"/]+\/str\/[^"]+)"/i)?.[1] ?? null;
+    const catawikiUrl = home.match(/href="(https:\/\/(?:www\.)?catawiki\.com\/[^"]*\/u\/[^"]+)"/i)?.[1] ?? null;
+    const instagramUrl = home.match(/href="(https:\/\/(?:www\.)?instagram\.com\/[^"]+)"/i)?.[1] ?? null;
+    const facebookUrl = home.match(/href="(https:\/\/(?:www\.)?facebook\.com\/[^"]+)"/i)?.[1] ?? null;
+    const whatsappPhone = home.match(/href="https:\/\/wa\.me\/([0-9]+)"/i)?.[1] ?? null;
+    await db.query(
+      `UPDATE site_settings SET
+         ebay_url=COALESCE($1, ebay_url), catawiki_url=COALESCE($2, catawiki_url),
+         instagram_url=COALESCE($3, instagram_url), facebook_url=COALESCE($4, facebook_url),
+         whatsapp_phone=COALESCE($5, whatsapp_phone), updated_at=now() WHERE id=1`,
+      [ebayUrl, catawikiUrl, instagramUrl, facebookUrl, whatsappPhone],
+    );
+    console.log(`→ links sociais sincronizados${whatsappPhone ? " (WhatsApp incluído)" : ""}`);
   } catch (e) {
     console.warn(`! home: ${e.message}`);
   }

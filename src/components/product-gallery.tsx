@@ -52,8 +52,9 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
         <span className="hidden items-center gap-2 sm:inline-flex"><ZoomIn size={13} /> {pointer ? "Inspecting" : "Hover to inspect"}</span>
         <span className="ml-auto tabular-nums">{images.length ? index + 1 : 0} / {images.length}</span>
       </div>
-      {/* Main frame */}
-      <div className="relative">
+      {/* Main frame — capped so the whole photograph fits the viewport
+          (desktop and phone) without hunting up and down the page. */}
+      <div className="relative mx-auto w-full max-w-[440px] lg:max-w-[520px]">
         <div
           onMouseMove={handleMove}
           onMouseLeave={() => setPointer(null)}
@@ -111,7 +112,7 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
       </div>
 
       {/* Horizontal filmstrip — scrolls with the arrows too */}
-      <div className="relative">
+      <div className="relative min-w-0 max-w-full">
         <div
           className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={(e) => {
@@ -128,7 +129,7 @@ export function ProductGallery({ images, name }: { images: ProductImage[]; name:
               onClick={() => setIndex(i)}
               aria-label={`Show ${img.label.toLowerCase()} of ${name}`}
               aria-current={i === index}
-              className={`group/thumb relative w-24 shrink-0 snap-center overflow-hidden rounded-sm bg-bone transition sm:w-28 ${
+              className={`group/thumb relative w-20 shrink-0 snap-center overflow-hidden rounded-sm bg-bone transition sm:w-24 lg:w-28 ${
                 i === index ? "ring-2 ring-ink ring-offset-2 ring-offset-parchment" : "opacity-60 hover:opacity-100"
               }`}
             >

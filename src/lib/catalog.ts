@@ -1,6 +1,6 @@
 import { and, asc, avg, count, desc, eq, gte } from "drizzle-orm";
 import { db } from "@/db";
-import { newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
+import { newsletterSends, newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
 import { mergeContent, type SiteContent } from "@/lib/site-content";
@@ -11,6 +11,7 @@ export type Product = typeof products.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type SiteSettings = typeof siteSettings.$inferSelect;
 export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
+export type NewsletterSend = typeof newsletterSends.$inferSelect;
 export type ProductWithStats = Product & { rating: number; reviewCount: number };
 
 export const DEFAULT_SITE_SETTINGS: Omit<SiteSettings, "updatedAt"> = SEED_SETTINGS;

@@ -6,9 +6,18 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import type { SiteContent } from "@/lib/site-content";
+import type { NewsletterCadence, NewsletterPiece, NewsletterSettings } from "@/lib/newsletter-send";
+import type { NewsletterSend } from "@/lib/catalog";
 import { AdminDashboard } from "@/components/admin-dashboard";
 
 type OrderEntry = Parameters<typeof AdminDashboard>[0]["orders"];
+
+export type NewsletterAdminData = {
+  sends: NewsletterSend[];
+  settings: NewsletterSettings;
+  cadence: NewsletterCadence;
+  pieces: NewsletterPiece[];
+};
 
 export function AdminGate({
   products = [],
@@ -16,6 +25,7 @@ export function AdminGate({
   orders = [],
   subscribers = [],
   content,
+  newsletter,
   authorized,
   previewMode,
 }: {
@@ -24,6 +34,7 @@ export function AdminGate({
   orders?: OrderEntry;
   subscribers?: NewsletterSubscriber[];
   content?: SiteContent;
+  newsletter?: NewsletterAdminData;
   authorized: boolean;
   previewMode: boolean;
 }) {
@@ -137,6 +148,7 @@ export function AdminGate({
       orders={orders}
       initialSubscribers={subscribers}
       initialContent={content}
+      initialNewsletter={newsletter}
       onSignOut={handleSignOut}
     />
   );

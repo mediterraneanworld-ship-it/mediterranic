@@ -9,8 +9,10 @@ import { selectItemCount, selectSubtotal, useCart, useHydrated } from "@/lib/car
 import { formatPrice } from "@/lib/format";
 import { calculateShipping, COUNTRIES, getZone, shippingMethodId, zoneOf } from "@/lib/shipping";
 
+/* 16px minimum: iOS Safari auto-zooms on smaller inputs, which breaks the
+   checkout layout every time a field is tapped. */
 const field =
-  "w-full rounded-sm border border-ink/15 bg-white/70 px-4 py-3.5 text-[15px] outline-none transition placeholder:text-ink/35 focus:border-sea focus:ring-2 focus:ring-sea/15";
+  "w-full rounded-sm border border-ink/15 bg-white/70 px-4 py-3.5 text-base outline-none transition placeholder:text-ink/35 focus:border-sea focus:ring-2 focus:ring-sea/15";
 
 const label = "text-[11px] uppercase tracking-[0.22em] text-ink/60";
 

@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import type { ProductImage } from "@/db/schema";
-import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
+import type { NewsletterSend, NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
+import type { NewsletterCadence, NewsletterPiece, NewsletterSettings } from "@/lib/newsletter-send";
 import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
 import { AdminContentEditor } from "@/components/admin-content-editor";
@@ -131,7 +132,8 @@ const EMPTY_PRODUCT: EditableProduct = {
   period: "Devonian",
   locality: "Alnif / Erfoud, Morocco",
   formation: "",
-  lengthMm: "60",
+  // Templates the curator replaces with the real numbers before saving.
+  lengthMm: "Specimen: X.0 x X.0 cm; Matrix: X.0 x X.0 cm",
   preparation: "Hand-prepared, 100% natural matrix",
   priceDollars: "850",
   compareAtDollars: "",
@@ -145,7 +147,7 @@ const EMPTY_PRODUCT: EditableProduct = {
   externalListingUrl: "",
   ebayListingUrl: "",
   catawikiListingUrl: "",
-  specimenReference: "",
+  specimenReference: "PAIS9600",
   weightGrams: "",
   videoUrl: "",
   shortDescription: "",
@@ -169,7 +171,8 @@ function toEditable(p: ProductWithStats): EditableProduct {
     period: p.period ?? "",
     locality: p.locality,
     formation: p.formation ?? "",
-    lengthMm: p.lengthMm ? String(p.lengthMm) : "",
+    // Pieces without dimensions open with the template ready to complete.
+    lengthMm: p.lengthMm || EMPTY_PRODUCT.lengthMm,
     preparation: p.preparation,
     priceDollars: (p.priceCents / 100).toFixed(2),
     compareAtDollars: p.compareAtCents ? (p.compareAtCents / 100).toFixed(2) : "",
@@ -183,7 +186,8 @@ function toEditable(p: ProductWithStats): EditableProduct {
     externalListingUrl: p.externalListingUrl ?? "",
     ebayListingUrl: savedListing(p, "ebay") ?? "",
     catawikiListingUrl: savedListing(p, "catawiki") ?? "",
-    specimenReference: p.specimenReference ?? "",
+    // Pieces without a REF open with the template ready to complete.
+    specimenReference: p.specimenReference || EMPTY_PRODUCT.specimenReference,
     weightGrams: p.weightGrams ? String(p.weightGrams) : "",
     videoUrl: p.videoUrl ?? "",
     shortDescription: p.shortDescription,
@@ -267,6 +271,7 @@ export function AdminDashboard({
   orders,
   initialSubscribers,
   initialContent,
+  initialNewsletter,
   onSignOut,
 }: {
   initialProducts: ProductWithStats[];
@@ -274,11 +279,26 @@ export function AdminDashboard({
   orders: OrderEntry[];
   initialSubscribers: NewsletterSubscriber[];
   initialContent: SiteContent;
+  initialNewsletter?: {
+    sends: NewsletterSend[];
+    settings: NewsletterSettings;
+    cadence: NewsletterCadence;
+    pieces: NewsletterPiece[];
+  };
   onSignOut: () => void | Promise<void>;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"products" | "settings" | "content" | "orders" | "newsletter">("products");
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>(initialSubscribers);
+  // Twice-a-month mailing: subject, mixed piece selection, cadence and log.
+  const [newsletterSubject, setNewsletterSubject] = useState("Featured and New Pieces");
+  const [newsletterPieceIds, setNewsletterPieceIds] = useState<number[]>(
+    initialNewsletter?.settings.pieceIds ?? [],
+  );
+  const [newsletterAuto, setNewsletterAuto] = useState(initialNewsletter?.settings.autoEnabled ?? false);
+  const [newsletterSending, setNewsletterSending] = useState(false);
+  const [newsletterNotice, setNewsletterNotice] = useState<string | null>(null);
+  const [newsletterCadenceWarning, setNewsletterCadenceWarning] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditableProduct | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -384,6 +404,57 @@ export function AdminDashboard({
       notify(`${email} removed from the list.`);
     } else {
       notify("Could not remove that address.");
+    }
+  }
+
+  /* ---------------- Twice-a-month newsletter ---------------- */
+
+  async function saveNewsletterSettings(patch: { autoEnabled?: boolean; pieceIds?: number[] }) {
+    const res = await fetch("/api/admin/newsletter/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      notify("Could not save the newsletter settings.");
+      return false;
+    }
+    return true;
+  }
+
+  async function handleSendNewsletter(force = false) {
+    setNewsletterSending(true);
+    setNewsletterNotice(null);
+    setNewsletterCadenceWarning(null);
+    try {
+      const res = await fetch("/api/admin/newsletter/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: newsletterSubject, pieceIds: newsletterPieceIds, force }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        sent?: number;
+        failed?: number;
+        recipients?: number;
+        pieces?: number;
+        detail?: string;
+        error?: string;
+      };
+      if (res.ok && data.ok) {
+        setNewsletterNotice(
+          `Mailing sent: ${data.sent} of ${data.recipients} subscribers received it (${data.pieces} pieces).`,
+        );
+        router.refresh();
+      } else if (res.status === 409) {
+        setNewsletterCadenceWarning(data.detail ?? "The 15-day cadence has not passed yet.");
+      } else {
+        setNewsletterNotice(data.detail ?? data.error ?? "The mailing could not be sent.");
+      }
+    } catch {
+      setNewsletterNotice("Connection error. The mailing was not sent.");
+    } finally {
+      setNewsletterSending(false);
     }
   }
 
@@ -932,7 +1003,7 @@ export function AdminDashboard({
           ((imp as { collections?: string[] }).collections?.filter((c) =>
             COLLECTIONS.some((x) => x.slug === c),
           ) ?? []) as string[],
-        lengthMm: imp.lengthMm || "",
+        lengthMm: imp.lengthMm || EMPTY_PRODUCT.lengthMm,
         locality: imp.locality || EMPTY_PRODUCT.locality,
         formation: imp.formation || "",
         preparation: imp.preparation || EMPTY_PRODUCT.preparation,
@@ -1015,7 +1086,7 @@ export function AdminDashboard({
           ((parsed as { collections?: string[] }).collections?.filter((c) =>
             COLLECTIONS.some((x) => x.slug === c),
           ) ?? []) as string[],
-        lengthMm: parsed.lengthMm || "",
+        lengthMm: parsed.lengthMm || EMPTY_PRODUCT.lengthMm,
         locality: parsed.locality || "Morocco",
         formation: parsed.formation || "",
         preparation: parsed.preparation || "Hand-prepared",
@@ -1240,7 +1311,7 @@ export function AdminDashboard({
         collections: ((imp as { collections?: string[] }).collections ?? []).filter((c) =>
           COLLECTIONS.some((x) => x.slug === c),
         ),
-        lengthMm: imp.lengthMm || "",
+        lengthMm: imp.lengthMm || EMPTY_PRODUCT.lengthMm,
         locality: imp.locality || EMPTY_PRODUCT.locality,
         formation: imp.formation || "",
         preparation: imp.preparation || EMPTY_PRODUCT.preparation,
@@ -1285,13 +1356,13 @@ export function AdminDashboard({
   function copyForMarketplace() {
     if (!editing) return;
     const copy = [
-      `Title: ${editing.name} — ${editing.species}${editing.lengthMm ? ` — ${editing.lengthMm} mm` : ""}`,
+      `Title: ${editing.name} — ${editing.species}${editing.lengthMm ? ` — ${editing.lengthMm}` : ""}`,
       "",
       `Scientific name: ${editing.species}`,
       editing.period ? `Geological period: ${editing.period}` : "",
       editing.locality ? `Locality: ${editing.locality}` : "",
       editing.formation ? `Formation: ${editing.formation}` : "",
-      editing.lengthMm ? `Dimensions: ${editing.lengthMm} mm` : "",
+      editing.lengthMm ? `Dimensions: ${editing.lengthMm}` : "",
       editing.preparation ? `Preparation: ${editing.preparation}` : "",
       "",
       "Description:",
@@ -1395,8 +1466,10 @@ export function AdminDashboard({
     }
   }
 
+  /* 16px on touch screens so iOS does not auto-zoom the editor; desktop
+     keeps the compact 14px density. */
   const inputClass =
-    "w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-sea focus:ring-2 focus:ring-sea/15";
+    "w-full rounded-sm border border-ink/20 bg-white px-3.5 py-2.5 text-[16px] md:text-sm text-ink outline-none focus:border-sea focus:ring-2 focus:ring-sea/15";
   const labelClass = "block text-[11px] uppercase tracking-[0.2em] text-ink/65 mb-1.5";
 
   // The specimen editor renders inline, directly under the row being edited,
@@ -1532,7 +1605,7 @@ export function AdminDashboard({
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="text-xs text-ink/65">
                       <span className="block">REF · collection reference (shown under the title)</span>
-                      <input value={editing.specimenReference} onChange={(e) => setEditing({ ...editing, specimenReference: e.target.value })} placeholder="PAIS9676 or 9676" className={`${inputClass} mt-1`} /></label>
+                      <input value={editing.specimenReference} onChange={(e) => setEditing({ ...editing, specimenReference: e.target.value })} placeholder="PAIS9600" className={`${inputClass} mt-1`} /></label>
                     <label className="text-xs text-ink/65">
                       <span className="block">Weight with box (g)</span>
                       <input value={editing.weightGrams} onChange={(e) => setEditing({ ...editing, weightGrams: e.target.value })} inputMode="numeric" placeholder="456" className={`${inputClass} mt-1`} /></label>
@@ -1642,12 +1715,12 @@ export function AdminDashboard({
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>Length (mm)</label>
+                  <label className={labelClass}>Dimensions (free text)</label>
                   <input
-                    type="number"
+                    type="text"
                     value={editing.lengthMm}
                     onChange={(e) => setEditing({ ...editing, lengthMm: e.target.value })}
-                    placeholder="e.g. 62"
+                    placeholder="Specimen: X.0 x X.0 cm; Matrix: X.0 x X.0 cm"
                     className={inputClass}
                   />
                 </div>
@@ -2552,8 +2625,9 @@ export function AdminDashboard({
                           <button
                             type="button"
                             onClick={() => {
+                              // Open the editor inline below this row. The page
+                              // must not move: no scrolling, no focus jump.
                               setEditing(toEditable(p));
-                              window.scrollTo({ top: 0, behavior: "smooth" });
                             }}
                             className="inline-flex items-center gap-1 rounded-full bg-ink px-3.5 py-1.5 text-[11px] uppercase tracking-[0.14em] text-parchment hover:bg-sea"
                           >
@@ -3154,14 +3228,13 @@ export function AdminDashboard({
 
       {/* TAB 4: NEWSLETTER */}
       {tab === "newsletter" && (
-        <div className="mt-10 space-y-4">
+        <div className="mt-10 space-y-8">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="font-display text-3xl text-ink">Newsletter subscribers</h2>
+              <h2 className="font-display text-3xl text-ink">Newsletter — twice a month</h2>
               <p className="mt-1 max-w-2xl text-sm text-ink/60">
-                Addresses collected by the public form in the footer and on the Shipping &amp; Returns page. The list
-                only grows — a deploy never removes anyone. Download it as CSV and send your mailings from Gmail,
-                Mailchimp or Brevo.
+                “Featured and New Pieces” goes to confirmed subscribers with the pieces inside the e-mail. Every
+                mailing carries a one-click unsubscribe. The list only grows — a deploy never removes anyone.
               </p>
             </div>
             <a
@@ -3172,13 +3245,222 @@ export function AdminDashboard({
             </a>
           </div>
 
+          {/* Cadence + send */}
+          <div className="rounded-sm border border-ink/10 bg-white/75 p-6">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
+              <p>
+                <span className="text-ink/60">Recipients: </span>
+                <strong className="text-ink">
+                  {subscribers.filter((s) => s.confirmed && !s.unsubscribedAt && s.segment === "all").length}
+                </strong>
+              </p>
+              <p>
+                <span className="text-ink/60">Last mailing: </span>
+                <strong className="text-ink">
+                  {initialNewsletter?.cadence.lastSentAt
+                    ? formatDate(initialNewsletter.cadence.lastSentAt)
+                    : "never"}
+                </strong>
+              </p>
+              <p>
+                <span className="text-ink/60">Cadence: </span>
+                <strong className="text-ink">
+                  {initialNewsletter?.cadence.daysSince === null || initialNewsletter?.cadence.daysSince === undefined
+                    ? "due now"
+                    : initialNewsletter.cadence.due
+                      ? `due now (${initialNewsletter.cadence.daysSince} days)`
+                      : `next in ${15 - (initialNewsletter.cadence.daysSince ?? 0)} days`}
+                </strong>
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+              <label className="block">
+                <span className={labelClass}>Subject</span>
+                <input
+                  type="text"
+                  value={newsletterSubject}
+                  onChange={(e) => setNewsletterSubject(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => handleSendNewsletter(false)}
+                disabled={newsletterSending}
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-sea disabled:opacity-50"
+              >
+                <Mail size={15} /> {newsletterSending ? "Sending…" : "Send now"}
+              </button>
+            </div>
+
+            {newsletterCadenceWarning && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-brass/50 bg-brass/15 px-4 py-3 text-sm">
+                <span>{newsletterCadenceWarning}</span>
+                <button
+                  type="button"
+                  onClick={() => handleSendNewsletter(true)}
+                  disabled={newsletterSending}
+                  className="rounded-full bg-ink px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-sea disabled:opacity-50"
+                >
+                  Send anyway
+                </button>
+              </div>
+            )}
+            {newsletterNotice && (
+              <p className="mt-4 rounded-sm bg-sea/10 px-4 py-3 text-sm text-sea">{newsletterNotice}</p>
+            )}
+
+            <label className="mt-5 flex cursor-pointer items-center gap-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={newsletterAuto}
+                onChange={async (e) => {
+                  const next = e.target.checked;
+                  setNewsletterAuto(next);
+                  await saveNewsletterSettings({ autoEnabled: next });
+                  notify(next ? "Automatic sending on: the daily check sends once 15 days have passed." : "Automatic sending off: mailings are manual.");
+                }}
+                className="h-4 w-4 accent-sea"
+              />
+              Automatic sending (daily check, every 15 days) — off by default
+            </label>
+          </div>
+
+          {/* Piece selection — mixed: automatic, with a manual override */}
+          {initialNewsletter && initialNewsletter.pieces.length > 0 && (
+            <div className="rounded-sm border border-ink/10 bg-white/75 p-6">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-2xl text-ink">Pieces in the next mailing</h3>
+                  <p className="mt-1 text-sm text-ink/60">
+                    Automatic selection: featured first, then the newest arrivals. Untick a piece to build a manual
+                    list; “Reset to automatic” clears the override.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (await saveNewsletterSettings({ pieceIds: newsletterPieceIds })) {
+                        notify("Piece selection saved.");
+                        router.refresh();
+                      }
+                    }}
+                    className="rounded-full bg-ink px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-parchment hover:bg-sea"
+                  >
+                    Save selection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setNewsletterPieceIds([]);
+                      if (await saveNewsletterSettings({ pieceIds: [] })) {
+                        notify("Back to automatic selection.");
+                        router.refresh();
+                      }
+                    }}
+                    className="rounded-full border border-ink/20 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-ink hover:border-ink"
+                  >
+                    Reset to automatic
+                  </button>
+                </div>
+              </div>
+              <ul className="mt-4 divide-y divide-ink/8">
+                {initialNewsletter.pieces.map((p) => {
+                  const checked =
+                    newsletterPieceIds.length === 0 ? true : newsletterPieceIds.includes(p.id);
+                  return (
+                    <li key={p.id}>
+                      <label className="flex cursor-pointer items-center gap-3 py-2.5 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const current =
+                              newsletterPieceIds.length === 0
+                                ? initialNewsletter.pieces.map((x) => x.id)
+                                : newsletterPieceIds;
+                            setNewsletterPieceIds(
+                              e.target.checked
+                                ? [...current, p.id]
+                                : current.filter((id) => id !== p.id),
+                            );
+                          }}
+                          className="h-4 w-4 accent-sea"
+                        />
+                        <span className="font-medium text-ink">{p.name}</span>
+                        <span className="text-xs text-ink/55">
+                          {[p.specimenReference, p.lengthMm].filter(Boolean).join(" · ")}
+                        </span>
+                        <span className="ml-auto text-xs text-ink/65">
+                          {p.listingChannel === "ebay"
+                            ? "Live on eBay"
+                            : p.listingChannel === "catawiki"
+                              ? "Live on Catawiki"
+                              : formatPrice(p.priceCents)}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Send log */}
+          {initialNewsletter && initialNewsletter.sends.length > 0 && (
+            <div className="overflow-x-auto rounded-sm border border-ink/10 bg-white/75">
+              <table className="w-full min-w-[620px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-ink/10 bg-bone/60 text-[11px] uppercase tracking-[0.18em] text-ink/70">
+                    <th scope="col" className="px-4 py-3 font-medium">Sent</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Subject</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Recipients</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Delivered</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Source</th>
+                    <th scope="col" className="px-4 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {initialNewsletter.sends.map((s) => (
+                    <tr key={s.id} className="border-b border-ink/8 last:border-0">
+                      <td className="px-4 py-3 text-ink/65">{formatDate(s.createdAt)}</td>
+                      <td className="px-4 py-3 text-ink">{s.subject}</td>
+                      <td className="px-4 py-3 text-ink/65">{s.recipientCount}</td>
+                      <td className="px-4 py-3 text-ink/65">
+                        {s.sentCount}
+                        {s.failedCount > 0 ? ` (${s.failedCount} failed)` : ""}
+                      </td>
+                      <td className="px-4 py-3 text-ink/65">{s.source}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] ${
+                            s.status === "sent"
+                              ? "bg-sea/10 text-sea"
+                              : s.status === "partial"
+                                ? "bg-brass/20 text-ink"
+                                : "bg-terracotta/15 text-terracotta"
+                          }`}
+                        >
+                          {s.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Subscribers */}
           {subscribers.length === 0 ? (
             <div className="rounded-sm border border-dashed border-ink/20 p-12 text-center text-sm text-ink/60">
               No subscribers yet. The sign-up form is live in the footer of the public shop.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-sm border border-ink/10 bg-white/75">
-              <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[620px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-ink/10 bg-bone/60 text-[11px] uppercase tracking-[0.18em] text-ink/70">
                     <th scope="col" className="px-4 py-3 font-medium">
@@ -3189,6 +3471,9 @@ export function AdminDashboard({
                     </th>
                     <th scope="col" className="px-4 py-3 font-medium">
                       Source
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Status
                     </th>
                     <th scope="col" className="px-4 py-3 text-right font-medium">
                       Action
@@ -3201,6 +3486,17 @@ export function AdminDashboard({
                       <td className="px-4 py-3 text-ink">{s.email}</td>
                       <td className="px-4 py-3 text-ink/65">{formatDate(s.createdAt)}</td>
                       <td className="px-4 py-3 text-ink/65">{s.source}</td>
+                      <td className="px-4 py-3">
+                        {s.unsubscribedAt ? (
+                          <span className="rounded-full bg-terracotta/15 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-terracotta">
+                            Unsubscribed
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-sea/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-sea">
+                            Subscribed
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"

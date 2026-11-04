@@ -65,7 +65,7 @@ export async function POST(request: Request) {
       ok: true,
       added,
       message: added
-        ? "You are on the list. New specimens and field notes, about once a month."
+        ? "You are on the list. New specimens and field notes, twice a month."
         : "That address is already on the list — thank you.",
     });
   } catch (error) {

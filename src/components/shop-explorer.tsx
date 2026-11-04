@@ -268,7 +268,8 @@ export function ShopExplorer({
 
         <div className="min-w-0">
           {/* Toolbar */}
-          <div className="sticky top-20 z-30 -mx-5 mb-8 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-parchment/90 px-5 py-4 backdrop-blur-xl lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+          {/* Sticks below the 120px mobile header (trust bar + nav). */}
+          <div className="sticky top-[7.5rem] z-30 -mx-5 mb-8 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-parchment/90 px-5 py-4 backdrop-blur-xl lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
             <label className="relative min-w-0 flex-1 sm:max-w-xs">
               <span className="sr-only">Search specimens</span>
               <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />

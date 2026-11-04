@@ -135,7 +135,7 @@ export function CartDrawer({ freeShipping = true }: { freeShipping?: boolean }) 
                                 onClick={() => setQuantity(item.slug, item.quantity - 1)}
                                 disabled={item.quantity <= 1}
                                 aria-label="Decrease quantity"
-                                className="grid h-8 w-8 place-items-center rounded-full disabled:opacity-30"
+                                className="grid h-9 w-9 place-items-center rounded-full disabled:opacity-30"
                               >
                                 <Minus size={13} />
                               </button>
@@ -145,7 +145,7 @@ export function CartDrawer({ freeShipping = true }: { freeShipping?: boolean }) 
                                 onClick={() => setQuantity(item.slug, item.quantity + 1)}
                                 disabled={item.quantity >= item.maxQuantity}
                                 aria-label="Increase quantity"
-                                className="grid h-8 w-8 place-items-center rounded-full disabled:opacity-30"
+                                className="grid h-9 w-9 place-items-center rounded-full disabled:opacity-30"
                               >
                                 <Plus size={13} />
                               </button>

@@ -40,7 +40,8 @@ export const products = pgTable("products", {
   period: text("period"), // Ordovician | Devonian
   locality: text("locality").notNull(),
   formation: text("formation"),
-  lengthMm: integer("length_mm"),
+  /** Free-text dimensions, exactly as the curator wrote them (e.g. "Specimen: 8.7 x 9.0 cm"). Bare numbers are legacy millimetres. */
+  lengthMm: text("length_mm"),
   /** Weight of the specimen with its protective box, in grams. */
   weightGrams: integer("weight_grams"),
   preparation: text("preparation").notNull(),
@@ -185,6 +186,41 @@ export const newsletterSubscribers = pgTable("newsletter_subscribers", {
   source: text("source").notNull().default("footer"),
   /** Reserved for a future double opt-in; today a sign-up is confirmed on the spot. */
   confirmed: boolean("confirmed").notNull().default(true),
+  /** Subscriber group for future segmented sends. Today every send uses "all". */
+  segment: text("segment").notNull().default("all"),
+  /** Personal one-click unsubscribe token, generated lazily on first send. */
+  unsubscribeToken: text("unsubscribe_token"),
+  /** Set when the reader unsubscribes; the row is kept for the send history. */
+  unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One row: how the twice-a-month mailing behaves (automatic or manual). */
+export const newsletterSettings = pgTable("newsletter_settings", {
+  id: integer("id").primaryKey().default(1),
+  /** When on, the daily cron sends once 15 days have passed since the last send. */
+  autoEnabled: boolean("auto_enabled").notNull().default(false),
+  /** Manual piece override (product ids). Empty = automatic selection. */
+  pieceIds: jsonb("piece_ids").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One row per mailing. Append-only: the log is the proof of what was sent,
+ * to whom and when, and it drives the 15-day cadence.
+ */
+export const newsletterSends = pgTable("newsletter_sends", {
+  id: serial("id").primaryKey(),
+  subject: text("subject").notNull(),
+  pieceIds: jsonb("piece_ids").$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  sentCount: integer("sent_count").notNull().default(0),
+  failedCount: integer("failed_count").notNull().default(0),
+  /** "sent" | "partial" | "failed" | "skipped" */
+  status: text("status").notNull(),
+  detail: text("detail"),
+  /** "manual" (admin button) | "cron" (automatic) */
+  source: text("source").notNull().default("manual"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -285,7 +285,7 @@ export default async function HomePage() {
       </section>
 
       {/* Collections */}
-      <section className="mx-auto max-w-7xl px-5 py-28 lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-16 md:py-28 lg:px-8">
         <Reveal>
           <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.collections.eyebrow}</p>
           <h2 className="mt-4 max-w-2xl font-display text-5xl leading-[1.02] text-ink md:text-6xl">
@@ -330,7 +330,7 @@ export default async function HomePage() {
       </section>
 
       {/* Featured */}
-      <section className="bg-bone/50 py-28">
+      <section className="bg-bone/50 py-16 md:py-28">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
@@ -359,7 +359,7 @@ export default async function HomePage() {
       </section>
 
       {/* Provenance & 23 Years Reputation */}
-      <section id="provenance" className="scroll-mt-24 mx-auto max-w-7xl px-5 py-28 lg:px-8">
+      <section id="provenance" className="scroll-mt-24 mx-auto max-w-7xl px-5 py-16 md:py-28 lg:px-8">
         <div className="grid items-center gap-16 lg:grid-cols-2">
           <Reveal>
             <div className="relative">
@@ -461,7 +461,7 @@ export default async function HomePage() {
 
       {/* Testimonials (only genuine client reviews) */}
       {testimonials.length > 0 && (
-      <section className="bg-midnight py-28 text-parchment">
+      <section className="bg-midnight py-16 md:py-28 text-parchment">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal>
             <p className="text-center text-[11px] uppercase tracking-[0.32em] text-brass">
@@ -511,7 +511,8 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Two columns on desktop keep WhatsApp directly below Instagram. */}
+          <div className="mt-12 grid gap-4 sm:grid-cols-2">
             <a
               href={settings.ebayUrl}
               target="_blank"
@@ -610,7 +611,7 @@ export default async function HomePage() {
       </section>
 
       {/* Closing CTA */}
-      <section className="mx-auto max-w-7xl px-5 py-28 text-center lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-16 md:py-28 text-center lg:px-8">
         <Reveal>
           <div className="hairline mx-auto mb-12 w-40" />
           <h2 className="mx-auto max-w-3xl font-display text-5xl leading-[1.02] text-ink md:text-7xl">

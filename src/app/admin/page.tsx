@@ -8,6 +8,12 @@ import {
   getSiteContent,
   getSiteSettings,
 } from "@/lib/catalog";
+import {
+  getNewsletterCadence,
+  getNewsletterSends,
+  getNewsletterSettings,
+  selectNewsletterPieces,
+} from "@/lib/newsletter-send";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +32,12 @@ export default async function AdminPage() {
     getNewsletterSubscribers(2000),
     getSiteContent(),
   ]);
+  const [nlSends, nlSettings, cadence] = await Promise.all([
+    getNewsletterSends(20),
+    getNewsletterSettings(),
+    getNewsletterCadence(),
+  ]);
+  const newsletterPieces = selectNewsletterPieces(products, nlSettings.pieceIds);
 
   return (
     <AdminGate
@@ -36,6 +48,12 @@ export default async function AdminPage() {
       orders={orders}
       subscribers={subscribers}
       content={content}
+      newsletter={{
+        sends: nlSends,
+        settings: nlSettings,
+        cadence,
+        pieces: newsletterPieces,
+      }}
     />
   );
 }

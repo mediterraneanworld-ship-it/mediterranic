@@ -127,7 +127,7 @@ async function importNewListing(listing: RemoteListing, signal: AbortSignal) {
       slug, name: parsed.name || listing.title, species: parsed.species || "Moroccan trilobite", category: "specimen",
       collection: parsed.collection, collections: parsed.collections, period: parsed.period || null,
       locality: parsed.locality || "Morocco", formation: parsed.formation || null,
-      lengthMm: Number(parsed.lengthMm) > 0 ? Math.round(Number(parsed.lengthMm)) : null,
+      lengthMm: parsed.lengthMm ? String(parsed.lengthMm).trim() : null,
       preparation: parsed.preparation || "See the listing description", priceCents: listing.priceCents ?? 0,
       stock: 1, featured: false, published: canPublish, archived: false, listingChannel: listing.channel,
       marketplaceActive: true, marketplaceCheckedAt: new Date(),

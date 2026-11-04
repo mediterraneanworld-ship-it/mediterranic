@@ -12,7 +12,7 @@ export function NewsletterForm({
   tone = "dark",
   source = "footer",
   title = "Field notes",
-  copy = "New specimens, preparation stories and auction dates. About once a month, never more.",
+  copy = "New specimens, preparation stories and auction dates. Twice a month, never more.",
 }: {
   tone?: "dark" | "light";
   source?: string;

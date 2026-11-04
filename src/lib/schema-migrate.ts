@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "products" (
 	"period" text,
 	"locality" text NOT NULL,
 	"formation" text,
-	"length_mm" integer,
+	"length_mm" text,
 	"preparation" text NOT NULL,
 	"price_cents" integer NOT NULL,
 	"compare_at_cents" integer,
@@ -221,6 +221,39 @@ ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "tracking_sent_at" timestamp with 
 
 CREATE UNIQUE INDEX IF NOT EXISTS "order_notifications_order_event"
   ON "order_notifications" ("order_id", "event");
+
+-- Dimensions are free text now ("Specimen: 8.7 x 9.0 cm"), not a millimetre
+-- number. The cast keeps every existing value ("62" stays "62"); running it
+-- again on a text column is a no-op, so this stays idempotent.
+ALTER TABLE "products" ALTER COLUMN "length_mm" TYPE text USING "length_mm"::text;
+
+-- Twice-a-month newsletter: unsubscribe + segments on the existing list.
+-- New columns only; every existing subscriber row is left untouched.
+ALTER TABLE "newsletter_subscribers" ADD COLUMN IF NOT EXISTS "segment" text DEFAULT 'all' NOT NULL;
+ALTER TABLE "newsletter_subscribers" ADD COLUMN IF NOT EXISTS "unsubscribe_token" text;
+ALTER TABLE "newsletter_subscribers" ADD COLUMN IF NOT EXISTS "unsubscribed_at" timestamp with time zone;
+
+-- One-row mailing behaviour (automatic on/off + manual piece override).
+CREATE TABLE IF NOT EXISTS "newsletter_settings" (
+  "id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
+  "auto_enabled" boolean DEFAULT false NOT NULL,
+  "piece_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Append-only log of every mailing (drives the 15-day cadence).
+CREATE TABLE IF NOT EXISTS "newsletter_sends" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "subject" text NOT NULL,
+  "piece_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "recipient_count" integer DEFAULT 0 NOT NULL,
+  "sent_count" integer DEFAULT 0 NOT NULL,
+  "failed_count" integer DEFAULT 0 NOT NULL,
+  "status" text NOT NULL,
+  "detail" text,
+  "source" text DEFAULT 'manual' NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
 
 `;
 

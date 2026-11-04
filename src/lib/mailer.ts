@@ -55,6 +55,8 @@ export async function sendMail(input: {
   text: string;
   html: string;
   replyTo?: string;
+  /** Extra headers, e.g. List-Unsubscribe on marketing mail. */
+  headers?: Record<string, string>;
 }): Promise<SendResult> {
   const transport = mailTransport();
   if (!transport) {
@@ -77,6 +79,7 @@ export async function sendMail(input: {
           text: input.text,
           html: input.html,
           ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+          ...(input.headers ? { headers: input.headers } : {}),
         }),
         signal: AbortSignal.timeout(15_000),
       });
@@ -103,6 +106,7 @@ export async function sendMail(input: {
         textContent: input.text,
         htmlContent: input.html,
         ...(input.replyTo ? { replyTo: { email: input.replyTo } } : {}),
+        ...(input.headers ? { headers: input.headers } : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     });

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { BackToTop } from "@/components/back-to-top";
 import { CartDrawer } from "@/components/cart-drawer";
 import { MotionProvider } from "@/components/motion-provider";
 import { SiteFooter } from "@/components/site-footer";
@@ -69,9 +70,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="min-h-svh bg-parchment font-sans text-ink antialiased">
         <MotionProvider>
           <SiteHeader content={content.header} />
-          <main className="min-h-[70svh]">{children}</main>
+          <main id="main-content" tabIndex={-1} className="min-h-[70svh] focus:outline-none">
+            {children}
+          </main>
           <SiteFooter />
           <CartDrawer freeShipping={content.commerce.freeShipping} />
+          <BackToTop />
           {usesStatcounter && <SiteAnalytics project={project} security={security} enabled={content.analytics.enabled} />}
         </MotionProvider>
         {content.analytics.enabled && !usesStatcounter && customAnalytics !== "" && (

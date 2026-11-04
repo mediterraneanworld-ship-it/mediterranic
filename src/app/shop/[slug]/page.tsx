@@ -70,6 +70,17 @@ function RefDot() {
 }
 
 /**
+ * Dimensions are free text, exactly as the curator wrote them
+ * ("Specimen: 8.7 x 9.0 cm · Matrix: 17 x 10.2 cm"). Bare numbers are legacy
+ * millimetre values and keep their " mm" suffix.
+ */
+function formatDimensions(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  return /^\d+(?:[.,]\d+)?$/.test(text) ? `${text} mm` : text;
+}
+
+/**
  * The collection reference sits directly under the title: PAIS9676 · 46x56 mm · 456g.
  * It is the number the same piece keeps on every platform, so customers and the
  * back-office can recognise it without relying on a name or a photograph.
@@ -80,10 +91,11 @@ function SpecimenReference({
   weightGrams,
 }: {
   reference: string | null;
-  lengthMm: number | null;
+  lengthMm: string | null;
   weightGrams: number | null;
 }) {
-  if (!reference && !lengthMm && !weightGrams) return null;
+  const dimensions = formatDimensions(lengthMm);
+  if (!reference && !dimensions && !weightGrams) return null;
   return (
     <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink/65">
       {reference && (
@@ -91,9 +103,9 @@ function SpecimenReference({
           {reference}
         </span>
       )}
-      {reference && lengthMm && <RefDot />}
-      {lengthMm && <span>{lengthMm} mm</span>}
-      {lengthMm && weightGrams && <RefDot />}
+      {reference && dimensions && <RefDot />}
+      {dimensions && <span>{dimensions}</span>}
+      {dimensions && weightGrams && <RefDot />}
       {weightGrams && <span>{weightGrams} g</span>}
     </p>
   );
@@ -191,7 +203,7 @@ export default async function ProductPage({ params }: Props) {
     ["Period", product.period],
     ["Formation", product.formation],
     ["Locality", product.locality],
-    ["Length", product.lengthMm ? `${product.lengthMm} mm` : null],
+    ["Dimensions", formatDimensions(product.lengthMm)],
     ["Weight", product.weightGrams ? `${product.weightGrams} g` : null],
     ["Preparation", product.preparation],
   ];
@@ -258,12 +270,14 @@ export default async function ProductPage({ params }: Props) {
       </nav>
 
       <div className="mt-10 grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
-        <div className="lg:sticky lg:top-28 lg:self-start space-y-6">
+        {/* min-w-0: the thumbnail strip's max-content must never widen the
+            column past the phone screen. */}
+        <div className="min-w-0 lg:sticky lg:top-28 lg:self-start space-y-6">
           <ProductGallery images={product.images} name={product.name} />
           {video && <SpecimenVideo video={video} name={product.name} />}
         </div>
 
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.3em] text-brass">
             {productCollections.map((slug) => getCollection(slug)?.title).filter(Boolean).join(" · ")}
             {product.period ? ` · ${product.period}` : ""}
@@ -283,18 +297,14 @@ export default async function ProductPage({ params }: Props) {
             soldOut={product.stock <= 0}
           />
 
-          <a href="#reviews" className="mt-6 inline-flex items-center gap-3 text-sm text-ink/70 transition hover:text-ink">
-            {totalReviews > 0 ? (
-              <>
-                <StarRating rating={product.rating} size={16} />
-                <span>
-                  {product.rating.toFixed(1)} · {totalReviews} {totalReviews === 1 ? "review" : "reviews"}
-                </span>
-              </>
-            ) : (
-              <span>Be the first to review this specimen</span>
-            )}
-          </a>
+          {totalReviews > 0 && (
+            <a href="#reviews" className="mt-6 inline-flex items-center gap-3 text-sm text-ink/70 transition hover:text-ink">
+              <StarRating rating={product.rating} size={16} />
+              <span>
+                {product.rating.toFixed(1)} · {totalReviews} {totalReviews === 1 ? "review" : "reviews"}
+              </span>
+            </a>
+          )}
 
           <div className="mt-8 flex flex-wrap items-baseline gap-x-4 gap-y-2 border-t border-ink/10 pt-8">
             {product.stock <= 0 ? (
@@ -377,7 +387,7 @@ export default async function ProductPage({ params }: Props) {
       </div>
 
       {/* Story & provenance */}
-      <section className="mt-32 grid gap-16 border-t border-ink/10 pt-20 lg:grid-cols-2">
+      <section className="mt-20 lg:mt-32 grid gap-10 lg:gap-16 border-t border-ink/10 pt-14 lg:pt-20 lg:grid-cols-2">
         <div>
           <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{copy.descriptionTitle}</p>
           <h2 className="mt-4 font-display text-4xl leading-tight text-ink md:text-5xl">About this piece</h2>
@@ -398,7 +408,7 @@ export default async function ProductPage({ params }: Props) {
       </section>
 
       {/* Reviews */}
-      <section id="reviews" className="mt-32 scroll-mt-28 border-t border-ink/10 pt-20">
+      <section id="reviews" className="mt-20 lg:mt-32 scroll-mt-28 border-t border-ink/10 pt-14 lg:pt-20">
         <div className="grid gap-16 lg:grid-cols-[360px_1fr]">
           <aside className="space-y-10 lg:sticky lg:top-28 lg:self-start">
             <div>
@@ -443,7 +453,7 @@ export default async function ProductPage({ params }: Props) {
           <div>
             {reviews.length === 0 ? (
               <div className="rounded-sm border border-dashed border-ink/20 p-10 text-center text-ink/60">
-                Be the first collector to share a review of {product.name}.
+                No reviews yet for this specimen.
               </div>
             ) : (
               <ul className="divide-y divide-ink/10">
@@ -477,7 +487,7 @@ export default async function ProductPage({ params }: Props) {
 
       {/* Related */}
       {related.length > 0 && (
-        <section className="mt-32 border-t border-ink/10 pt-20">
+        <section className="mt-20 lg:mt-32 border-t border-ink/10 pt-14 lg:pt-20">
           <div className="mb-12 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="text-[11px] uppercase tracking-[0.3em] text-brass">Pairs well with</p>

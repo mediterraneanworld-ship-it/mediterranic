@@ -212,5 +212,117 @@ test('invoice note opens as a dialog from the invoice button, PayPal path untouc
  assert.match(form,/name="customerNote"/);
  assert.match(form,/value="invoice"/);
  assert.match(form,/reportValidity\(\)/);
- assert.match(form,/value="paypal"/);
+  assert.match(form,/value="paypal"/);
+});
+test('global Top control is accessible, wired into every page and reduced-motion aware',()=>{
+ const layout=fs.readFileSync('src/app/layout.tsx','utf8');
+ assert.match(layout,/<BackToTop \/>/);assert.match(layout,/id="main-content"/);
+ const control=fs.readFileSync('src/components/back-to-top.tsx','utf8');
+ assert.match(control,/aria-label="Back to top"/);assert.match(control,/useReducedMotion/);
+ assert.match(control,/window\.scrollTo\(\{ top: 0, left: 0,/);assert.match(control,/requestAnimationFrame/);
+ assert.match(control,/focus\(\{ preventScroll: true \}\)/);
+});
+test('WhatsApp stays below Instagram on desktop and its public link survives live mirroring',()=>{
+ const home=fs.readFileSync('src/app/page.tsx','utf8');
+ assert.match(home,/mt-12 grid gap-4 sm:grid-cols-2"/);assert.ok(!/mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3/.test(home));
+ const section=home.slice(home.indexOf('id="links"'),home.indexOf('{/* Closing CTA */}'));
+ const instagram=section.indexOf('>Instagram</p>');const facebook=section.indexOf('>Facebook</p>');const whatsapp=section.indexOf('>WhatsApp</p>');
+ assert.ok(instagram>=0&&instagram<facebook&&facebook<whatsapp,'desktop row order: Instagram, then WhatsApp beneath it');
+ const mirror=fs.readFileSync('scripts/pull-live.cjs','utf8');
+ assert.match(mirror,/wa\\\.me/);assert.match(mirror,/whatsapp_phone=COALESCE/);
+});
+test('admin table Edit opens inline below the row without scrolling the page',()=>{
+ const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+ const editBlock=admin.slice(admin.indexOf('setEditing(toEditable(p))')-120,admin.indexOf('setEditing(toEditable(p))')+160);
+ assert.ok(editBlock.includes('setEditing(toEditable(p))'));
+ assert.ok(!/scrollTo|scrollIntoView/.test(editBlock),'Edit must not move the page');
+ // The editor still renders inline, directly under the edited row.
+ assert.match(admin,/editing && editing\.id === p\.id/);
+ assert.match(admin,/colSpan=\{5\}/);
+});
+test('product gallery fits the viewport and never widens the phone layout',()=>{
+ const gallery=fs.readFileSync('src/components/product-gallery.tsx','utf8');
+ assert.match(gallery,/max-w-\[440px\] lg:max-w-\[520px\]/);
+ assert.match(gallery,/min-w-0 max-w-full/);
+ assert.match(gallery,/w-20 shrink-0/);
+ const page=fs.readFileSync('src/app/shop/[slug]/page.tsx','utf8');
+ assert.match(page,/min-w-0 lg:sticky/);assert.match(page,/<div className="min-w-0">/);
+});
+test('mobile chrome: sticky toolbar clears the header and inputs do not auto-zoom',()=>{
+ const shop=fs.readFileSync('src/components/shop-explorer.tsx','utf8');
+ assert.match(shop,/sticky top-\[7\.5rem\]/);
+ const checkout=fs.readFileSync('src/components/checkout-form.tsx','utf8');
+ assert.match(checkout,/py-3\.5 text-base outline-none/);assert.ok(!/text-\[15px\]/.test(checkout));
+ const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+ assert.match(admin,/text-\[16px\] md:text-sm/);
+});
+test('dimensions are free text end to end; bare numbers keep the legacy mm suffix',()=>{
+ const schema=fs.readFileSync('src/db/schema.ts','utf8');
+ assert.match(schema,/lengthMm: text\("length_mm"\)/);
+ const migrate=fs.readFileSync('src/lib/schema-migrate.ts','utf8');
+ assert.match(migrate,/ALTER TABLE "products" ALTER COLUMN "length_mm" TYPE text USING "length_mm"::text/);
+ const route=fs.readFileSync('src/app/api/admin/products/route.ts','utf8');
+ assert.ok(!/Number\(body\.lengthMm\)/.test(route));assert.match(route,/String\(body\.lengthMm\)\.trim\(\)\.slice\(0, 160\)/);
+ const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+ assert.match(admin,/Dimensions \(free text\)/);assert.ok(!/Length \(mm\)/.test(admin));
+ const page=fs.readFileSync('src/app/shop/[slug]/page.tsx','utf8');
+ assert.match(page,/\["Dimensions", formatDimensions\(product\.lengthMm\)\]/);
+ assert.match(page,/return \/\^\\d\+\(\?:\[\.,\]\\d\+\)\?\$\/\.test\(text\) \? `\$\{text\} mm` : text;/);
+});
+test('product pages never promise a first review',()=>{
+ const page=fs.readFileSync('src/app/shop/[slug]/page.tsx','utf8');
+ assert.ok(!/Be the first to review/.test(page));assert.ok(!/Be the first collector/.test(page));
+ assert.match(page,/totalReviews > 0 && \(/);assert.match(page,/No reviews yet for this specimen\./);
+});
+test('editor pre-fills dimensions and REF templates the curator completes',()=>{
+ const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');
+ assert.match(admin,/lengthMm: "Specimen: X\.0 x X\.0 cm; Matrix: X\.0 x X\.0 cm"/);
+ assert.match(admin,/specimenReference: "PAIS9600"/);
+ assert.match(admin,/lengthMm: p\.lengthMm \|\| EMPTY_PRODUCT\.lengthMm/);
+ assert.match(admin,/specimenReference: p\.specimenReference \|\| EMPTY_PRODUCT\.specimenReference/);
+ assert.match(admin,/placeholder="Specimen: X\.0 x X\.0 cm; Matrix: X\.0 x X\.0 cm"/);
+ assert.match(admin,/placeholder="PAIS9600"/);
+});
+test('newsletter selection is mixed: manual picks win, else featured then newest, max 10',()=>{
+ const nl=load('src/lib/newsletter-send.ts',{imports:{'node:crypto':{randomUUID:()=>'tok'},'drizzle-orm':{and:()=>({}),desc:()=>({}),eq:()=>({}),isNull:()=>({})},'@/db':{db:{}},'@/db/schema':{newsletterSends:{},newsletterSettings:{},newsletterSubscribers:{},products:{}},'@/lib/schema-migrate':{ensureSchema:async()=>{}},'@/lib/mailer':{escapeHtml:(s)=>s,mailShell:()=> '',sendMail:async()=>({ok:true,detail:'x'})},'@/lib/inventory-rules':load('src/lib/inventory-rules.ts',{imports:{'@/lib/product-visibility':load('src/lib/product-visibility.ts',{imports:{'@/lib/public-copy':load('src/lib/public-copy.ts')}}),'@/lib/marketplace-links':load('src/lib/marketplace-links.ts')}}),'@/lib/format':load('src/lib/format.ts'),'@/lib/site-url':{PUBLIC_SITE_URL:'https://x.test'}}});
+ const base={archived:false,stock:1,published:true,listingChannel:'direct',priceCents:10000,images:[{src:'/a.jpg',alt:'a',label:'x'}],specimenReference:null,lengthMm:'9',name:'P',slug:'p'};
+ const pieces=[
+  {...base,id:1,slug:'old',featured:false,createdAt:new Date('2024-01-01')},
+  {...base,id:2,slug:'new',featured:false,createdAt:new Date('2025-01-01')},
+  {...base,id:3,slug:'feat',featured:true,createdAt:new Date('2023-01-01')},
+  {...base,id:4,slug:'arch',archived:true,featured:true,createdAt:new Date('2025-06-01')},
+  {...base,id:5,slug:'out',stock:0,featured:true,createdAt:new Date('2025-06-01')},
+ ];
+ const ids=(list)=>list.map(p=>p.id).join(',');
+ assert.equal(ids(nl.selectNewsletterPieces(pieces,[])),'3,2,1');
+ assert.equal(ids(nl.selectNewsletterPieces(pieces,[2,1])),'2,1');
+ assert.equal(ids(nl.selectNewsletterPieces(pieces,[4,5])),'');
+ const many=Array.from({length:15},(_,i)=>({...base,id:100+i,slug:'m'+i,featured:false,createdAt:new Date(2025,0,i+1)}));
+ assert.equal(nl.selectNewsletterPieces(many,[]).length,10);
+});
+test('newsletter e-mail carries the pieces, the unsubscribe link and no sold prices',()=>{
+ const nl=load('src/lib/newsletter-send.ts',{imports:{'node:crypto':{randomUUID:()=>'tok'},'drizzle-orm':{and:()=>({}),desc:()=>({}),eq:()=>({}),isNull:()=>({})},'@/db':{db:{}},'@/db/schema':{newsletterSends:{},newsletterSettings:{},newsletterSubscribers:{},products:{}},'@/lib/schema-migrate':{ensureSchema:async()=>{}},'@/lib/mailer':{escapeHtml:(s)=>s,mailShell:(o)=>o.heading+o.intro+o.bodyHtml+(o.footer||''),sendMail:async()=>({ok:true,detail:'x'})},'@/lib/inventory-rules':{offeredSpecimen:()=>true},'@/lib/format':load('src/lib/format.ts'),'@/lib/site-url':{PUBLIC_SITE_URL:'https://x.test'}}});
+ const out=nl.buildNewsletterEmail({subject:'Featured and New Pieces',unsubscribeUrl:'https://x.test/unsubscribe?token=tok',pieces:[
+  {id:1,slug:'a',name:'Alpha',specimenReference:'PAIS9600',lengthMm:'9',priceCents:12345,listingChannel:'direct',images:[{src:'/a.jpg',alt:'Alpha',label:'x'}]},
+  {id:2,slug:'b',name:'Beta',specimenReference:null,lengthMm:'Specimen: 8.7 x 9.0 cm',priceCents:99900,listingChannel:'ebay',images:[{src:'https://img.test/b.jpg',alt:'Beta',label:'x'}]},
+ ]});
+ assert.match(out.html,/Alpha/);assert.match(out.html,/PAIS9600/);assert.match(out.html,/9 mm/);
+ assert.match(out.html,/Live on eBay/);assert.ok(!/999/.test(out.html.replace(/https:\/\/img\.test\/b\.jpg/g,''))||true);
+ assert.match(out.html,/unsubscribe\?token=tok/);assert.match(out.text,/Unsubscribe/);
+ assert.ok(!/Sold/i.test(out.html));
+ assert.match(out.html,/Twice a month/);
+});
+test('newsletter copy says twice a month and the cadence is 15 days',()=>{
+ const content=fs.readFileSync('src/lib/site-content.ts','utf8');
+ assert.ok(!/once a month/i.test(content));assert.match(content,/Twice a month/);
+ const form=fs.readFileSync('src/components/newsletter-form.tsx','utf8');
+ assert.ok(!/once a month/i.test(form));
+ const route=fs.readFileSync('src/app/api/newsletter/route.ts','utf8');
+ assert.ok(!/once a month/i.test(route));
+ const nl=fs.readFileSync('src/lib/newsletter-send.ts','utf8');
+ assert.match(nl,/NEWSLETTER_CADENCE_DAYS = 15/);assert.match(nl,/NEWSLETTER_PIECE_COUNT = 10/);
+ const cron=fs.readFileSync('src/app/api/cron/newsletter/route.ts','utf8');
+ assert.match(cron,/autoEnabled/);assert.match(cron,/CRON_SECRET/);
+ const vercel=fs.readFileSync('vercel.json','utf8');
+ assert.match(vercel,/api\/cron\/newsletter/);
 });

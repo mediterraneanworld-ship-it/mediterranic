@@ -127,8 +127,13 @@ export async function POST(request: Request) {
     const collection = collections[0] || str(body.collection ?? existing?.collection) || "devonian-crown";
     const desiredSlug = existing?.slug && body.slug === undefined ? existing.slug : slugify(str(body.slug) || `${species}-${name}`) || `specimen-${Date.now()}`;
     const finalSlug = !existing && all.some((row) => row.slug === desiredSlug) ? `${desiredSlug}-${Date.now()}` : desiredSlug;
-    const lengthMm = body.lengthMm === undefined ? existing?.lengthMm ?? null : body.lengthMm === "" ? null : Number(body.lengthMm);
-    if (lengthMm !== null && (!Number.isFinite(lengthMm) || lengthMm < 0)) throw new MarketplaceError("Invalid specimen length.", 400);
+    // Dimensions are free text ("Specimen: 8.7 x 9.0 cm"); only the length is bounded.
+    const lengthMm =
+      body.lengthMm === undefined
+        ? existing?.lengthMm ?? null
+        : body.lengthMm === ""
+          ? null
+          : String(body.lengthMm).trim().slice(0, 160) || null;
     const weightGrams = body.weightGrams === undefined ? existing?.weightGrams ?? null : body.weightGrams === "" ? null : Number(body.weightGrams);
     if (weightGrams !== null && (!Number.isFinite(weightGrams) || weightGrams < 0 || weightGrams > 1_000_000)) {
       throw new MarketplaceError("Enter a valid weight in grams.", 400);
@@ -139,7 +144,7 @@ export async function POST(request: Request) {
       period: str(body.period ?? existing?.period) || null,
       locality: str(body.locality ?? existing?.locality) || "Morocco",
       formation: str(body.formation ?? existing?.formation) || null,
-      lengthMm: lengthMm === null ? null : Math.round(lengthMm),
+      lengthMm,
       weightGrams: weightGrams === null ? null : Math.round(weightGrams),
       preparation: str(body.preparation ?? existing?.preparation) || "Hand-prepared, documented",
       priceCents, compareAtCents, siteOnlyPriceCents, stock, published, archived,

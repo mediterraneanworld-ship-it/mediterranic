@@ -1,0 +1,133 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Clock, ExternalLink, RefreshCw, X } from "lucide-react";
+import { StarRating } from "@/components/star-rating";
+import type { ReviewModerationStatus } from "@/lib/review-moderation";
+
+type Filter = ReviewModerationStatus | "all";
+type ReviewEntry = {
+  id: number; authorName: string; authorCountry: string; rating: number;
+  title: string; body: string; productName: string; productSlug: string;
+  moderationStatus: ReviewModerationStatus; moderatedAt: string | null;
+  createdAt: string; verifiedPurchase: boolean;
+};
+type Queue = { reviews: ReviewEntry[]; counts: Record<Filter, number>; total: number; page: number; pageSize: number };
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "pending", label: "Pending" }, { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" }, { id: "all", label: "All" },
+];
+
+export function AdminReviewModeration() {
+  const [filter, setFilter] = useState<Filter>("pending");
+  const [page, setPage] = useState(1);
+  const [queue, setQueue] = useState<Queue | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const request = useRef<AbortController | null>(null);
+
+  const load = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/reviews?status=${filter}&page=${page}`, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error("Could not load reviews. Please sign in again or retry.");
+      const data = await response.json() as Queue;
+      if (!controller.signal.aborted) {
+        setQueue(data);
+        const lastPage = Math.max(1, Math.ceil(data.total / data.pageSize));
+        if (page > lastPage) setPage(lastPage);
+      }
+    } catch (failure) {
+      if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Could not load reviews.");
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, [filter, page]);
+
+  useEffect(() => {
+    void load();
+    return () => request.current?.abort();
+  }, [load]);
+
+  async function moderate(id: number, status: ReviewModerationStatus) {
+    setBusy(id); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/reviews", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }),
+      });
+      if (!response.ok) throw new Error("Could not confirm the moderation change. Refresh the queue before retrying.");
+      await load();
+      setNotice(status === "approved" ? "Review approved. It is now public and included in the ratings."
+        : status === "rejected" ? "Review rejected and hidden from the public site. The record is kept."
+        : "Review returned to pending and hidden until approval.");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not confirm the change.");
+    } finally { setBusy(null); }
+  }
+
+  const pages = Math.max(1, Math.ceil((queue?.total ?? 0) / (queue?.pageSize ?? 20)));
+  return (
+    <section className="mt-10 space-y-6" aria-label="Review moderation">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.2em] text-brass">Owners &amp; visitors</p>
+          <h2 className="mt-2 font-display text-3xl text-ink">Review moderation</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/65">New comments stay private until you approve them. Only approved reviews count towards public ratings. Previously published reviews remain visible unless you change their status. Rejection hides a review; it never deletes it.</p>
+        </div>
+        <button type="button" onClick={() => void load()} disabled={loading || busy !== null} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs text-ink hover:border-sea disabled:opacity-50">
+          <RefreshCw size={14} aria-hidden="true" className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Refresh
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2" aria-label="Review filters">
+        {FILTERS.map(({ id, label }) => <button key={id} type="button" aria-pressed={filter === id} disabled={busy !== null}
+          onClick={() => { setFilter(id); setPage(1); }}
+          className={`min-h-11 rounded-full border px-5 text-xs uppercase tracking-wider transition ${filter === id ? "border-ink bg-ink text-parchment" : "border-ink/20 bg-white/70 text-ink hover:border-sea"}`}>
+          {label}{queue ? ` (${queue.counts[id]})` : ""}
+        </button>)}
+      </div>
+      {notice && <p role="status" className="rounded-sm bg-sea/10 p-4 text-sm text-sea">{notice}</p>}
+      {error && <p role="alert" className="rounded-sm bg-terracotta/10 p-4 text-sm text-terracotta">{error}</p>}
+      {loading ? <p role="status" className="py-8 text-sm text-ink/60">Loading reviews…</p> : queue?.reviews.length === 0 ? (
+        <div className="rounded-sm border border-dashed border-ink/20 p-8 text-center text-sm text-ink/60">No reviews in this queue.</div>
+      ) : (
+        <div className="space-y-4">
+          {queue?.reviews.map((review) => (
+            <article key={review.id} data-review-id={review.id} className="min-w-0 rounded-sm border border-ink/15 bg-white/80 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <a href={`/shop/${review.productSlug}#reviews`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 font-medium text-sea underline underline-offset-4">
+                  {review.productName}<ExternalLink size={13} aria-hidden="true" />
+                </a>
+                <span className={`rounded-full px-3 py-1 text-xs uppercase tracking-wider ${review.moderationStatus === "approved" ? "bg-sea/10 text-sea" : review.moderationStatus === "pending" ? "bg-brass/15 text-ink" : "bg-terracotta/10 text-terracotta"}`}>{review.moderationStatus}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-ink/60"><StarRating rating={review.rating} size={14} /><span>{review.authorName} · {review.authorCountry}</span><time dateTime={review.createdAt}>{new Date(review.createdAt).toLocaleDateString("en-GB")}</time>{review.verifiedPurchase && <span>Verified owner</span>}</div>
+              <h3 className="mt-3 font-display text-2xl text-ink">{review.title}</h3>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink/75">{review.body}</p>
+              {review.moderatedAt && <p className="mt-3 text-xs text-ink/45">Last decision: {new Date(review.moderatedAt).toLocaleString("en-GB")}</p>}
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-ink/10 pt-4">
+                <button type="button" onClick={() => void moderate(review.id, "approved")} disabled={busy !== null || review.moderationStatus === "approved"}
+                  aria-label={`Approve review by ${review.authorName}`} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-sea px-5 text-xs text-white disabled:opacity-40"><Check size={15} aria-hidden="true" />Approve</button>
+                <button type="button" onClick={() => void moderate(review.id, "rejected")} disabled={busy !== null || review.moderationStatus === "rejected"}
+                  aria-label={`Reject review by ${review.authorName}`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-terracotta/40 px-5 text-xs text-terracotta disabled:opacity-40"><X size={15} aria-hidden="true" />Reject</button>
+                <button type="button" onClick={() => void moderate(review.id, "pending")} disabled={busy !== null || review.moderationStatus === "pending"}
+                  aria-label={`Return review by ${review.authorName} to pending`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs text-ink/70 disabled:opacity-40"><Clock size={15} aria-hidden="true" />Return to pending</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink/60">
+        <span>Page {page} of {pages} · {queue?.total ?? 0} reviews</span>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1 || loading || busy !== null} className="min-h-11 rounded-full border border-ink/20 px-4 disabled:opacity-35">Previous</button>
+          <button type="button" onClick={() => setPage((value) => value + 1)} disabled={page >= pages || loading || busy !== null} className="min-h-11 rounded-full border border-ink/20 px-4 disabled:opacity-35">Next</button>
+        </div>
+      </div>
+    </section>
+  );
+}

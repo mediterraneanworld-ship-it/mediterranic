@@ -1,215 +1,147 @@
-# MEDITERRANIC — Contexto para novo chat (ler primeiro)
+# MEDITERRANIC — SOS para continuar num novo chat
 
-Este ficheiro serve para colar no início de um chat novo e recuperar o contexto
-do projecto. Substitui a necessidade de explicar tudo outra vez.
+Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
+Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
+Versão DESTE CÓDIGO: 2026-11-03-s. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
----
+## 1. Dono, idioma e respostas
+Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
+Em TODAS as respostas inclui os links de produção, sandbox, versão, admin, ZIP completo e esta página SOS. Não omitir o SOS nas respostas seguintes.
+Usa a tua recomendação sem bloquear o trabalho com pedidos de confirmação. Antes de um push grande, lembra-me de fazer Download backup no admin de produção.
 
-## 1. QUEM SOU E COMO TRABALHAR
+## 2. Primeiro recuperar a base certa
+1) Clonar https://github.com/mediterraneanworld-ship-it/mediterranic, branch master, para o projecto.
+2) Comparar o código do GitHub com a cópia de trabalho e com /api/version; preservar alterações publicadas que a conversa anterior possa desconhecer.
+3) Confirmar que DATABASE_URL aponta APENAS para a base local/sandbox. Nunca ligar ao Neon de produção.
+4) Preparar as tabelas locais de forma aditiva, se necessário, e executar:
+   node scripts/pull-live.cjs https://mediterranic.vercel.app
+O script lê páginas públicas e espelha para a base LOCAL. Nunca deve ser executado com DATABASE_URL de produção.
+Se o ZIP ou sandbox antigo tiver expirado, usar master + páginas públicas + este SOS. Não inventar que um preview antigo ainda funciona.
 
-Sou o dono da loja Mediterranic. **Responde sempre em português; o site é em inglês.**
+## 3. Fluxo de publicação — nunca fazer merge de src
+Eu edito conteúdo no admin de produção: isso grava no Neon e sobrevive ao deploy.
+Tu alteras código, validas e entregas um ZIP COMPLETO, sem .env, .git, node_modules, .next, caches, logs ou cópias do banco de dados.
+Eu APAGO a src local e copio a src do ZIP. Mantenho .env e .git. Copio também public/ quando existirem imagens novas e vercel.json quando necessário.
+Commit + Push no GitHub Desktop publica pela Vercel. Nunca confundir mudar um ficheiro no sandbox com ter feito deploy em produção.
+Um deploy não pode apagar nem substituir peças, preços, textos, fotografias, encomendas, subscritores ou decisões de moderação.
+Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. Colunas novas em UPGRADE_SQL de src/lib/schema-migrate.ts, sem DROP/TRUNCATE/DELETE nem actualizações forçadas do conteúdo.
 
-**Regra obrigatória em TODAS as respostas:**
-- **Em cada resposta tens sempre de me dar os links de Produção e os links actuais do Sandbox (Preview).** Nunca omitas estes dois blocos de links.
+## 4. Regras de inventário invioláveis
+- Nunca mostrar Sold em público: usar Unavailable, sem preço, com Request a similar specimen.
+- Leilão vendido vai para /archive sem preço.
+- Leilão não vendido regressa a Site Only ao valor When in Site Only; nunca usar o último lance. Sem esse valor, pedir ao curador, não adivinhar.
+- Reserve price not met enquanto há licitação NÃO significa que o leilão terminou.
+- Falha de leitura/API/403/404/sem preço EUR não é venda nem feed vazio. Marcar não verificado, deixar os dados intactos.
+- O cron verifica apenas o canal actualmente escolhido; Site Only não regressa a leilões antigos sozinho.
+- Further from the same shelf: mesma Era geológica, disponíveis primeiro; Unavailable só no fim para completar os quatro lugares.
+- REF: núcleo único de 4 dígitos, com ou sem prefixo PAIS. Um ano nunca é REF. REFs diferentes nunca se fundem.
+- Dimensions é texto livre. Modelo: Specimen: X.0 x X.0 cm; Matrix: X.0 x X.0 cm. REF inicial: PAIS9600. Não substituir dados reais pelos modelos.
 
-O meu fluxo de trabalho é:
-- Eu faço alterações no **admin de produção** (`mediterranic.vercel.app/admin`).
-  Isso grava no **Neon** e sobrevive a qualquer deploy.
-- Tu fazes alterações de **código** e entregas-me um **ZIP TODO**.
-- Eu copio o conteúdo do ZIP para a pasta local (mantendo `.env` e `.git`),
-  faço **Commit + Push** no GitHub Desktop e a Vercel publica.
+## 5. Funcionalidades actuais que não podem desaparecer
+- Checkout PayPal live e pedido por invoice com customer_note. Não fazer compras reais durante testes.
+- E-mails via Resend; domínio mediterranic.com verificado para o remetente orders@mediterranic.com. Nunca copiar chaves para código ou para o chat.
+- Received Orders: detalhes, envio, tracking, mensagem, CSV; eliminar encomenda não repõe stock.
+- Newsletter Featured and New Pieces: seleção manual ou automática, até 10 peças disponíveis, intervalo de 15 dias, envio manual, histórico e unsubscribe.
+- Texto do e-mail: Twice a month we share the pieces we are most excited about — featured specimens and the newest arrivals from the quarries and preparators.
+- Preservar newsletter_settings, auto_enabled, piece_ids, unsubscribe_token e newsletter_sends. Não substituir esta implementação por outra que apague estas preferências.
+- Botão Duplicate prepara um rascunho novo sob a linha original, sem alterar a peça original nem transportar os anúncios antigos.
+- Edit abre sob a linha sem scroll para cima; botão Top global; galeria limitada ao ecrã; logo MEDITERRANIC numa linha também em mobile.
+- Reviews: What Owners and Visitors say. Novos comentários ficam pending; só entram no site e nas médias/contagens depois de aprovação no admin, tab 6 Reviews.
+- Comentários antigos já públicos mantêm-se visíveis até decisão do curador. Rejeitar oculta, não elimina. Backups preservam a moderação.
+- Nova capa The Connoisseur em /images/connoisseur-glass.png: composição da fotografia real com vidro, sem regenerar o fóssil. Não anunciar que uma vitrine física está incluída na venda.
+- Capas personalizadas guardadas no admin não são substituídas pelo deploy; há opção Use glass display cover no editor de conteúdo.
+- Este SOS existe em /sos; texto copiável/descarregável em /api/sos-context. É público, sem segredos e marcado noindex.
 
-**Nunca precisas de aceder ao meu Neon. Nunca uses acessos ao Neon de produção.
-Nunca escrevas no Neon de produção a partir do sandbox.**
+## 6. Domínio e variáveis Vercel
+A loja continua em https://mediterranic.vercel.app. mediterranic.com só no FIM do projecto; shop.mediterranic.com não existe nem será usado.
+PUBLIC_SITE_URL está centralizado em src/lib/site-url.ts. NEXT_PUBLIC_SITE_URL deixou de ser utilizada e pode ser removida de Production e Preview.
+CRON_SECRET já existe: manter o valor, não criar outra variável. Production + Preview é válido; os cron jobs Vercel são executados apenas em Production.
+Filtro de branch vazio para Production. Variáveis novas/alteradas precisam de um novo deploy; não pedir o valor secreto no chat.
+vercel.json: /api/cron/refresh-prices às 06:00 UTC; /api/cron/newsletter às 07:00 UTC, diariamente. Hobby pode executar dentro da hora indicada.
+Para newsletter automática: interruptor Automatic sending ligado no admin E intervalo de 15 dias cumprido, além de destinatários confirmados, peças e fornecedor configurado.
+Check configuration é só leitura: não revela o segredo e não envia e-mails. Run/Send now podem enviar de verdade. Não os usar para testar a configuração.
+cron-job.org não herda o segredo da Vercel: actualizar o cabeçalho Authorization com Bearer + o mesmo valor, se esse agendador for usado. Não duplicar o agendamento da newsletter.
 
-Antes de qualquer alteração de código, executa no início da sessão:
-```
-node scripts/pull-live.cjs https://mediterranic.vercel.app
-```
-(isto lê apenas páginas públicas e nunca escreve em produção)
+## 7. Verificações e pendentes — confirmar, não presumir
+- Verificar estado do keyset eBay Production/isenção e o EBAY_SELLER_USERNAME real, sem interpretar uma falha como ausência de ofertas.
+- Confirmar jobs nos logs Vercel e histórico do admin; build bem-sucedido não prova execução de cron ou entrega de e-mail.
+- Avisos npm cache-dir/allowScripts não impediram o último deploy. Rever scripts antes de aprovar; não usar aprovação indiscriminada para esconder avisos.
+- Preservar cores: Site Only #ff9f3d, Catawiki #0033FF, WhatsApp #25D366, eBay a 102°. Contagens de peças/Eras sempre calculadas.
 
-E pede-me sempre um **Download backup** do admin antes de um push grande.
-
----
-
-## 1.1 CONTEÚDO DE PRODUÇÃO vs ZIP DE CÓDIGO (importante)
-
-**O ZIP é só código. O conteúdo que edito no admin de produção vive no Neon e
-NÃO vai dentro do ZIP — e também NÃO é apagado por ele.**
-
-- Um deploy novo **não apaga nem substitui** textos, peças, preços, fotos,
-  encomendas ou subscritores. Nunca é preciso refazer tudo.
-- `ensureSeeded()` só preenche o catálogo **se a tabela estiver vazia**.
-- `getSiteSettings()` só insere a linha inicial **se ela não existir**.
-- `schema-migrate.ts` é **só aditivo** (`CREATE TABLE IF NOT EXISTS`,
-  `ADD COLUMN IF NOT EXISTS`); não tem `DROP`, `TRUNCATE` ou `DELETE`.
-- Há um teste automático que verifica estas três garantias em cada execução.
-- **Passo 0 de cada sessão** (leitura apenas, nunca escreve em produção):
-  `node scripts/pull-live.cjs https://mediterranic.vercel.app`
-  Isto traz o conteúdo real de produção para a base **local/sandbox**, para o
-  preview mostrar o que eu vejo. Não altera produção.
-- Se eu quiser que uma alteração de conteúdo fique também no código (por
-  exemplo para um catálogo inicial), isso tem de ser pedido explicitamente:
-  o código nunca copia a base de produção para dentro do repositório.
-- Antes de um push grande: **Download backup** no admin de produção.
-
----
-
-
-## 1.2 AVISO DE ENCOMENDAS POR E-MAIL (implementado)
-
-Cada encomenda gera um e-mail para **mediterranean.world@gmail.com** (ou para
-`ORDER_NOTIFICATION_EMAIL`, se definido), com referência, comprador, morada,
-itens e totais.
-
-- **Fatura/e-mail:** o aviso é enviado no momento em que a encomenda é posta.
-- **PayPal:** o aviso é enviado **só depois** da captura confirmada.
-- **Nunca bloqueia a encomenda:** se o e-mail falhar, a encomenda fica como
-  está e a falha é registada na tabela `order_notifications`
-  (`sent` / `failed` / `not_configured`), visível no admin em *Received Orders*,
-  com botão **E-mail curator** para reenviar.
-- O registo `(order_id, event)` é único: reenviar não duplica.
-
-Variáveis necessárias na Vercel (uma das duas):
-
-```
-RESEND_API_KEY=...            # recomendado
-ORDER_EMAIL_FROM="Mediterranic <encomendas@mediterranic.com>"   # domínio verificado
-ORDER_NOTIFICATION_EMAIL=mediterranean.world@gmail.com          # opcional
-
-# ou
-BREVO_API_KEY=...
-```
-
-Sem estas variáveis, o checkout continua a funcionar; o admin mostra
-"no e-mail provider configured".
-
----
-
-## 2. REGRAS INVIOLÁVEIS
-
-1. **Nunca "Sold" em público.** Uma peça fora de venda mostra
-   **"Unavailable"**, **sem preço**, com **"Request a similar specimen"**.
-2. **Leilão vendido** → arquivo público `/archive`, sem preço.
-3. **Leilão não vendido** → regressa a **Site Only** ao preço do campo
-   **When in Site Only**. Nunca usar o último lance como preço de venda directa.
-   Se esse campo estiver vazio, pedir ao curador; não adivinhar.
-4. **"Reserve price not met" com leilão a decorrer NÃO significa que terminou.**
-5. Os **textos, peças, preços e fotos vivem no Neon** e nunca podem ser apagados.
-   O código só preenche a base se estiver vazia. Colunas novas vão para o
-   **UPGRADE_SQL** em `src/lib/schema-migrate.ts` (apenas aditivas).
-6. **Não restabelecer** os valores do admin a partir do código durante o arranque.
-7. Se uma leitura do marketplace **falhar** (API bloqueada, 403, 404, sem preço
-   em EUR), **nunca** interpretar como venda nem reescrever dados. Marcar como
-   "não verificado" e deixar tudo como está.
-8. **Só o canal actualmente escolhido** é verificado pelo cron. Site Only não
-   regressa sozinho a um leilão antigo.
-9. **País/marketplace** e **excepções** devem ser sempre visíveis no painel de
-   sincronização (`/admin` → *Inventory synchronization* e *Diagnose eBay API*).
-10. Em **"Further from the same shelf"** (página da peça `/shop/[slug]`): mostrar
-    apenas peças da **mesma shelf / Era geológica** (`period`), com as disponíveis
-    sempre primeiro. Passar as **Unavailable** para o fim e **só as apresentar se
-    não houver peças disponíveis suficientes da mesma Era geológica** para
-    completar os 4 lugares.
-
----
-
-## 3. IDENTIFICAÇÃO DAS PEÇAS (importante)
-
-Cada peça tem um **número de catálogo único de 4 dígitos** (ex.: 9676), às vezes
-com prefixo fixo **PAIS** (ex.: PAIS9676). Esse número existe no título e no
-link SmugMug, no Catawiki, no eBay e em todas as plataformas — é como a mesma
-peça física é reconhecida quando muda de plataforma.
-
-- Aparece na ficha **por baixo do título**, no formato
-  `PAIS9676 · 9 mm · 456 g` (bolinhas douradas como separadores).
-- No editor: campo **REF · collection reference** + **Weight with box (g)**.
-- Aceita `PAIS9676` ou `9676`: o núcleo de 4 dígitos é a chave de correspondência.
-- **Um ano nunca é uma referência.**
-- Referências **diferentes** nunca são fundidas.
-- Se a REF não for preenchida, a loja tenta aprendê-la do link.
-
----
-
-## 4. ESTADO ACTUAL (implementado e testado)
-
-- 11 peças no catálogo; contagens partilhadas entre home, filtros e backend
-  (`inventoryCounts`), excluindo arquivo, rascunhos, stock 0 e ofertas inactivas.
-- **Ciclo de canais sem duplicar peças:** cada peça guarda links separados
-  (`ebay_listing_url`, `catawiki_listing_url`), histórico e referência.
-  Um anúncio conhecido é **ligado à ficha existente**, não importado outra vez.
-- **Inventário automático** antes dos preços no cron e no botão manual
-  (`synchronizeInventory`): descobre ofertas activas, aprende referências,
-  liga relistagens e importa novas quando inequívocas. Falha nunca é zero.
-- **Painel de sincronização** mostra sempre o **país/marketplace** activo de cada
-  canal e a barra dedicada de **excepções** (com distinção clara quando um feed
-  não foi verificado).
-- **"Further from the same shelf"** (`src/lib/shelf-recommendations.ts`): filtra
-  pela mesma Era geológica (`period`), apresenta as disponíveis primeiro e só
-  coloca *Unavailable* no fim se existirem menos de 4 disponíveis dessa Era.
-- **Caixa de canal** no admin (Site Only / Catawiki / eBay / Unavailable) com
-  link, preço e gravação. Unavailable tem escolha **arquivo sim/não** e sem campo
-  de link.
-- Editor da peça abre **inline, abaixo da linha editada**.
-- **eBay:** Browse API oficial (leilões e preço fixo, categoria 3213).
-  Avisos da eBay são lidos como erro, não como zero anúncios.
-- **PayPal** Orders v2 com captura transaccional e chaves de idempotência.
-- **Envios:** envio grátis único quando activo no admin; senão uma tarifa das
-  **5 zonas** (Europa €54, Américas €48, Ásia €60, África €72, Oceania €85).
-  **249 destinos ISO**, ordem alfabética. Nunca dizer "insured".
-- **Newsletter** com exportação CSV; **backup v3** inclui imagens e encomendas.
-- **Statcounter** activo, segue navegação interna, não carrega em admin/checkout.
-- Cores: Site Only `#ff9f3d`, Catawiki `#0033FF`, eBay quatro cores
-  (`.ebay-quad`, 102°, estático), WhatsApp `#25D366`, Instagram/Facebook gradientes.
-- Etiquetas das peças **fora** das fotografias (não tapam no telemóvel).
-- **Next.js 16.4.3**; `npm audit --omit=dev` sem vulnerabilidades conhecidas;
-  **42 testes** offline a passar.
-- Domínio: manter `mediterranic.vercel.app` até ao fim do projecto. O
-  `mediterranic.com` continua no site antigo.
-
----
-
-## 5. PENDENTES
-
-1. **eBay:** o keyset Production *Mediterranic* está **desactivado**. O dono tem
-   de subscrever as notificações de encerramento de conta (ou pedir isenção) em
-   developer.ebay.com. Escolheu "Exempted" no formulário, pendente de validação
-   pela eBay. Até lá, o diagnóstico mostra erro de acesso — nunca zero anúncios.
-2. **`EBAY_SELLER_USERNAME`:** confirmar o nome real da conta de vendedor
-   (a ligação `/str/mederranic` é o nome da loja, não necessariamente o username).
-3. **PayPal:** chaves já criadas; confirmar captura com pagamento real.
-4. **Cron-job.org externo** (opcional): um registo apareceu com secret errado;
-   corrigir o CRON_SECRET nesse agendador.
-5. **Newsletter:** falta fornecedor de envio (Resend/Brevo/Mailchimp).
-6. **Domínio próprio** (mediterranic.com) só no fim do projecto.
-
----
-
-## 6. COMANDOS ÚTEIS
-
-```
-node scripts/pull-live.cjs https://mediterranic.vercel.app   # espelhar produção (só leitura)
-node --test scripts/test-ebay.cjs scripts/test-audit.cjs scripts/test-inventory.cjs
+## 8. Validar antes de entregar
+node --test scripts/test-ebay.cjs scripts/test-audit.cjs scripts/test-inventory.cjs scripts/test-cron.cjs scripts/test-release.cjs
+npx next typegen
+npm exec tsc -- --noEmit --pretty false
 npm run build
-```
+Executar também build_and_start e verificar /api/health no sandbox. Inspeccionar os logs antes de corrigir falhas. Se houver alterações posteriores, repetir a validação.
+Ensaiar em mobile 320/360/390/430px. Testar comentários pending → approved → rejected só no sandbox; nunca chamar envios ou compras em produção.
+Actualizar CODE_VERSION/manifesto, src/lib/release-info.ts e este documento em cada entrega. Confirmar que o ZIP inclui toda a src e os novos assets de public/.
 
----
+## 9. Links desta entrega
+Produção: https://mediterranic.vercel.app
+Admin: https://mediterranic.vercel.app/admin
+Versão publicada: https://mediterranic.vercel.app/api/version
+Checkout: https://mediterranic.vercel.app/checkout
+Arquivo: https://mediterranic.vercel.app/archive
+Envios: https://mediterranic.vercel.app/shipping
+Featured: https://mediterranic.vercel.app/featured
+Site Only: https://mediterranic.vercel.app/shop?channel=direct
+eBay: https://mediterranic.vercel.app/shop?channel=ebay
+Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
+SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
+Sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app
+Admin sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/admin
+Versão sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/api/version
+Checkout sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/checkout
+Arquivo sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/archive
+Envios sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/shipping
+Featured sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/featured
+Site Only sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/shop?channel=catawiki
+Nova capa com vidro: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/images/connoisseur-glass.png
+SOS sandbox: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/sos
+Texto SOS: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/api/sos-context
+ZIP completo: https://3000-ihn0c4htnvmwd4z1v6hgw.e2b.app/downloads/mediterranic-2026-11-03-s.zip
+GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
+Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
-## 7. LINKS (incluir sempre Produção + Sandbox em todas as respostas)
-
-### Produção
-- Loja produção: https://mediterranic.vercel.app
-- Admin produção: https://mediterranic.vercel.app/admin
-- Arquivo: https://mediterranic.vercel.app/archive
-- Site Only: https://mediterranic.vercel.app/shop?channel=direct
-- eBay: https://mediterranic.vercel.app/shop?channel=ebay
-- Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
-- Envios: https://mediterranic.vercel.app/shipping
-- Checkout: https://mediterranic.vercel.app/checkout
-- GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
-
-### Sandbox / Preview (substituir `<SANDBOX_URL>` pelo URL real da sessão actual)
-- Loja sandbox: `<SANDBOX_URL>`
-- Admin sandbox: `<SANDBOX_URL>/admin`
-- Arquivo sandbox: `<SANDBOX_URL>/archive`
-- Loja / filtros sandbox: `<SANDBOX_URL>/shop`
+## Manifesto deste código
+- order-notifications
+- email-test
+- editable-hero-stats
+- orders-admin-actions
+- same-shelf-era-order
+- catawiki-wordmark
+- ebay-quad-102deg
+- public-inventory-banner-removed
+- buyer-note
+- tracking-email
+- message-buyer
+- invoice-note-dialog
+- customer-delivery-check
+- back-to-top
+- whatsapp-below-instagram-desktop
+- live-social-settings-mirror
+- admin-edit-keeps-scroll
+- compact-product-gallery
+- mobile-overflow-fixes
+- free-text-dimensions
+- no-first-review-prompt
+- editor-field-templates
+- newsletter-featured-send
+- newsletter-bulk-send
+- newsletter-15day-cadence
+- newsletter-unsubscribe
+- newsletter-send-log
+- twice-a-month-copy
+- duplicate-specimen
+- canonical-vercel-url
+- cron-read-only-configuration
+- newsletter-auto-setting-preserved
+- newsletter-quarries-preparators-copy
+- sos-handover-page
+- review-moderation
+- owners-and-visitors-reviews
+- mobile-wordmark-nowrap
+- connoisseur-original-photo-glass

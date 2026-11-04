@@ -1,4 +1,4 @@
-import { and, asc, avg, count, desc, eq, gte } from "drizzle-orm";
+import { and, asc, avg, count, desc, eq, gte, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { newsletterSends, newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
@@ -44,6 +44,9 @@ export const UNUSED_DEFAULTS: Omit<SiteSettings, "updatedAt"> = {
   heroImage: "/images/hero.jpg",
 };
 
+/** Only approved and already-public legacy reviews reach any public count or list. */
+const publicReviews = () => or(eq(reviews.moderationStatus, "approved"), isNull(reviews.moderationStatus));
+
 async function statsByProduct() {
   const rows = await db
     .select({
@@ -52,6 +55,7 @@ async function statsByProduct() {
       reviewCount: count(),
     })
     .from(reviews)
+    .where(publicReviews())
     .groupBy(reviews.productId);
 
   return new Map(
@@ -103,18 +107,20 @@ export async function getProductBySlug(
 }
 
 export async function getProductReviews(productId: number): Promise<Review[]> {
+  await ensureSeeded();
   return db
     .select()
     .from(reviews)
-    .where(eq(reviews.productId, productId))
+    .where(and(eq(reviews.productId, productId), publicReviews()))
     .orderBy(desc(reviews.createdAt));
 }
 
 export async function getRatingBreakdown(productId: number): Promise<Record<1 | 2 | 3 | 4 | 5, number>> {
+  await ensureSeeded();
   const rows = await db
     .select({ rating: reviews.rating, total: count() })
     .from(reviews)
-    .where(eq(reviews.productId, productId))
+    .where(and(eq(reviews.productId, productId), publicReviews()))
     .groupBy(reviews.rating);
 
   const breakdown: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -140,7 +146,7 @@ export async function getTopReviews(limit = 6) {
     })
     .from(reviews)
     .innerJoin(products, eq(reviews.productId, products.id))
-    .where(gte(reviews.rating, 5))
+    .where(and(gte(reviews.rating, 5), publicReviews(), eq(products.published, true)))
     .orderBy(desc(reviews.createdAt))
     .limit(limit);
 }
@@ -149,7 +155,7 @@ export async function getStoreStats() {
   await ensureSeeded();
   const [[productRow], [reviewRow]] = await Promise.all([
     db.select({ value: count() }).from(products),
-    db.select({ value: count(), average: avg(reviews.rating) }).from(reviews),
+    db.select({ value: count(), average: avg(reviews.rating) }).from(reviews).where(publicReviews()),
   ]);
   return {
     productCount: Number(productRow?.value ?? 0),

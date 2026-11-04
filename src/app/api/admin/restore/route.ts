@@ -13,7 +13,7 @@ export const maxDuration = 60;
 type JsonRow = Record<string, unknown>;
 function revive(row: JsonRow): JsonRow {
   const result = { ...row };
-  for (const name of ["createdAt", "lastPriceCheck", "updatedAt", "marketplaceCheckedAt"]) {
+  for (const name of ["createdAt", "lastPriceCheck", "updatedAt", "marketplaceCheckedAt", "moderatedAt"]) {
     if (typeof result[name] === "string") {
       const parsed = new Date(result[name] as string);
       if (Number.isNaN(parsed.getTime())) delete result[name]; else result[name] = parsed;
@@ -116,7 +116,11 @@ export async function POST(request: Request) {
         const [existing] = await tx.select({ id: reviews.id }).from(reviews).where(and(eq(reviews.productId, productId), eq(reviews.authorName, raw.authorName), eq(reviews.title, raw.title))).limit(1);
         if (existing) continue;
         const { id: _id, ...rest } = raw;
-        await tx.insert(reviews).values({ ...(revive(rest) as typeof reviews.$inferInsert), productId }); reviewsAdded++;
+        // Old backups contain already-public reviews; never auto-publish a
+        // pending/rejected status carried by a newer backup.
+        const moderationStatus = rest.moderationStatus == null ? null
+          : ["pending", "approved", "rejected"].includes(String(rest.moderationStatus)) ? String(rest.moderationStatus) : "pending";
+        await tx.insert(reviews).values({ ...(revive(rest) as typeof reviews.$inferInsert), productId, moderationStatus }); reviewsAdded++;
       }
       // A restored catalogue is not the previously verified remote snapshot.
       // Keep run logs and any current lease; a later sync re-verifies it.

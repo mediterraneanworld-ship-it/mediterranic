@@ -413,7 +413,7 @@ export default async function ProductPage({ params }: Props) {
           <aside className="space-y-10 lg:sticky lg:top-28 lg:self-start">
             <div>
               <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{copy.reviewsTitle}</p>
-              <h2 className="mt-4 font-display text-4xl text-ink md:text-5xl">What owners say</h2>
+              <h2 className="mt-4 font-display text-4xl text-ink md:text-5xl">What Owners and Visitors say</h2>
               {totalReviews > 0 ? (
                 <div className="mt-8 flex items-end gap-5">
                   <span className="font-display text-7xl leading-none text-ink">{product.rating.toFixed(1)}</span>
@@ -425,7 +425,7 @@ export default async function ProductPage({ params }: Props) {
                   </div>
                 </div>
               ) : (
-                <p className="mt-6 text-sm text-ink/60">No reviews yet. Owners are invited to share their experience below.</p>
+                <p className="mt-6 text-sm text-ink/60">Owners and visitors are welcome to share their experience or observations. Reviews appear after curator approval.</p>
               )}
 
               {totalReviews > 0 && (

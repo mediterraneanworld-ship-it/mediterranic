@@ -1,6 +1,7 @@
 # Mediterranic — CRON_SECRET já existe: o que fazer
 
-Versão de código: 2026-11-03-r.
+Versão de código: 2026-11-03-s.
+Contexto SOS actualizado: https://mediterranic.vercel.app/sos (após deploy).
 Produção: https://mediterranic.vercel.app
 Admin: https://mediterranic.vercel.app/admin
 Versão: https://mediterranic.vercel.app/api/version

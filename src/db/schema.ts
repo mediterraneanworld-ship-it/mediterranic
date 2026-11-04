@@ -88,6 +88,9 @@ export const reviews = pgTable("reviews", {
   rating: smallint("rating").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
+  /** NULL is an already-public legacy review; every new submission is pending. */
+  moderationStatus: text("moderation_status").default("pending"),
+  moderatedAt: timestamp("moderated_at", { withTimezone: true }),
   verifiedPurchase: boolean("verified_purchase").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

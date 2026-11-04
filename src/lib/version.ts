@@ -5,7 +5,7 @@
  * glance: if the admin says an older version, or /api/version reports a
  * feature as false, the deployment is not carrying the whole codebase.
  */
-export const CODE_VERSION = "2026-11-03-r";
+export const CODE_VERSION = "2026-11-03-s";
 
 export const REQUIRED_FEATURES = [
   "order-notifications",
@@ -40,6 +40,12 @@ export const REQUIRED_FEATURES = [
   "canonical-vercel-url",
   "cron-read-only-configuration",
   "newsletter-auto-setting-preserved",
+  "newsletter-quarries-preparators-copy",
+  "sos-handover-page",
+  "review-moderation",
+  "owners-and-visitors-reviews",
+  "mobile-wordmark-nowrap",
+  "connoisseur-original-photo-glass",
 ] as const;
 
 export function codeManifest() {

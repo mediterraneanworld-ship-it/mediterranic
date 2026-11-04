@@ -38,9 +38,9 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
       </div>
 
       <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center justify-between gap-3 px-3 sm:h-20 sm:gap-6 sm:px-5 lg:px-8">
-        <Link href="/" className="group flex min-w-0 items-center gap-2.5 leading-none sm:gap-3.5" onClick={() => setMobileOpen(false)}>
+        <Link href="/" className="group flex min-w-0 items-center gap-2 leading-none sm:gap-3.5" onClick={() => setMobileOpen(false)}>
           {content.logoImage && (
-            <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-midnight ring-1 ring-brass/45 transition group-hover:ring-brass sm:h-11 sm:w-11">
+            <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-midnight ring-1 ring-brass/45 transition group-hover:ring-brass sm:h-11 sm:w-11">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={
@@ -50,15 +50,15 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
                 }
                 alt=""
                 aria-hidden="true"
-                className="h-9 w-9 scale-110 object-cover transition duration-300 group-hover:scale-115 sm:h-11 sm:w-11"
+                className="h-8 w-8 scale-110 object-cover transition duration-300 group-hover:scale-115 sm:h-11 sm:w-11"
               />
             </span>
           )}
           <span className="flex min-w-0 flex-col leading-none">
-            <span className="font-display text-[1.15rem] uppercase tracking-[0.12em] text-ink transition-colors group-hover:text-sea sm:text-[1.55rem] sm:tracking-[0.22em] lg:text-[1.65rem]">
+            <span className="whitespace-nowrap font-display text-[clamp(0.875rem,4.4vw,1.15rem)] uppercase tracking-[0.09em] text-ink transition-colors group-hover:text-sea sm:text-[1.55rem] sm:tracking-[0.22em] lg:text-[1.65rem]">
               Mediterranic
             </span>
-            <span className="mt-1 text-[8px] uppercase tracking-[0.28em] text-brass sm:mt-1.5 sm:text-[9px] sm:tracking-[0.42em]">
+            <span className="mt-1 whitespace-nowrap text-[7px] uppercase tracking-[0.18em] min-[360px]:text-[8px] text-brass sm:mt-1.5 sm:text-[9px] sm:tracking-[0.42em]">
               Moroccan Trilobites
             </span>
           </span>
@@ -81,7 +81,7 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={openCart}

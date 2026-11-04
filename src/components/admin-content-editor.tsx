@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Check, ImagePlus, Loader2, Save, Trash2, Upload } from "lucide-react";
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { CONNOISSEUR_GLASS_IMAGE } from "@/lib/release-info";
 import {
   CONTENT_GROUPS,
   readContent,
@@ -279,7 +280,7 @@ export function AdminContentEditor({
                           </span>
                         )}
                       </div>
-                      <div className="min-w-[200px] flex-1">
+                      <div className="min-w-0 basis-48 flex-1">
                         <input
                           value={src}
                           onChange={(e) => update(field.path, e.target.value)}
@@ -300,6 +301,21 @@ export function AdminContentEditor({
                             )}
                             Upload photo
                           </button>
+                          {key === "home.collections.covers.connoisseur" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  update(field.path, CONNOISSEUR_GLASS_IMAGE);
+                                  notify("Glass display cover selected. Save the page content to publish it.");
+                                }}
+                                className="inline-flex min-h-10 items-center rounded-full border border-brass/50 bg-brass/10 px-3 text-[11px] uppercase tracking-[0.12em] text-ink hover:border-brass"
+                              >
+                                Use glass display cover
+                              </button>
+                              <a href={CONNOISSEUR_GLASS_IMAGE} target="_blank" rel="noopener noreferrer" className="text-xs text-sea underline underline-offset-4">Preview glass cover</a>
+                            </>
+                          )}
                           {src && (
                             <button
                               type="button"

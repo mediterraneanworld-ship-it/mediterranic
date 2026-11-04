@@ -262,6 +262,12 @@ ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "piece_slugs" jsonb DEFA
 ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'legacy' NOT NULL;
 ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "detail" text;
 
+-- Review moderation: no existing comment is rewritten or deleted. Legacy
+-- rows keep NULL (already public). The default affects NEW rows only.
+ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "moderation_status" text;
+ALTER TABLE "reviews" ALTER COLUMN "moderation_status" SET DEFAULT 'pending';
+ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "moderated_at" timestamp with time zone;
+
 `;
 
 let migrated: Promise<void> | null = null;

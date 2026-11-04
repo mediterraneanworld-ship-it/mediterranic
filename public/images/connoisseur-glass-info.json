@@ -1,0 +1,11 @@
+{
+  "title": "The Connoisseur — Fezouata slab under digital glass",
+  "source": "/images/imported/sandblasted-mortality-the-sandblasted-patriarch-1.jpg",
+  "sourceSha256": "9f32adc2efff1ca98520ce63c7b5ce8c1e0426e0ce675584261a9aba208a5ad7",
+  "output": "/images/connoisseur-glass.png",
+  "width": 1080,
+  "height": 1440,
+  "method": "Non-generative photo compositing. Only border-connected dark cloth masked; original specimen RGB retained before proportional resizing. Digital display glass added.",
+  "specimenRedrawn": false,
+  "note": "Editorial cover only. No glass display is included with a specimen unless expressly stated."
+}

@@ -47,7 +47,7 @@ export const COLLECTIONS: Collection[] = [
     eyebrow: "Museum grade",
     description:
       "Rare, large and exceptionally preserved. Pieces we would be proud to see in a private study, a boardroom or a foundation's collection.",
-    cover: "/images/products/erbenochile-erbeni.jpg",
+    cover: "/images/connoisseur-glass.png",
   },
 ];
 

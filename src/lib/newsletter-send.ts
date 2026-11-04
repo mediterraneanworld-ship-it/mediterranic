@@ -92,7 +92,7 @@ export function buildNewsletterEmail(input: {
 }): { text: string; html: string } {
   const { subject, pieces, unsubscribeUrl } = input;
   const intro =
-    "Twice a month we share the pieces we are most excited about — featured specimens and the newest arrivals from the quarry.";
+    "Twice a month we share the pieces we are most excited about — featured specimens and the newest arrivals from the quarries and preparators.";
 
   const text = [
     subject,

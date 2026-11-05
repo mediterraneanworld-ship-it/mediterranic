@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   serial,
   smallint,
   text,
@@ -297,6 +298,26 @@ export const orderNotifications = pgTable(
 export const productsRelations = relations(products, ({ many }) => ({
   reviews: many(reviews),
 }));
+
+/** Weight classes for shipping. `maxGrams` is inclusive; null = the heaviest class (no limit). Edited in the back-office. */
+export const shippingWeightClasses = pgTable("shipping_weight_classes", {
+  id: serial("id").primaryKey(),
+  position: integer("position").notNull(),
+  maxGrams: integer("max_grams"),
+});
+
+/** Shipping price in euro cents for one weight class and one region. */
+export const shippingRates = pgTable(
+  "shipping_rates",
+  {
+    classId: integer("class_id")
+      .notNull()
+      .references(() => shippingWeightClasses.id, { onDelete: "cascade" }),
+    region: text("region").notNull(),
+    priceCents: integer("price_cents").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.classId, table.region] })],
+);
 
 export const reviewsRelations = relations(reviews, ({ one }) => ({
   product: one(products, { fields: [reviews.productId], references: [products.id] }),

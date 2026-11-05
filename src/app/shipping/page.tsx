@@ -3,7 +3,8 @@ import Link from "next/link";
 import { BadgeCheck, Clock, Globe2, PackageCheck, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { formatPrice } from "@/lib/format";
-import { ZONES, countriesInZone } from "@/lib/shipping";
+import { countriesInZone, weightClassLabels, ZONES } from "@/lib/shipping";
+import { getShippingTable } from "@/lib/shipping-table";
 import { getSiteContent, getSiteSettings } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,12 @@ function Section({
 }
 
 export default async function ShippingPage() {
-  const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
+  const [settings, content, shippingTable] = await Promise.all([
+    getSiteSettings(),
+    getSiteContent(),
+    getShippingTable(),
+  ]);
+  const classLabels = weightClassLabels(shippingTable.classes);
   const copy = content.shipping;
   const freeShipping = content.commerce.freeShipping;
 
@@ -107,13 +113,13 @@ export default async function ShippingPage() {
                   </>
                 ) : (
                   <>
-                    One rate per zone, charged at checkout according to the delivery country. Nothing else is
+                    The rate depends on the total weight of your order, protective box included, and on the delivery zone. Nothing else is
                     added.
                   </>
                 )}
               </p>
               <div className="mt-4 overflow-x-auto rounded-sm border border-ink/12 bg-white/70">
-                <table className="w-full min-w-[420px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-ink/12 bg-bone/60 text-[11px] uppercase tracking-[0.18em] text-ink/70">
                       <th scope="col" className="px-4 py-3 font-medium">
@@ -122,9 +128,11 @@ export default async function ShippingPage() {
                       <th scope="col" className="px-4 py-3 font-medium">
                         Transit
                       </th>
-                      <th scope="col" className="px-4 py-3 text-right font-medium">
-                        Safe delivery
-                      </th>
+                      {shippingTable.classes.map((cls) => (
+                        <th key={cls.id} scope="col" className="px-4 py-3 text-right font-medium">
+                          {classLabels[cls.id]}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -135,9 +143,11 @@ export default async function ShippingPage() {
                           <span className="mt-1 block text-xs text-ink/50">{countriesInZone(zone.id).join(" · ")}</span>
                         </th>
                         <td className="px-4 py-4 text-ink/70">{zone.days}</td>
-                        <td className="px-4 py-4 text-right font-medium text-ink">
-                          {freeShipping ? "Free" : formatPrice(zone.rateCents)}
-                        </td>
+                        {shippingTable.classes.map((cls) => (
+                          <td key={cls.id} className="px-4 py-4 text-right font-medium text-ink">
+                            {freeShipping ? "Free" : formatPrice(shippingTable.rates[cls.id]?.[zone.id] ?? zone.rateCents)}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>

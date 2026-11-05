@@ -270,6 +270,21 @@ ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "moderated_at" timestamp with tim
 -- Curator's choice for the home page reviews. Additive: no review is changed.
 ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "show_on_home" boolean DEFAULT false NOT NULL;
 
+-- Shipping by weight class and region (back-office table). New tables only; they are
+-- seeded once, and only while empty. No order, product or saved rate is changed.
+CREATE TABLE IF NOT EXISTS "shipping_weight_classes" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "position" integer NOT NULL,
+  "max_grams" integer
+);
+
+CREATE TABLE IF NOT EXISTS "shipping_rates" (
+  "class_id" integer NOT NULL REFERENCES "shipping_weight_classes"("id") ON DELETE CASCADE,
+  "region" text NOT NULL,
+  "price_cents" integer NOT NULL,
+  PRIMARY KEY ("class_id", "region")
+);
+
 `;
 
 let migrated: Promise<void> | null = null;

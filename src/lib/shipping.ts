@@ -318,16 +318,157 @@ export function shippingMethodId(freeShipping: boolean): ShippingMethodId {
   return freeShipping ? "free" : "protected";
 }
 
+/* ------------------------------------------------------------------ */
+/* Shipping by weight class and region                                 */
+/* ------------------------------------------------------------------ */
+
 /**
- * The one and only shipping price for an order: free when the owner enabled
- * free shipping in the back-office, otherwise the rate of the destination zone.
- * destination belongs to. `null` means the country is not served.
+ * Upper limits, in grams, of the four weight classes (inclusive). `null` marks
+ * the heaviest class, which has no upper limit. The back-office can change the
+ * limits and every price; these are only the starting values.
  */
-export function calculateShipping(countryCode: string, freeShipping: boolean): number | null {
+export const DEFAULT_WEIGHT_LIMITS: (number | null)[] = [500, 1000, 2000, null];
+
+export type WeightClassRow = { id: number; position: number; maxGrams: number | null };
+
+/** Prices in euro cents: rates[classId][zone]. */
+export type ShippingTable = {
+  classes: WeightClassRow[];
+  rates: Record<number, Partial<Record<ShippingZone, number>>>;
+};
+
+export type ShippingQuote = {
+  cents: number;
+  zone: ShippingZone;
+  zoneLabel: string;
+  classId: number;
+  classLabel: string;
+  methodId: ShippingMethodId;
+};
+
+/** The starting table: the five zone rates in every class, so nothing changes until the curator edits it. */
+export function defaultShippingTable(): ShippingTable {
+  const classes = DEFAULT_WEIGHT_LIMITS.map((maxGrams, index) => ({ id: index + 1, position: index + 1, maxGrams }));
+  const rates: ShippingTable["rates"] = {};
+  for (const cls of classes) {
+    rates[cls.id] = Object.fromEntries(ZONES.map((zone) => [zone.id, zone.rateCents])) as Partial<
+      Record<ShippingZone, number>
+    >;
+  }
+  return { classes, rates };
+}
+
+function orderedClasses(classes: WeightClassRow[]): WeightClassRow[] {
+  return [...classes].sort((a, b) => a.position - b.position);
+}
+
+/** "0–500 g", "501–1000 g", "1001–2000 g", "Over 2000 g": always derived from the limits. */
+export function weightClassLabels(classes: WeightClassRow[]): Record<number, string> {
+  const ordered = orderedClasses(classes);
+  const labels: Record<number, string> = {};
+  ordered.forEach((cls, index) => {
+    const previous = index === 0 ? 0 : (ordered[index - 1].maxGrams ?? 0);
+    if (cls.maxGrams === null) labels[cls.id] = `Over ${previous} g`;
+    else if (index === 0) labels[cls.id] = `0–${cls.maxGrams} g`;
+    else labels[cls.id] = `${previous + 1}–${cls.maxGrams} g`;
+  });
+  return labels;
+}
+
+/** The class of a basket. An unknown weight falls in the heaviest class, so shipping is never under-charged. */
+export function classForWeight(table: ShippingTable, grams: number | null): WeightClassRow {
+  const ordered = orderedClasses(table.classes);
+  const heaviest = ordered[ordered.length - 1];
+  if (grams === null || !Number.isFinite(grams) || grams < 0) return heaviest;
+  return ordered.find((cls) => cls.maxGrams === null || grams <= cls.maxGrams) ?? heaviest;
+}
+
+/** Total grams of a basket. One piece without a recorded weight makes the whole basket unknown (null). */
+export function basketWeightGrams(
+  items: { slug: string; quantity: number }[],
+  weightsBySlug: Record<string, number | null | undefined>,
+): number | null {
+  let total = 0;
+  for (const item of items) {
+    const grams = weightsBySlug[item.slug];
+    if (typeof grams !== "number" || !(grams > 0)) return null;
+    total += grams * item.quantity;
+  }
+  return total;
+}
+
+/** The price for a destination and a basket. Free shipping always wins. `null` = country not served. */
+export function shippingQuote(
+  table: ShippingTable,
+  countryCode: string,
+  grams: number | null,
+  freeShipping: boolean,
+): ShippingQuote | null {
   const zone = zoneOf(countryCode);
   if (!zone) return null;
-  if (freeShipping) return 0;
-  return getZone(zone).rateCents;
+  const cls = classForWeight(table, grams);
+  const base = table.rates[cls.id]?.[zone] ?? getZone(zone).rateCents;
+  return {
+    cents: freeShipping ? 0 : base,
+    zone,
+    zoneLabel: getZone(zone).label,
+    classId: cls.id,
+    classLabel: weightClassLabels(table.classes)[cls.id],
+    methodId: shippingMethodId(freeShipping),
+  };
+}
+
+/** Shipping in cents, or null when the country is not served. Without a basket weight the heaviest class applies. */
+export function calculateShipping(
+  countryCode: string,
+  freeShipping: boolean,
+  table: ShippingTable = defaultShippingTable(),
+  grams: number | null = null,
+): number | null {
+  return shippingQuote(table, countryCode, grams, freeShipping)?.cents ?? null;
+}
+
+export type ShippingRowInput = { classId: number; maxGrams: number | null; prices: Record<ShippingZone, number> };
+
+/** Checks the four rows sent by the back-office. Nothing is saved unless every rule holds. */
+export function parseShippingRows(
+  body: unknown,
+): { ok: true; rows: ShippingRowInput[] } | { ok: false; error: string } {
+  const raw = body && typeof body === "object" ? (body as { rows?: unknown }).rows : undefined;
+  if (!Array.isArray(raw) || raw.length !== DEFAULT_WEIGHT_LIMITS.length) {
+    return { ok: false, error: `The table needs exactly ${DEFAULT_WEIGHT_LIMITS.length} weight classes.` };
+  }
+  const rows: ShippingRowInput[] = [];
+  let previous = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const row = (raw[index] ?? {}) as { classId?: unknown; maxGrams?: unknown; prices?: Record<string, unknown> };
+    if (typeof row.classId !== "number" || !Number.isInteger(row.classId) || row.classId <= 0) {
+      return { ok: false, error: "A weight class lost its identifier. Reload the page and try again." };
+    }
+    let maxGrams: number | null = null;
+    if (index === raw.length - 1) {
+      if (row.maxGrams !== null) return { ok: false, error: "The heaviest class has no upper limit." };
+    } else {
+      if (typeof row.maxGrams !== "number" || !Number.isInteger(row.maxGrams) || row.maxGrams < 1 || row.maxGrams > 100_000) {
+        return { ok: false, error: "Upper limits must be whole grams between 1 and 100000." };
+      }
+      if (row.maxGrams <= previous) {
+        return { ok: false, error: "Each weight limit must be heavier than the one before it." };
+      }
+      maxGrams = row.maxGrams;
+      previous = row.maxGrams;
+    }
+    const prices = {} as Record<ShippingZone, number>;
+    for (const zone of ZONE_ORDER) {
+      const cents = row.prices?.[zone];
+      if (typeof cents !== "number" || !Number.isInteger(cents) || cents < 0 || cents > 50_000) {
+        return { ok: false, error: `Every price must be a euro amount from 0 to 500 (check ${getZone(zone).label}).` };
+      }
+      prices[zone] = cents;
+    }
+    rows.push({ classId: row.classId, maxGrams, prices });
+  }
+  return { ok: true, rows };
 }
 
 /** "Free shipping" or "Safe delivery · Europe", for the order page. */

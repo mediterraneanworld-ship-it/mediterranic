@@ -101,12 +101,12 @@ test("schema: show_on_home is additive and defaults to off", () => {
 
 test("cover: The Connoisseur shows the Cyphaspis photograph with glass, shipped with public/", () => {
   const content = fs.readFileSync("src/lib/site-content.ts", "utf8");
-  assert.match(content, /connoisseur: "\/images\/connoisseur-cyphaspis-glass\.jpg"/);
+  assert.match(content, /connoisseur: "\/covers\/connoisseur-cyphaspis\.jpg"/);
   const collections = fs.readFileSync("src/lib/collections.ts", "utf8");
-  assert.match(collections, /cover: "\/images\/connoisseur-cyphaspis-glass\.jpg"/);
+  assert.match(collections, /cover: "\/covers\/connoisseur-cyphaspis\.jpg"/);
   const release = fs.readFileSync("src/lib/release-info.ts", "utf8");
-  assert.match(release, /CONNOISSEUR_GLASS_IMAGE = "\/images\/connoisseur-cyphaspis-glass\.jpg"/);
-  assert.ok(fs.statSync("public/images/connoisseur-cyphaspis-glass.jpg").size > 20000, "copy this file together with public/");
+  assert.match(release, /CONNOISSEUR_GLASS_IMAGE = "\/covers\/connoisseur-cyphaspis\.jpg"/);
+  assert.ok(fs.statSync("src/assets/connoisseur-cyphaspis-glass.jpg").size > 20000, "the cover is bundled in src/assets");
 });
 
 test("newsletter photos travel inline (cid); a photo that cannot be shrunk never cancels the mailing", () => {
@@ -123,12 +123,12 @@ test("newsletter photos travel inline (cid); a photo that cannot be shrunk never
 
 test("version manifest and SOS handover name this release, the home picker and the new cover", () => {
   const v = load("src/lib/version.ts");
-  assert.equal(v.CODE_VERSION, "2026-11-04-w");
+  assert.equal(v.CODE_VERSION, "2026-11-04-x");
   for (const feature of ["home-reviews-picker", "connoisseur-cyphaspis-glass", "newsletter-inline-images", "review-moderation", "sos-handover-page"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }
   const ctx = fs.readFileSync("src/lib/sos-context.ts", "utf8");
-  assert.match(ctx, /connoisseur-cyphaspis-glass\.jpg/);
+  assert.match(ctx, /covers\/connoisseur-cyphaspis\.jpg/);
   assert.match(ctx, /Show on home page/);
 });
 

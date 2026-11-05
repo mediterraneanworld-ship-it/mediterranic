@@ -2,7 +2,8 @@ import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { orderItems, orders, products } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
-import { calculateShipping, getCountry, shippingMethodId } from "@/lib/shipping";
+import { basketWeightGrams, getCountry, shippingQuote } from "@/lib/shipping";
+import { getShippingTable } from "@/lib/shipping-table";
 import { getSiteContent } from "@/lib/catalog";
 
 export class OrderError extends Error {
@@ -139,14 +140,20 @@ export async function buildOrder(input: OrderInput): Promise<BuiltOrder> {
   });
 
   const { commerce } = await getSiteContent();
-  const shipping = calculateShipping(input.country, commerce.freeShipping);
-  if (shipping === null) throw new OrderError("We could not calculate shipping for that address.", 400);
+  // The weight of the whole basket picks the class; the stored price is what the buyer pays.
+  const weights = Object.fromEntries(rows.map((row) => [row.slug, row.weightGrams ?? null]));
+  const grams = basketWeightGrams(
+    input.items.map((item) => ({ slug: item.slug, quantity: item.quantity })),
+    weights,
+  );
+  const quote = shippingQuote(await getShippingTable(), input.country, grams, commerce.freeShipping);
+  if (!quote) throw new OrderError("We could not calculate shipping for that address.", 400);
 
   return {
     subtotalCents: subtotal,
-    shippingCents: shipping,
-    totalCents: subtotal + shipping,
-    shippingMethod: shippingMethodId(commerce.freeShipping),
+    shippingCents: quote.cents,
+    totalCents: subtotal + quote.cents,
+    shippingMethod: quote.methodId,
     lines,
   };
 }

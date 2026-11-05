@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-04-w. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-04-x. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -48,9 +48,11 @@ Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. 
 - Edit abre sob a linha sem scroll para cima; botão Top global; galeria limitada ao ecrã; logo MEDITERRANIC numa linha também em mobile.
 - Reviews: What Owners and Visitors say. Novos comentários ficam pending; só entram no site e nas médias/contagens depois de aprovação no admin, tab 6 Reviews.
 - Comentários antigos já públicos mantêm-se visíveis até decisão do curador. Rejeitar oculta, não elimina. Backups preservam a moderação.
-- Capa The Connoisseur: fotografia real da Cyphaspis walteri com vidro (/images/connoisseur-cyphaspis-glass.jpg), sem regenerar o fóssil. Confirmar no admin (5. Page texts and photos) que a capa aponta para este ficheiro, porque o Neon pode guardar o valor antigo. Escolha das avaliações da home: botão Show on home page no separador 6 (até 6; sem escolha, automático). Não anunciar que uma vitrine física está incluída na venda.
+- Capa The Connoisseur: fotografia real da Cyphaspis walteri com vidro (/covers/connoisseur-cyphaspis.jpg), sem regenerar o fóssil. Confirmar no admin (5. Page texts and photos) que a capa aponta para este ficheiro, porque o Neon pode guardar o valor antigo. Escolha das avaliações da home: botão Show on home page no separador 6 (até 6; sem escolha, automático). Não anunciar que uma vitrine física está incluída na venda.
 - Capas personalizadas guardadas no admin não são substituídas pelo deploy; há opção Use glass display cover no editor de conteúdo.
 - Este SOS existe em /sos; texto copiável/descarregável em /api/sos-context. É público, sem segredos e marcado noindex.
+
+- Envios: tabela por classe de peso (0–500 g; 501–1000 g; 1001–2000 g; mais de 2 kg) × 5 regiões, no admin (separador 7, Shipping rates). Peso do carrinho = soma das peças com caixa. Peça sem peso cobra a classe mais pesada até ter peso. O envio grátis, quando ligado, sobrepõe-se a tudo.
 
 ## 6. Domínio e variáveis Vercel
 A loja continua em https://mediterranic.vercel.app. mediterranic.com só no FIM do projecto; shop.mediterranic.com não existe nem será usado.
@@ -89,20 +91,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app
-Admin sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/admin
-Versão sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/api/version
-Checkout sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/checkout
-Arquivo sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/archive
-Envios sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/shipping
-Featured sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/featured
-Site Only sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/images/connoisseur-cyphaspis-glass.jpg
-SOS sandbox: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/sos
-Texto SOS: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/api/sos-context
-ZIP completo: https://3000-iz4ym4mpwjhv9o6zvk6zy.e2b.app/downloads/mediterranic-2026-11-04-w.zip
+Sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app
+Admin sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/admin
+Versão sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/api/version
+Checkout sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/checkout
+Arquivo sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/archive
+Envios sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shipping
+Featured sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/featured
+Site Only sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/sos
+Texto SOS: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/api/sos-context
+ZIP completo: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/downloads/mediterranic-2026-11-04-x.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -148,3 +150,6 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - home-reviews-picker
 - connoisseur-cyphaspis-glass
 - newsletter-inline-images
+- shipping-weight-table
+- covers-route-bundled-cover
+- shipping-table-admin-tab

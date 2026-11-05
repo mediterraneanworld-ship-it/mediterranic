@@ -29,6 +29,7 @@ import { COLLECTIONS } from "@/lib/collections";
 import { formatDate, formatPrice } from "@/lib/format";
 import { AdminContentEditor } from "@/components/admin-content-editor";
 import { AdminReviewModeration } from "@/components/admin-review-moderation";
+import { AdminShippingPanel } from "@/components/admin-shipping-panel";
 import { AdminCronStatus } from "@/components/admin-cron-status";
 import { AdminNewsletterCronStatus } from "@/components/admin-newsletter-cron-status";
 import { InventorySyncPanel } from "@/components/inventory-sync-panel";
@@ -294,7 +295,7 @@ export function AdminDashboard({
   onSignOut: () => void | Promise<void>;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"products" | "settings" | "content" | "orders" | "newsletter" | "reviews">("products");
+  const [tab, setTab] = useState<"products" | "settings" | "content" | "orders" | "newsletter" | "reviews" | "shipping">("products");
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>(initialSubscribers);
   // Twice-a-month mailing: subject, mixed piece selection, cadence and log.
   const [newsletterSubject, setNewsletterSubject] = useState("Featured and New Pieces");
@@ -2261,9 +2262,19 @@ export function AdminDashboard({
         >
           <Check size={15} /> 6. Reviews
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("shipping")}
+          className={`inline-flex min-h-11 items-center gap-2 rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] transition ${
+            tab === "shipping" ? "bg-ink text-parchment" : "bg-bone/70 text-ink/75 hover:bg-bone"
+          }`}
+        >
+          <Truck size={15} /> 7. Shipping
+        </button>
       </div>
 
       {tab === "reviews" && <AdminReviewModeration />}
+      {tab === "shipping" && <AdminShippingPanel />}
 
       {/* TAB 1: PRODUCTS */}
       {tab === "products" && (

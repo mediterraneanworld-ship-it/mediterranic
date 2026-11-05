@@ -62,6 +62,7 @@ function orderService(row, free = true) {
       '@/db/schema': { products: {slug:'slug'}, orders: {}, orderItems: {} },
       '@/lib/seed': { ensureSeeded: async () => {} },
       '@/lib/shipping': shipping,
+      '@/lib/shipping-table': { getShippingTable: async () => shipping.defaultShippingTable() },
       '@/lib/catalog': { getSiteContent: async () => ({commerce:{freeShipping:free}}) },
     },
   });

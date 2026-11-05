@@ -7,7 +7,7 @@ import { ArrowRight, Check, Lock, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { selectItemCount, selectSubtotal, useCart, useHydrated } from "@/lib/cart-store";
 import { formatPrice } from "@/lib/format";
-import { calculateShipping, COUNTRIES, getZone, shippingMethodId, zoneOf } from "@/lib/shipping";
+import { basketWeightGrams, COUNTRIES, getZone, shippingMethodId, shippingQuote, type ShippingTable } from "@/lib/shipping";
 
 /* 16px minimum: iOS Safari auto-zooms on smaller inputs, which breaks the
    checkout layout every time a field is tapped. */
@@ -28,7 +28,15 @@ function Section({ number, title, children }: { number: string; title: string; c
   );
 }
 
-export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
+export function CheckoutForm({
+  freeShipping,
+  shippingTable,
+  weightsBySlug,
+}: {
+  freeShipping: boolean;
+  shippingTable: ShippingTable;
+  weightsBySlug: Record<string, number | null>;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const items = useCart((s) => s.items);
@@ -126,10 +134,15 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
   const count = selectItemCount(items);
   // One delivery option only: free (the normal case) or the rate of the
   // destination zone. No standard/express upsell any more.
-  const method = shippingMethodId(freeShipping);
-  const zone = zoneOf(country);
-  const zoneInfo = zone ? getZone(zone) : null;
-  const shipping = calculateShipping(country, freeShipping) ?? 0;
+  // The basket's total weight picks the weight class; the region comes from the country.
+  const grams = basketWeightGrams(
+    items.map((item) => ({ slug: item.slug, quantity: item.quantity })),
+    weightsBySlug,
+  );
+  const quote = shippingQuote(shippingTable, country, grams, freeShipping);
+  const method = quote?.methodId ?? shippingMethodId(freeShipping);
+  const zoneInfo = quote ? getZone(quote.zone) : null;
+  const shipping = quote?.cents ?? 0;
   const total = subtotal + shipping;
 
   function collectPayload(data: FormData) {
@@ -306,7 +319,7 @@ export function CheckoutForm({ freeShipping }: { freeShipping: boolean }) {
               <div>
                 <p className="font-medium text-ink">
                   {freeShipping ? "Free shipping" : "Safe delivery"}
-                  {!freeShipping && zoneInfo ? ` · ${zoneInfo.label}` : ""}
+                  {!freeShipping && zoneInfo ? ` · ${zoneInfo.label}${quote ? ` · ${quote.classLabel}` : ""}` : ""}
                 </p>
                 <p className="mt-1 text-sm text-ink/60">
                   {freeShipping

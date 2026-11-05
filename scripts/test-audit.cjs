@@ -150,7 +150,7 @@ test('Cambrian collection cover label says Cambrian, and code version manifest i
  assert.match(content,/Cover · Cambrian/);
  assert.ok(!/Cover · Souss Lagerstätte/.test(content));
  const version=load('src/lib/version.ts');
- assert.match(version.CODE_VERSION,/^\d{4}-\d{2}-\d{2}-[a-z]$/);
+ assert.match(version.CODE_VERSION,/^\d{4}-\d{2}-\d{2}-[a-z]+$/);
  for(const f of ['order-notifications','email-test','editable-hero-stats']) assert.ok(version.REQUIRED_FEATURES.includes(f),f);
 });
 test('buyer note is accepted, trimmed, bounded and never changes the price',async()=>{

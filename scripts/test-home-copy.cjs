@@ -38,26 +38,18 @@ test("no era date is printed on a home card; the Connoisseur card keeps its muse
   assert.match(cards, /\{c\.homeLabel && </);
 });
 
-test("the ages appear once, under the four cards, from the editable home.collections.ages", () => {
+test("the geological ages line is retired: empty by default, never rendered, not editable", () => {
   const content = load("src/lib/site-content.ts");
-  const ages = content.mergeContent({}).home.collections.ages;
-  assert.match(ages, /Devonian · c\. 390–410 million years/);
-  assert.match(ages, /Ordovician · c\. 450–480 million years/);
-  assert.match(ages, /Cambrian · c\. 485–541 million years/);
+  assert.equal(content.mergeContent({}).home.collections.ages, "");
   const page = read("src/app/page.tsx");
-  const cards = page.slice(page.indexOf("{/* Collections */}"), page.indexOf("{/* Featured */}"));
-  assert.match(cards, /\{c\.collections\.ages && \(/);
-  assert.ok(cards.indexOf("c.collections.ages") > cards.indexOf("c.collections.covers") || cards.indexOf("c.collections.ages") > cards.indexOf("collections.map"), "rendered after the cards");
-  assert.match(
-    read("src/lib/site-content.ts"),
-    /path: \["home", "collections", "ages"\],\s*label: "Text below the four cards \(geological ages\)",\s*type: "textarea"/,
-  );
+  assert.ok(!/c\.collections\.ages/.test(page), "the ages line is not rendered anywhere");
+  assert.ok(!/path: \["home", "collections", "ages"\]/.test(read("src/lib/site-content.ts")), "not an editable field");
 });
 
-test("the hero opens with a neutral line; a stored copy of the old line is corrected on display only", () => {
+test("the hero opens with the curator's line, shown exactly as saved", () => {
   const content = load("src/lib/site-content.ts");
   const hero = content.mergeContent({}).home.hero;
-  assert.equal(hero.title, "Moroccan trilobites,");
+  assert.equal(hero.title, "Five hundred million years,");
   assert.equal(hero.titleItalic, "in your keeping.");
   const publicCopy = load("src/lib/public-copy.ts");
   const stored = {
@@ -65,10 +57,11 @@ test("the hero opens with a neutral line; a stored copy of the old line is corre
     typed: "Five hundred million years, in your keeping. (written by the curator)",
   };
   const out = publicCopy.safeContent(stored);
-  assert.equal(out.home.hero.title, "Moroccan trilobites,");
+  assert.equal(out.home.hero.title, "Five hundred million years,");
   assert.equal(out.home.hero.titleItalic, "in your keeping.");
   assert.equal(out.typed, stored.typed, "a sentence the curator types is kept");
   assert.equal(stored.home.hero.title, "Five hundred million years,", "the stored input is not mutated");
+  assert.equal(publicCopy.safeContent({ home: { hero: { title: "Ancient seafloors," } } }).home.hero.title, "Ancient seafloors,", "typed text is shown as written");
   assert.equal(publicCopy.safeContent({ key: "constructor" }).key, "constructor", "no prototype lookups");
 });
 
@@ -77,12 +70,12 @@ test("legacy settings seeds no longer carry the old hero line", () => {
   assert.ok(!/Five hundred million years/.test(read("src/lib/catalog.ts")));
 });
 
-test("version 2026-11-05-y records the change", () => {
+test("version 2026-11-05-aa records the change", () => {
   const v = load("src/lib/version.ts", {
     "@/lib/site-url": { PUBLIC_SITE_URL: "https://mediterranic.vercel.app", PUBLIC_SITE_URL_SOURCE: "default" },
   });
-  assert.equal(v.CODE_VERSION, "2026-11-05-y");
-  for (const feature of ["home-million-years-lines-retired", "collections-ages-below-cards", "hero-title-neutral"]) {
+  assert.equal(v.CODE_VERSION, "2026-11-05-aa");
+  for (const feature of ["home-million-years-lines-retired", "collections-ages-below-cards", "hero-line-as-saved"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }
 });

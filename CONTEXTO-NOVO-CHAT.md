@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-05-y. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-05-aa. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -92,20 +92,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app
-Admin sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/admin
-Versão sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/api/version
-Checkout sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/checkout
-Arquivo sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/archive
-Envios sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shipping
-Featured sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/featured
-Site Only sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/covers/connoisseur-cyphaspis.jpg
-SOS sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/sos
-Texto SOS: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/api/sos-context
-ZIP completo: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/downloads/mediterranic-2026-11-05-y.zip
+Sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app
+Admin sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/admin
+Versão sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/api/version
+Checkout sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/checkout
+Arquivo sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/archive
+Envios sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shipping
+Featured sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/featured
+Site Only sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-i084j70b2ataq0lghgdj3.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/sos
+Texto SOS: https://3000-i084j70b2ataq0lghgdj3.e2b.app/api/sos-context
+ZIP completo: https://3000-i084j70b2ataq0lghgdj3.e2b.app/downloads/mediterranic-2026-11-05-aa.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -156,4 +156,9 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - shipping-table-admin-tab
 - home-million-years-lines-retired
 - collections-ages-below-cards
-- hero-title-neutral
+- hero-line-as-saved
+- hero-eyebrow-retired
+- collection-ages-retired
+- links-compact-cards
+- mobile-form-text-16px
+- shipping-table-stacked-phone

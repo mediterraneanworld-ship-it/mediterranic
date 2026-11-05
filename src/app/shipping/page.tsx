@@ -118,7 +118,32 @@ export default async function ShippingPage() {
                   </>
                 )}
               </p>
-              <div className="mt-4 overflow-x-auto rounded-sm border border-ink/12 bg-white/70">
+              {/* Phones: one card per region, so the table never has to be swiped sideways. */}
+              <ul className="mt-4 divide-y divide-ink/10 rounded-sm border border-ink/12 bg-white/70 px-4 sm:hidden">
+                {ZONES.map((zone) => (
+                  <li key={zone.id} className="py-4">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="text-ink">{zone.label}</p>
+                      <p className="text-xs text-ink/55">{zone.days}</p>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      {shippingTable.classes.map((cls) => (
+                        <div key={cls.id} className="flex items-baseline justify-between gap-2">
+                          <dt className="text-ink/60">{classLabels[cls.id]}</dt>
+                          <dd className="font-medium text-ink">
+                            {freeShipping ? "Free" : formatPrice(shippingTable.rates[cls.id]?.[zone.id] ?? zone.rateCents)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <details className="mt-3 text-xs text-ink/55">
+                      <summary className="cursor-pointer">Countries</summary>
+                      <p className="mt-2 leading-relaxed">{countriesInZone(zone.id).join(" · ")}</p>
+                    </details>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 hidden overflow-x-auto rounded-sm border border-ink/12 bg-white/70 sm:block">
                 <table className="w-full min-w-[760px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-ink/12 bg-bone/60 text-[11px] uppercase tracking-[0.18em] text-ink/70">

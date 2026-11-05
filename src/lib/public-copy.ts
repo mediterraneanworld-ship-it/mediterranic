@@ -17,11 +17,11 @@ export function safeShippingText(text: string): string {
 }
 
 /**
- * Lines retired from the public site. Matched as the whole stored text, so a
- * sentence the curator types later is never touched; the stored value in the
- * database is left as it is.
+ * Lines retired from the public site. None is retired now: what the curator saves
+ * is what the public sees. The mechanism stays for a future retirement; the stored
+ * value in the database is never rewritten.
  */
-const RETIRED_PUBLIC_LINES = new Map<string, string>([["Five hundred million years,", "Moroccan trilobites,"]]);
+const RETIRED_PUBLIC_LINES = new Map<string, string>();
 
 export function safeContent<T>(value: T, key = ""): T {
   if (typeof value === "string") {

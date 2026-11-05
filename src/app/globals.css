@@ -52,6 +52,17 @@
   h3 {
     text-wrap: balance;
   }
+
+  /* iPhone Safari zooms the whole page when a field smaller than 16px is focused,
+     and the page stays shifted sideways afterwards. Every field is 16px on phones;
+     desktop keeps the smaller sizes. */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
 }
 
 @layer components {

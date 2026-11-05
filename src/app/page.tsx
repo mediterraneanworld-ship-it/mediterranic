@@ -63,11 +63,9 @@ export default async function HomePage() {
         <div className="mx-auto grid min-h-[620px] lg:min-h-[calc(100svh-5rem)] max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:py-24">
           {/* Copy */}
           <div className="max-w-2xl">
-            <p className="animate-fade-up text-[11px] uppercase tracking-[0.42em] text-brass">
-              {c.hero.eyebrow}
-            </p>
+            {/* The hero opens on the title: the eyebrow line is retired. */}
             <h1
-              className="animate-fade-up mt-6 font-display text-[clamp(3rem,6.5vw,6.5rem)] leading-[0.94] text-parchment"
+              className="animate-fade-up font-display text-[clamp(3rem,6.5vw,6.5rem)] leading-[0.94] text-parchment"
               style={{ animationDelay: "0.15s" }}
             >
               {c.hero.title}{" "}
@@ -329,9 +327,7 @@ export default async function HomePage() {
             </Reveal>
           ))}
         </div>
-        {c.collections.ages && (
-          <p className="mx-auto mt-10 max-w-3xl text-center text-sm leading-relaxed text-ink/60">{c.collections.ages}</p>
-        )}
+        {/* The geological ages line under the four cards is retired. */}
       </section>
 
       {/* Featured */}
@@ -516,82 +512,101 @@ export default async function HomePage() {
             </p>
           </div>
 
-          {/* Two columns on desktop keep WhatsApp directly below Instagram. */}
+          {/* Two columns on desktop keep WhatsApp directly below Instagram. Each card is a
+              compact row with a small brand mark, not a full-colour block. */}
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
             <a
               href={settings.ebayUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ebay-quad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
             >
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Marketplace</p>
-                <p className="mt-2 font-display text-3xl text-white">eBay store</p>
-                <p className="mt-1 text-sm text-white/85">Fixed prices and best offers</p>
+              <div className="flex min-w-0 items-center gap-4">
+                <span aria-hidden className="ebay-quad h-2.5 w-2.5 shrink-0 rounded-full" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Marketplace</p>
+                  <p className="font-display text-xl leading-tight text-ink">eBay store</p>
+                </div>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
+              <div className="flex shrink-0 items-center gap-4">
+                <p className="hidden text-xs text-ink/55 md:block">Fixed prices and best offers</p>
+                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+              </div>
             </a>
 
             <a
               href={settings.catawikiUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="cw-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
             >
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Auctions</p>
-                <Image
-                  src="/images/catawiki-logo-white.svg"
-                  alt="Catawiki"
-                  width={195}
-                  height={65}
-                  className="mt-3 h-12 w-auto max-w-full object-contain object-left"
-                />
-                <p className="mt-1 text-sm text-white/85">Weekly Natural History auctions</p>
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="cw-grad inline-flex h-8 shrink-0 items-center rounded-sm px-3">
+                  <Image src="/images/catawiki-logo-white.svg" alt="Catawiki" width={195} height={65} className="h-4 w-auto" />
+                </span>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Auctions</p>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
+              <div className="flex shrink-0 items-center gap-4">
+                <p className="hidden text-xs text-ink/55 md:block">Weekly Natural History auctions</p>
+                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+              </div>
             </a>
 
             <a
               href={settings.trustamiUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-brass/50 bg-brass/10 p-6 transition hover:border-brass hover:shadow-md"
+              className="group flex items-center justify-between gap-4 rounded-sm border border-brass/40 bg-brass/5 px-5 py-3.5 transition hover:border-brass hover:bg-brass/10"
             >
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-brass">Verified rating</p>
-                <p className="mt-2 font-display text-3xl text-ink">{settings.trustamiRating}</p>
-                <p className="mt-1 text-sm text-ink/60">{settings.trustamiRatings} verified ratings</p>
+              <div className="flex min-w-0 items-center gap-4">
+                <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-brass" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-brass">Verified rating</p>
+                  <p className="font-display text-xl leading-tight text-ink">{settings.trustamiRating}</p>
+                </div>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
+              <div className="flex shrink-0 items-center gap-4">
+                <p className="hidden text-xs text-ink/55 md:block">{settings.trustamiRatings} verified ratings</p>
+                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+              </div>
             </a>
 
             <a
               href={settings.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ig-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
             >
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Photography</p>
-                <p className="mt-2 font-display text-3xl text-white">Instagram</p>
-                <p className="mt-1 text-sm text-white/85">New arrivals and macro detail</p>
+              <div className="flex min-w-0 items-center gap-4">
+                <span aria-hidden className="ig-grad h-2.5 w-2.5 shrink-0 rounded-full" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Photography</p>
+                  <p className="font-display text-xl leading-tight text-ink">Instagram</p>
+                </div>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
+              <div className="flex shrink-0 items-center gap-4">
+                <p className="hidden text-xs text-ink/55 md:block">New arrivals and macro detail</p>
+                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+              </div>
             </a>
 
             <a
               href={settings.facebookUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="fb-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
             >
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Community</p>
-                <p className="mt-2 font-display text-3xl text-white">Facebook</p>
-                <p className="mt-1 text-sm text-white/85">Fossils from Morocco</p>
+              <div className="flex min-w-0 items-center gap-4">
+                <span aria-hidden className="fb-grad h-2.5 w-2.5 shrink-0 rounded-full" />
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Community</p>
+                  <p className="font-display text-xl leading-tight text-ink">Facebook</p>
+                </div>
               </div>
-              <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
+              <div className="flex shrink-0 items-center gap-4">
+                <p className="hidden text-xs text-ink/55 md:block">Fossils from Morocco</p>
+                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+              </div>
             </a>
 
             {settings.whatsappPhone && (
@@ -599,14 +614,19 @@ export default async function HomePage() {
                 href={`https://wa.me/${settings.whatsappPhone.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="wa-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent p-6 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
+                className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
               >
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/85">Direct</p>
-                  <p className="mt-2 font-display text-3xl text-white">WhatsApp</p>
-                  <p className="mt-1 text-sm text-white/85">Ask for photos or a shipping quote</p>
+                <div className="flex min-w-0 items-center gap-4">
+                  <span aria-hidden className="wa-grad h-2.5 w-2.5 shrink-0 rounded-full" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Direct</p>
+                    <p className="font-display text-xl leading-tight text-ink">WhatsApp</p>
+                  </div>
                 </div>
-                <ExternalLink size={18} className="shrink-0 text-white/85 transition group-hover:text-white" />
+                <div className="flex shrink-0 items-center gap-4">
+                  <p className="hidden text-xs text-ink/55 md:block">Ask for photos or a shipping quote</p>
+                  <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                </div>
               </a>
             )}
           </div>

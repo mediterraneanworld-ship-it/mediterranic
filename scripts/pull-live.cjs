@@ -239,17 +239,16 @@ function firstMatch(html, re) {
   // 3. textos do hero e da proveniência, a partir da home pública
   try {
     const home = await getText(`${BASE}/`);
-    const heroEyebrow = firstMatch(home, /tracking-\[0\.42em\][^>]*>([^<]+)</);
+    // The eyebrow line is retired from the public home: only the title is mirrored.
     const heroBlock = home.match(/<h1[^>]*>(.*?)<em[^>]*>(.*?)<\/em>/s);
     const heroDescription = firstMatch(home, /<\/h1><p[^>]*>(.*?)<\/p>/s);
     const heroImage = home.match(/src="(\/(?:images|api\/uploads)[^"]+)"[^>]*alt="A hand-prepared/);
-    if (heroEyebrow && heroBlock) {
+    if (heroBlock) {
       await db.query(
-        `UPDATE site_settings SET hero_eyebrow=$1, hero_title=$2, hero_title_italic=$3,
-           hero_description=COALESCE($4, hero_description),
-           hero_image=COALESCE($5, hero_image), updated_at=now() WHERE id=1`,
+        `UPDATE site_settings SET hero_title=$1, hero_title_italic=$2,
+           hero_description=COALESCE($3, hero_description),
+           hero_image=COALESCE($4, hero_image), updated_at=now() WHERE id=1`,
         [
-          heroEyebrow,
           stripTags(heroBlock[1]),
           stripTags(heroBlock[2]),
           heroDescription,

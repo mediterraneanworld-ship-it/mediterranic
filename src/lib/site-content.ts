@@ -200,7 +200,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   home: {
     hero: {
       eyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
-      title: "Moroccan trilobites,",
+      title: "Five hundred million years,",
       titleItalic: "in your keeping.",
       description:
         "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with safe worldwide shipping.",
@@ -260,7 +260,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       eyebrow: "Curated collections",
       title: "Four ways into deep time",
       subtitle: "Cambrian · Ordovician · Devonian · Museum grade",
-      ages: "Devonian · c. 390–410 million years · Ordovician · c. 450–480 million years · Cambrian · c. 485–541 million years",
+      ages: "",
       covers: {
         devonianCrown: "/images/products/drotops-armatus.jpg",
         ordovicianMariners: "/images/products/neseuretus-tristani.jpg",
@@ -561,7 +561,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     label: "Home · Hero",
     note: "The first screen. The photograph is the large circular image.",
     fields: [
-      { path: ["home", "hero", "eyebrow"], label: "Eyebrow", type: "text" },
+      // Hero eyebrow line retired: not shown on the site and not editable.
       { path: ["home", "hero", "title"], label: "Title (first part)", type: "text" },
       { path: ["home", "hero", "titleItalic"], label: "Title (italic part)", type: "text" },
       { path: ["home", "hero", "description"], label: "Description", type: "textarea" },
@@ -611,11 +611,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { path: ["home", "collections", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "collections", "title"], label: "Title", type: "text" },
       { path: ["home", "collections", "subtitle"], label: "Subtitle", type: "text" },
-      {
-        path: ["home", "collections", "ages"],
-        label: "Text below the four cards (geological ages)",
-        type: "textarea",
-      },
+      // Geological ages line under the four cards retired: not shown and not editable.
       { path: ["home", "collections", "covers", "devonianCrown"], label: "Cover · Devonian Crown", type: "image" },
       {
         path: ["home", "collections", "covers", "ordovicianMariners"],

@@ -29,6 +29,20 @@ export type SendResult =
   | { ok: false; detail: string; notConfigured?: boolean; restrictedSender?: boolean };
 
 /**
+ * Inline attachment for e-mail images. Resend supports `content_id`, which
+ * lets the HTML reference the photo as `src="cid:piece-1"` — the only way to
+ * guarantee the picture renders in Outlook (desktop and mobile) and in
+ * clients that block remote images by default.
+ */
+export type MailAttachment = {
+  filename: string;
+  /** Base64 payload, no data: prefix. */
+  content: string;
+  contentType: string;
+  contentId: string;
+};
+
+/**
  * Resend's shared test sender (…@resend.dev) only delivers to the e-mail of
  * the Resend account owner. Every other recipient (i.e. every customer) is
  * refused until a domain is verified and ORDER_EMAIL_FROM uses it.
@@ -57,6 +71,8 @@ export async function sendMail(input: {
   replyTo?: string;
   /** Extra headers, e.g. List-Unsubscribe on marketing mail. */
   headers?: Record<string, string>;
+  /** Inline images referenced from the HTML via `cid:`. */
+  attachments?: MailAttachment[];
 }): Promise<SendResult> {
   const transport = mailTransport();
   if (!transport) {
@@ -72,15 +88,25 @@ export async function sendMail(input: {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from,
-          to: [input.to],
-          subject: input.subject,
-          text: input.text,
-          html: input.html,
-          ...(input.replyTo ? { reply_to: input.replyTo } : {}),
-          ...(input.headers ? { headers: input.headers } : {}),
-        }),
+          body: JSON.stringify({
+            from,
+            to: [input.to],
+            subject: input.subject,
+            text: input.text,
+            html: input.html,
+            ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+            ...(input.headers ? { headers: input.headers } : {}),
+            ...(input.attachments?.length
+              ? {
+                  attachments: input.attachments.map((a) => ({
+                    filename: a.filename,
+                    content: a.content,
+                    content_type: a.contentType,
+                    content_id: a.contentId,
+                  })),
+                }
+              : {}),
+          }),
         signal: AbortSignal.timeout(15_000),
       });
       const body = await res.text();

@@ -10,9 +10,12 @@ type ReviewEntry = {
   id: number; authorName: string; authorCountry: string; rating: number;
   title: string; body: string; productName: string; productSlug: string;
   moderationStatus: ReviewModerationStatus; moderatedAt: string | null;
-  createdAt: string; verifiedPurchase: boolean;
+  createdAt: string; verifiedPurchase: boolean; showOnHome: boolean;
 };
-type Queue = { reviews: ReviewEntry[]; counts: Record<Filter, number>; total: number; page: number; pageSize: number };
+type Queue = {
+  reviews: ReviewEntry[]; counts: Record<Filter, number>; total: number; page: number; pageSize: number;
+  home: { selected: number; limit: number; automatic: number };
+};
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "pending", label: "Pending" }, { id: "approved", label: "Approved" },
   { id: "rejected", label: "Rejected" }, { id: "all", label: "All" },
@@ -71,6 +74,22 @@ export function AdminReviewModeration() {
     } finally { setBusy(null); }
   }
 
+    /** Shows a public review on the home page, or takes it off again. The server enforces the limit. */
+  async function setHomePick(review: ReviewEntry, showOnHome: boolean) {
+    setBusy(review.id); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/reviews", {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: review.id, showOnHome }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Could not confirm the home page change. Refresh the queue before retrying.");
+      await load();
+      setNotice(showOnHome ? 'Shown on the home page under "From collectors who have been where you are".' : "Removed from the home page. It stays published on its piece page.");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Could not confirm the change.");
+    } finally { setBusy(null); }
+  }
+
   const pages = Math.max(1, Math.ceil((queue?.total ?? 0) / (queue?.pageSize ?? 20)));
   return (
     <section className="mt-10 space-y-6" aria-label="Review moderation">
@@ -91,6 +110,14 @@ export function AdminReviewModeration() {
           {label}{queue ? ` (${queue.counts[id]})` : ""}
         </button>)}
       </div>
+            {queue && (
+        <p className="rounded-sm border border-ink/10 bg-bone/60 p-4 text-sm leading-relaxed text-ink/75">
+          <span className="font-medium text-ink">Home page reviews:</span>{" "}
+          {queue.home.selected > 0
+            ? `${queue.home.selected} of ${queue.home.limit} chosen. The home shows only these, newest first.`
+            : `None chosen. The home shows the ${queue.home.automatic} most recent 5-star reviews automatically. Choose up to ${queue.home.limit} below to take over.`}
+        </p>
+      )}
       {notice && <p role="status" className="rounded-sm bg-sea/10 p-4 text-sm text-sea">{notice}</p>}
       {error && <p role="alert" className="rounded-sm bg-terracotta/10 p-4 text-sm text-terracotta">{error}</p>}
       {loading ? <p role="status" className="py-8 text-sm text-ink/60">Loading reviews…</p> : queue?.reviews.length === 0 ? (
@@ -116,6 +143,14 @@ export function AdminReviewModeration() {
                   aria-label={`Reject review by ${review.authorName}`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-terracotta/40 px-5 text-xs text-terracotta disabled:opacity-40"><X size={15} aria-hidden="true" />Reject</button>
                 <button type="button" onClick={() => void moderate(review.id, "pending")} disabled={busy !== null || review.moderationStatus === "pending"}
                   aria-label={`Return review by ${review.authorName} to pending`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs text-ink/70 disabled:opacity-40"><Clock size={15} aria-hidden="true" />Return to pending</button>
+                {review.moderationStatus === "approved" && (review.showOnHome ? (
+                  <button type="button" onClick={() => void setHomePick(review, false)} disabled={busy !== null}
+                    aria-label={`Remove review by ${review.authorName} from the home page`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-brass bg-brass/15 px-5 text-xs text-ink disabled:opacity-40">Remove from home page</button>
+                ) : (
+                  <button type="button" onClick={() => void setHomePick(review, true)} disabled={busy !== null || (queue?.home.selected ?? 0) >= (queue?.home.limit ?? 6)}
+                    aria-label={`Show review by ${review.authorName} on the home page`} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs text-ink disabled:opacity-40">Show on home page</button>
+                ))}
+
               </div>
             </article>
           ))}

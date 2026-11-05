@@ -72,7 +72,7 @@ restaurá-lo em `/admin` → `⬆ Restore from file` no preview.
 | `ADMIN_PASSWORD` | uma palavra-passe forte sua | **Sim** |
 | `STRICT_ADMIN_AUTH` | `true` | **Sim** |
 | `CRON_SECRET` | uma chave longa aleatória | **Sim** (para o automático dos preços) |
-| `NEXT_PUBLIC_SITE_URL` | `https://oseudominio.com` | Recomendado |
+| (nenhuma) | o endereço fica em src/lib/site-url.ts | - |
 | `EBAY_STORE_URL` | `https://www.ebay.com/str/mederranic` | Recomendado |
 
 Marcar as três opções: *Production*, *Preview* e *Development*.
@@ -100,7 +100,7 @@ Marcar as três opções: *Production*, *Preview* e *Development*.
 3. Ir ao painel onde tem o domínio (GoDaddy, Namecheap, Amen, Cloudflare…) e colar
    esses dois registos na zona **DNS**.
 4. Esperar 15 minutos a 48 horas (normalmente menos de 1 hora).
-5. Actualizar `NEXT_PUBLIC_SITE_URL` para o domínio final e fazer novo deploy.
+5. Mudar `PUBLIC_SITE_URL` em `src/lib/site-url.ts` para o domínio final e fazer novo deploy.
 
 ---
 
@@ -180,7 +180,7 @@ qualquer peça criada depois do backup fica intacta.
   gratuito da Vercel (Hobby) só permite um cron diário. Para mais frequência:
   - **Plano Pro da Vercel** (~20 €/mês): mude `"schedule"` para `"*/30 * * * *"`.
   - **Ou um agendador externo gratuito** (cron-job.org, UptimeRobot): chame de X em X
-    minutos o endereço `https://shop.mediterranic.com/api/cron/refresh-prices?secret=A_SUA_CRON_SECRET`.
+    minutos o endereço `https://mediterranic.vercel.app/api/cron/refresh-prices?secret=A_SUA_CRON_SECRET`.
   - O botão **"Check prices now"** no back-office funciona sempre, de imediato.
 - As fotografias estão em `public/images/` e são servidas directamente.
 

@@ -91,6 +91,8 @@ export const reviews = pgTable("reviews", {
   /** NULL is an already-public legacy review; every new submission is pending. */
   moderationStatus: text("moderation_status").default("pending"),
   moderatedAt: timestamp("moderated_at", { withTimezone: true }),
+  /** Curator's choice: show this public review under "From collectors who have been where you are". */
+  showOnHome: boolean("show_on_home").notNull().default(false),
   verifiedPurchase: boolean("verified_purchase").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

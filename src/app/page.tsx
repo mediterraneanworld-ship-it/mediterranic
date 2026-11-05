@@ -11,7 +11,7 @@ import {
   getSiteContent,
   getSiteSettings,
   getStoreStats,
-  getTopReviews,
+  getHomeTestimonials,
 } from "@/lib/catalog";
 import { isAvailable } from "@/lib/product-visibility";
 import { inventoryCounts, offeredSpecimen } from "@/lib/inventory-rules";
@@ -22,7 +22,7 @@ export default async function HomePage() {
   const [products, stats, testimonials, settings, content] = await Promise.all([
     getAllProducts(),
     getStoreStats(),
-    getTopReviews(3),
+    getHomeTestimonials(),
     getSiteSettings(),
     getSiteContent(),
   ]);
@@ -472,7 +472,7 @@ export default async function HomePage() {
             </h2>
           </Reveal>
 
-          <div className="mt-16 grid gap-6 md:grid-cols-3">
+          <div className={`mt-16 grid gap-6 ${testimonials.length === 1 ? "mx-auto max-w-xl" : testimonials.length === 2 || testimonials.length === 4 ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
             {testimonials.map((t, i) => (
               <Reveal key={t.id} delay={i * 0.12}>
                 <figure className="flex h-full flex-col rounded-sm border border-parchment/10 bg-parchment/[0.03] p-8">

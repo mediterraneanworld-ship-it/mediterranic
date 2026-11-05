@@ -267,6 +267,8 @@ ALTER TABLE "newsletter_sends" ADD COLUMN IF NOT EXISTS "detail" text;
 ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "moderation_status" text;
 ALTER TABLE "reviews" ALTER COLUMN "moderation_status" SET DEFAULT 'pending';
 ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "moderated_at" timestamp with time zone;
+-- Curator's choice for the home page reviews. Additive: no review is changed.
+ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "show_on_home" boolean DEFAULT false NOT NULL;
 
 `;
 

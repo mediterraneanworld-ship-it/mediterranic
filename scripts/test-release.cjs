@@ -82,7 +82,7 @@ function moderationFixture(authed = true, exists = true) {
     '@/db/schema': { products: {}, reviews: { id: 'rid' } },
     '@/lib/admin-auth': { isAdminAuthenticated: async () => authed },
     '@/lib/schema-migrate': { ensureSchema: async () => {} },
-    '@/lib/review-moderation': statuses,
+    '@/lib/home-reviews': load('src/lib/home-reviews.ts'), '@/lib/review-moderation': statuses,
   });
   return { route, changed: () => changed, operations: () => operations, refreshed };
 }
@@ -131,6 +131,7 @@ test('all five public review/statistic query paths apply the approval condition'
   } };
   const reviewTable = { productId: 'reviewProductId', moderationStatus: 'reviewModerationStatus', rating: 'reviewRating' };
   const catalog = load('src/lib/catalog.ts', {
+    '@/lib/home-reviews': load('src/lib/home-reviews.ts'),
     'drizzle-orm': operators, '@/db': { db },
     '@/db/schema': { products: { id: 'productId', published: 'published' }, reviews: reviewTable },
     '@/lib/seed': { ensureSeeded: async () => {} }, '@/lib/seed-settings': { SEED_SETTINGS: {} },

@@ -262,7 +262,7 @@ export const DEFAULT_CONTENT: SiteContent = {
         devonianCrown: "/images/products/drotops-armatus.jpg",
         ordovicianMariners: "/images/products/neseuretus-tristani.jpg",
         cambrianDawn: "/images/imported/perrector-falloti-the-perrector-field-specimen-1.jpg",
-        connoisseur: "/images/connoisseur-glass.png",
+        connoisseur: "/images/connoisseur-cyphaspis-glass.jpg",
       },
     },
     featured: {

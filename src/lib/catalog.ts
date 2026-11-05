@@ -1,4 +1,5 @@
 import { and, asc, avg, count, desc, eq, gte, isNull, or } from "drizzle-orm";
+import { HOME_REVIEW_AUTOMATIC, HOME_REVIEW_LIMIT } from "@/lib/home-reviews";
 import { db } from "@/db";
 import { newsletterSends, newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
@@ -149,6 +150,33 @@ export async function getTopReviews(limit = 6) {
     .where(and(gte(reviews.rating, 5), publicReviews(), eq(products.published, true)))
     .orderBy(desc(reviews.createdAt))
     .limit(limit);
+}
+
+/**
+ * Reviews for "From collectors who have been where you are": the curator's
+ * choice, public reviews only, up to the limit. With nothing chosen, the home
+ * keeps the automatic rule (the newest 5-star public reviews).
+ */
+export async function getHomeTestimonials() {
+  await ensureSeeded();
+  const picked = await db
+    .select({
+      id: reviews.id,
+      authorName: reviews.authorName,
+      authorCountry: reviews.authorCountry,
+      rating: reviews.rating,
+      title: reviews.title,
+      body: reviews.body,
+      productName: products.name,
+      productSlug: products.slug,
+    })
+    .from(reviews)
+    .innerJoin(products, eq(reviews.productId, products.id))
+    .where(and(eq(reviews.showOnHome, true), publicReviews(), eq(products.published, true)))
+    .orderBy(desc(reviews.createdAt), desc(reviews.id))
+    .limit(HOME_REVIEW_LIMIT);
+  if (picked.length > 0) return picked;
+  return getTopReviews(HOME_REVIEW_AUTOMATIC);
 }
 
 export async function getStoreStats() {

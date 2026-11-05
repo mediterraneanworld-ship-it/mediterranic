@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-05-aa. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-05-ab. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -23,6 +23,7 @@ Eu edito conteúdo no admin de produção: isso grava no Neon e sobrevive ao dep
 Tu alteras código, validas e entregas um ZIP COMPLETO, sem .env, .git, node_modules, .next, caches, logs ou cópias do banco de dados.
 Eu APAGO a src local e copio a src do ZIP. Mantenho .env e .git. Copio também public/ quando existirem imagens novas e vercel.json quando necessário.
 Commit + Push no GitHub Desktop publica pela Vercel. Nunca confundir mudar um ficheiro no sandbox com ter feito deploy em produção.
+Vercel: cada push no master cria um deployment; o site é sempre o último deployment de produção. Os antigos não afectam o site nem os dados (Neon). O Hobby protege sempre o que está no ar, os 3 últimos de produção e os 3 últimos de qualquer tipo; os restantes podem ser apagados (de imediato se o armazenamento passar de 10 GB). Para voltar atrás: Instant Rollback e depois confirmar /api/version. O plano Hobby é para uso pessoal e não comercial: confirmar com o dono se a loja deve passar ao Pro.
 Um deploy não pode apagar nem substituir peças, preços, textos, fotografias, encomendas, subscritores ou decisões de moderação.
 Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. Colunas novas em UPGRADE_SQL de src/lib/schema-migrate.ts, sem DROP/TRUNCATE/DELETE nem actualizações forçadas do conteúdo.
 
@@ -92,20 +93,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app
-Admin sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/admin
-Versão sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/api/version
-Checkout sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/checkout
-Arquivo sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/archive
-Envios sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shipping
-Featured sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/featured
-Site Only sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-i084j70b2ataq0lghgdj3.e2b.app/covers/connoisseur-cyphaspis.jpg
-SOS sandbox: https://3000-i084j70b2ataq0lghgdj3.e2b.app/sos
-Texto SOS: https://3000-i084j70b2ataq0lghgdj3.e2b.app/api/sos-context
-ZIP completo: https://3000-i084j70b2ataq0lghgdj3.e2b.app/downloads/mediterranic-2026-11-05-aa.zip
+Sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app
+Admin sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/admin
+Versão sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/api/version
+Checkout sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/checkout
+Arquivo sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/archive
+Envios sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/shipping
+Featured sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/featured
+Site Only sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-i8urett5jpgbl0xrczklk.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-i8urett5jpgbl0xrczklk.e2b.app/sos
+Texto SOS: https://3000-i8urett5jpgbl0xrczklk.e2b.app/api/sos-context
+ZIP completo: https://3000-i8urett5jpgbl0xrczklk.e2b.app/downloads/mediterranic-2026-11-05-ab.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -162,3 +163,8 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - links-compact-cards
 - mobile-form-text-16px
 - shipping-table-stacked-phone
+- hero-moved-up
+- home-sections-tightened
+- link-cards-coloured-compact
+- labels-one-line
+- footer-gap-halved

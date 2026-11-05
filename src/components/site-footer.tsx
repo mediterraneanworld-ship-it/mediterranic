@@ -21,7 +21,7 @@ export async function SiteFooter() {
   };
 
   return (
-    <footer className="mt-32 bg-midnight text-parchment/80">
+    <footer className="mt-16 bg-midnight text-parchment/80">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div className="space-y-5 lg:col-span-1">

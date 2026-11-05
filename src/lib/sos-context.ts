@@ -30,6 +30,7 @@ export function buildSosContext(): string {
     "Tu alteras código, validas e entregas um ZIP COMPLETO, sem .env, .git, node_modules, .next, caches, logs ou cópias do banco de dados.",
     "Eu APAGO a src local e copio a src do ZIP. Mantenho .env e .git. Copio também public/ quando existirem imagens novas e vercel.json quando necessário.",
     "Commit + Push no GitHub Desktop publica pela Vercel. Nunca confundir mudar um ficheiro no sandbox com ter feito deploy em produção.",
+    "Vercel: cada push no master cria um deployment; o site é sempre o último deployment de produção. Os antigos não afectam o site nem os dados (Neon). O Hobby protege sempre o que está no ar, os 3 últimos de produção e os 3 últimos de qualquer tipo; os restantes podem ser apagados (de imediato se o armazenamento passar de 10 GB). Para voltar atrás: Instant Rollback e depois confirmar /api/version. O plano Hobby é para uso pessoal e não comercial: confirmar com o dono se a loja deve passar ao Pro.",
     "Um deploy não pode apagar nem substituir peças, preços, textos, fotografias, encomendas, subscritores ou decisões de moderação.",
     "Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. Colunas novas em UPGRADE_SQL de src/lib/schema-migrate.ts, sem DROP/TRUNCATE/DELETE nem actualizações forçadas do conteúdo.",
     "",

@@ -60,7 +60,7 @@ export default async function HomePage() {
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(120%_100%_at_80%_0%,rgba(29,74,92,0.55),transparent_60%)]" />
         <div className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-t from-parchment/10 to-transparent" />
 
-        <div className="mx-auto grid min-h-[620px] lg:min-h-[calc(100svh-5rem)] max-w-7xl items-center gap-14 px-5 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:py-24">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pb-20 lg:pt-8">
           {/* Copy */}
           <div className="max-w-2xl">
             {/* The hero opens on the title: the eyebrow line is retired. */}
@@ -201,7 +201,7 @@ export default async function HomePage() {
       </section>
 
       {/* 3 Availability Channels Strip */}
-      <section className="border-b border-ink/10 bg-parchment py-16">
+      <section className="border-b border-ink/10 bg-parchment pb-16 pt-8 md:pt-10">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
@@ -283,7 +283,7 @@ export default async function HomePage() {
       </section>
 
       {/* Collections */}
-      <section className="mx-auto max-w-7xl px-5 py-16 md:py-28 lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 pb-16 pt-10 md:pb-28 md:pt-20 lg:px-8">
         <Reveal>
           <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.collections.eyebrow}</p>
           <h2 className="mt-4 max-w-2xl font-display text-5xl leading-[1.02] text-ink md:text-6xl">
@@ -500,7 +500,7 @@ export default async function HomePage() {
       )}
 
       {/* Everywhere you can find us — the Linktree, in page */}
-      <section id="links" className="border-t border-ink/10 bg-bone/50 py-24">
+      <section id="links" className="border-t border-ink/10 bg-bone/50 pb-24 pt-14 md:pt-16">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="text-center">
             <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.links.eyebrow}</p>
@@ -512,25 +512,22 @@ export default async function HomePage() {
             </p>
           </div>
 
-          {/* Two columns on desktop keep WhatsApp directly below Instagram. Each card is a
-              compact row with a small brand mark, not a full-colour block. */}
+          {/* Two columns on desktop keep WhatsApp directly below Instagram. Cards are
+              compact rows in the brand colours. Labels never wrap. */}
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
             <a
               href={settings.ebayUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
+              className="ebay-quad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <span aria-hidden className="ebay-quad h-2.5 w-2.5 shrink-0 rounded-full" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Marketplace</p>
-                  <p className="font-display text-xl leading-tight text-ink">eBay store</p>
-                </div>
+              <div className="min-w-0">
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Marketplace</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">eBay store</p>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden text-xs text-ink/55 md:block">Fixed prices and best offers</p>
-                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Fixed prices and best offers</p>
+                <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
 
@@ -538,17 +535,15 @@ export default async function HomePage() {
               href={settings.catawikiUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
+              className="cw-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <span className="cw-grad inline-flex h-8 shrink-0 items-center rounded-sm px-3">
-                  <Image src="/images/catawiki-logo-white.svg" alt="Catawiki" width={195} height={65} className="h-4 w-auto" />
-                </span>
-                <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Auctions</p>
+              <div className="min-w-0">
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Auctions</p>
+                <Image src="/images/catawiki-logo-white.svg" alt="Catawiki" width={195} height={65} className="mt-1 h-5 w-auto max-w-full object-contain object-left" />
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden text-xs text-ink/55 md:block">Weekly Natural History auctions</p>
-                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Weekly Natural History auctions</p>
+                <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
 
@@ -556,18 +551,15 @@ export default async function HomePage() {
               href={settings.trustamiUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-brass/40 bg-brass/5 px-5 py-3.5 transition hover:border-brass hover:bg-brass/10"
+              className="group flex items-center justify-between gap-4 rounded-sm border border-brass/50 bg-brass/10 px-5 py-3.5 transition hover:border-brass hover:shadow-md"
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-brass" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-brass">Verified rating</p>
-                  <p className="font-display text-xl leading-tight text-ink">{settings.trustamiRating}</p>
-                </div>
+              <div className="min-w-0">
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-brass">Verified rating</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-ink">{settings.trustamiRating}</p>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden text-xs text-ink/55 md:block">{settings.trustamiRatings} verified ratings</p>
-                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                <p className="hidden whitespace-nowrap text-xs text-ink/60 lg:block">{settings.trustamiRatings} verified ratings</p>
+                <ExternalLink size={15} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
               </div>
             </a>
 
@@ -575,18 +567,15 @@ export default async function HomePage() {
               href={settings.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
+              className="ig-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <span aria-hidden className="ig-grad h-2.5 w-2.5 shrink-0 rounded-full" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Photography</p>
-                  <p className="font-display text-xl leading-tight text-ink">Instagram</p>
-                </div>
+              <div className="min-w-0">
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Photography</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">Instagram</p>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden text-xs text-ink/55 md:block">New arrivals and macro detail</p>
-                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">New arrivals and macro detail</p>
+                <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
 
@@ -594,18 +583,15 @@ export default async function HomePage() {
               href={settings.facebookUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
+              className="fb-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
-              <div className="flex min-w-0 items-center gap-4">
-                <span aria-hidden className="fb-grad h-2.5 w-2.5 shrink-0 rounded-full" />
-                <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Community</p>
-                  <p className="font-display text-xl leading-tight text-ink">Facebook</p>
-                </div>
+              <div className="min-w-0">
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Community</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">Facebook</p>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden text-xs text-ink/55 md:block">Fossils from Morocco</p>
-                <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Fossils from Morocco</p>
+                <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
 
@@ -614,18 +600,15 @@ export default async function HomePage() {
                 href={`https://wa.me/${settings.whatsappPhone.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex items-center justify-between gap-4 rounded-sm border border-ink/12 bg-white/80 px-5 py-3.5 transition hover:border-ink/35 hover:bg-white"
+                className="wa-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
               >
-                <div className="flex min-w-0 items-center gap-4">
-                  <span aria-hidden className="wa-grad h-2.5 w-2.5 shrink-0 rounded-full" />
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-ink/50">Direct</p>
-                    <p className="font-display text-xl leading-tight text-ink">WhatsApp</p>
-                  </div>
+                <div className="min-w-0">
+                  <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Direct</p>
+                  <p className="whitespace-nowrap font-display text-xl leading-tight text-white">WhatsApp</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-4">
-                  <p className="hidden text-xs text-ink/55 md:block">Ask for photos or a shipping quote</p>
-                  <ExternalLink size={15} className="text-ink/35 transition group-hover:text-ink" />
+                  <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Ask for photos or a shipping quote</p>
+                  <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
                 </div>
               </a>
             )}
@@ -636,7 +619,7 @@ export default async function HomePage() {
       </section>
 
       {/* Closing CTA */}
-      <section className="mx-auto max-w-7xl px-5 py-16 md:py-28 text-center lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 pb-8 pt-16 text-center md:pb-14 md:pt-28 lg:px-8">
         <Reveal>
           <div className="hairline mx-auto mb-12 w-40" />
           <h2 className="mx-auto max-w-3xl font-display text-5xl leading-[1.02] text-ink md:text-7xl">

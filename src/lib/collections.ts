@@ -10,6 +10,8 @@ export type Collection = {
   /** When set, the home card links here instead of the shop filter. */
   externalUrl?: string;
   eyebrow: string;
+  /** Label printed on the home card. Left empty for the era cards: their dates appear once, under the cards. */
+  homeLabel?: string;
   description: string;
   /** Product image used as the collection cover */
   cover: string;
@@ -45,6 +47,7 @@ export const COLLECTIONS: Collection[] = [
     slug: "the-connoisseur",
     title: "The Connoisseur",
     eyebrow: "Museum grade",
+    homeLabel: "Museum grade",
     description:
       "Rare, large and exceptionally preserved. Pieces we would be proud to see in a private study, a boardroom or a foundation's collection.",
     cover: "/covers/connoisseur-cyphaspis.jpg",

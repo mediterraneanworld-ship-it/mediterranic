@@ -202,9 +202,9 @@ test("cover: one bundled 3:4 image, one stable address, every reference agrees",
   assert.ok(!fs.existsSync("public/images/connoisseur-cyphaspis-glass.jpg"), "no second copy in public/");
 });
 
-test("version 2026-11-04-x lists the shipping table and the bundled cover", () => {
+test("the version manifest lists the shipping table and the bundled cover", () => {
   const v = load("src/lib/version.ts");
-  assert.equal(v.CODE_VERSION, "2026-11-04-x");
+  assert.equal(v.CODE_VERSION, "2026-11-05-y");
   for (const feature of ["shipping-weight-table", "covers-route-bundled-cover", "shipping-table-admin-tab"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }

@@ -21,7 +21,7 @@ export const UNUSED_DEFAULTS: Omit<SiteSettings, "updatedAt"> = {
   id: 1,
   content: {},
   heroEyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
-  heroTitle: "Five hundred million years,",
+  heroTitle: "Moroccan trilobites,",
   heroTitleItalic: "in your keeping.",
   heroDescription:
     "Museum-grade trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Direct from nearly 23 years of specialist work, backed by thousands of verified feedbacks on eBay and Catawiki and battle-tested protected worldwide shipping.",

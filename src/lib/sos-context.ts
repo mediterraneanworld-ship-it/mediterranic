@@ -60,6 +60,7 @@ export function buildSosContext(): string {
     "- Este SOS existe em /sos; texto copiável/descarregável em /api/sos-context. É público, sem segredos e marcado noindex.",
     "",
     "- Envios: tabela por classe de peso (0–500 g; 501–1000 g; 1001–2000 g; mais de 2 kg) × 5 regiões, no admin (separador 7, Shipping rates). Peso do carrinho = soma das peças com caixa. Peça sem peso cobra a classe mais pesada até ter peso. O envio grátis, quando ligado, sobrepõe-se a tudo.",
+    "- Textos da home (admin, separador 5 → Home): título do hero em Hero → Title (first part); linha por baixo dos 4 cartões em Collections → Text below the four cards. As idades (milhões de anos) saíram dos cartões e ficam só nessa linha.",
     "",
     "## 6. Domínio e variáveis Vercel",
     `A loja continua em ${PUBLIC_SITE_URL}. mediterranic.com só no FIM do projecto; shop.mediterranic.com não existe nem será usado.`,

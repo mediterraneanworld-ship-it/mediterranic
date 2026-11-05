@@ -16,9 +16,18 @@ export function safeShippingText(text: string): string {
     .replace(/\binsured\b/gi, "safely packed");
 }
 
+/**
+ * Lines retired from the public site. Matched as the whole stored text, so a
+ * sentence the curator types later is never touched; the stored value in the
+ * database is left as it is.
+ */
+const RETIRED_PUBLIC_LINES = new Map<string, string>([["Five hundred million years,", "Moroccan trilobites,"]]);
+
 export function safeContent<T>(value: T, key = ""): T {
   if (typeof value === "string") {
     if (/script|url|image|favicon|cover|logo/i.test(key)) return value;
+    const retired = RETIRED_PUBLIC_LINES.get(value.trim());
+    if (retired) return retired as T;
     return safeShippingText(value) as T;
   }
   if (Array.isArray(value)) return value.map((item) => safeContent(item, key)) as T;

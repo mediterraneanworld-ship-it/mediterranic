@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-04-x. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-05-y. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -53,6 +53,7 @@ Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. 
 - Este SOS existe em /sos; texto copiável/descarregável em /api/sos-context. É público, sem segredos e marcado noindex.
 
 - Envios: tabela por classe de peso (0–500 g; 501–1000 g; 1001–2000 g; mais de 2 kg) × 5 regiões, no admin (separador 7, Shipping rates). Peso do carrinho = soma das peças com caixa. Peça sem peso cobra a classe mais pesada até ter peso. O envio grátis, quando ligado, sobrepõe-se a tudo.
+- Textos da home (admin, separador 5 → Home): título do hero em Hero → Title (first part); linha por baixo dos 4 cartões em Collections → Text below the four cards. As idades (milhões de anos) saíram dos cartões e ficam só nessa linha.
 
 ## 6. Domínio e variáveis Vercel
 A loja continua em https://mediterranic.vercel.app. mediterranic.com só no FIM do projecto; shop.mediterranic.com não existe nem será usado.
@@ -91,20 +92,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app
-Admin sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/admin
-Versão sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/api/version
-Checkout sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/checkout
-Arquivo sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/archive
-Envios sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shipping
-Featured sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/featured
-Site Only sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/covers/connoisseur-cyphaspis.jpg
-SOS sandbox: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/sos
-Texto SOS: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/api/sos-context
-ZIP completo: https://3000-i4bv8ckqs38x1viizt8r7.e2b.app/downloads/mediterranic-2026-11-04-x.zip
+Sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app
+Admin sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/admin
+Versão sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/api/version
+Checkout sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/checkout
+Arquivo sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/archive
+Envios sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shipping
+Featured sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/featured
+Site Only sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/sos
+Texto SOS: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/api/sos-context
+ZIP completo: https://3000-ii4wy8dnblm0ay9zal4nl.e2b.app/downloads/mediterranic-2026-11-05-y.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -153,3 +154,6 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - shipping-weight-table
 - covers-route-bundled-cover
 - shipping-table-admin-tab
+- home-million-years-lines-retired
+- collections-ages-below-cards
+- hero-title-neutral

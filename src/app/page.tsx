@@ -313,11 +313,13 @@ export default async function HomePage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight via-midnight/40 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-7">
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-brass">{c.eyebrow}</p>
+                  {c.homeLabel && <p className="text-[10px] uppercase tracking-[0.28em] text-brass">{c.homeLabel}</p>}
                   <h3 className="mt-3 font-display text-4xl leading-none">{c.title}</h3>
                   <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-parchment/70">{c.description}</p>
                   <div className="mt-6 flex items-center justify-between border-t border-parchment/15 pt-4 text-[11px] uppercase tracking-[0.2em]">
-                    <span className="text-parchment/60">{c.count} pieces</span>
+                    <span className="text-parchment/60">
+                      {c.count} {c.count === 1 ? "piece" : "pieces"}
+                    </span>
                     <span className="flex items-center gap-2 transition-transform group-hover:translate-x-1">
                       Explore <ArrowRight size={14} />
                     </span>
@@ -327,6 +329,9 @@ export default async function HomePage() {
             </Reveal>
           ))}
         </div>
+        {c.collections.ages && (
+          <p className="mx-auto mt-10 max-w-3xl text-center text-sm leading-relaxed text-ink/60">{c.collections.ages}</p>
+        )}
       </section>
 
       {/* Featured */}

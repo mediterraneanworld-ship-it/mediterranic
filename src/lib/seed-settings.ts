@@ -11,7 +11,7 @@ export const SEED_SETTINGS: Omit<SiteSettings, "updatedAt"> = {
   // Page texts & photographs: empty means "use the defaults in src/lib/site-content.ts".
   content: {},
   heroEyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
-  heroTitle: "Five hundred million years,",
+  heroTitle: "Moroccan trilobites,",
   heroTitleItalic: "in your keeping.",
   heroDescription: "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with safe worldwide shipping.",
   provenanceEyebrow: "Nearly 23 Years in the Field",

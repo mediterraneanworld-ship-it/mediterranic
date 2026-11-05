@@ -73,6 +73,8 @@ export type SiteContent = {
       eyebrow: string;
       title: string;
       subtitle: string;
+      /** Geological ages shown once, in a line under the four cards. */
+      ages: string;
       covers: {
         devonianCrown: string;
         ordovicianMariners: string;
@@ -198,7 +200,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   home: {
     hero: {
       eyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
-      title: "Five hundred million years,",
+      title: "Moroccan trilobites,",
       titleItalic: "in your keeping.",
       description:
         "Museum-grade Moroccan trilobites from the Cambrian, Ordovician and Devonian of the Anti-Atlas. Direct from nearly 23 years of specialist work, verified on eBay and Catawiki, with safe worldwide shipping.",
@@ -258,6 +260,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       eyebrow: "Curated collections",
       title: "Four ways into deep time",
       subtitle: "Cambrian · Ordovician · Devonian · Museum grade",
+      ages: "Devonian · c. 390–410 million years · Ordovician · c. 450–480 million years · Cambrian · c. 485–541 million years",
       covers: {
         devonianCrown: "/images/products/drotops-armatus.jpg",
         ordovicianMariners: "/images/products/neseuretus-tristani.jpg",
@@ -603,11 +606,16 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   {
     id: "home-collections",
     label: "Home · Collections & photos",
-    note: "The four collection cards. Each cover photograph can be replaced.",
+    note: "The four collection cards, the line under them and each cover photograph.",
     fields: [
       { path: ["home", "collections", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "collections", "title"], label: "Title", type: "text" },
       { path: ["home", "collections", "subtitle"], label: "Subtitle", type: "text" },
+      {
+        path: ["home", "collections", "ages"],
+        label: "Text below the four cards (geological ages)",
+        type: "textarea",
+      },
       { path: ["home", "collections", "covers", "devonianCrown"], label: "Cover · Devonian Crown", type: "image" },
       {
         path: ["home", "collections", "covers", "ordovicianMariners"],

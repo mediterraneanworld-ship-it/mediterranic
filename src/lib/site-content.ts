@@ -14,6 +14,20 @@ export type ContentPair = { title: string; text: string };
 export type LinkCardContent = { eyebrow: string; title: string; text: string };
 export type CollectionCardContent = { title: string; label: string; description: string; href: string };
 
+export type MarketplaceBox = {
+  id: string;
+  title: string;
+  eyebrow?: string;
+  text?: string;
+  url: string;
+  /** Logo image path or svg URL (e.g. "/images/catawiki-logo-white.svg") */
+  logo?: string;
+  /** Background style / color: "ebay-quad", "cw-grad", "ig-grad", "fb-grad", "wa-grad", or hex e.g. "#0033FF" */
+  bgColor?: string;
+  /** Text color: "white" or "dark" (default "white") */
+  textColor?: "white" | "dark";
+};
+
 export type SiteContent = {
   /** Homepage block order. H0/H1 and H13 are the fixed global frame. */
   layout: { home: HomeSectionId[] };
@@ -126,6 +140,10 @@ export type SiteContent = {
     };
     testimonials: { eyebrow: string; title: string };
     marketplaces: {
+      eyebrow: string;
+      title: string;
+      description: string;
+      boxes: MarketplaceBox[];
       ebayLabel: string;
       catawikiLabel: string;
       instagramLabel: string;
@@ -402,6 +420,61 @@ export const DEFAULT_CONTENT: SiteContent = {
       title: "From collectors who have been where you are",
     },
     marketplaces: {
+      eyebrow: "Verified storefronts",
+      title: "One standard across all marketplaces",
+      description: "Follow our live auctions on Catawiki, browse fixed-price pieces on eBay, or message us directly.",
+      boxes: [
+        {
+          id: "ebay",
+          title: "eBay store",
+          eyebrow: "Marketplace",
+          text: "Fixed prices and best offers",
+          url: "https://www.ebay.com/str/mederranic",
+          logo: "",
+          bgColor: "ebay-quad",
+          textColor: "white",
+        },
+        {
+          id: "catawiki",
+          title: "Catawiki",
+          eyebrow: "Auctions",
+          text: "Weekly Natural History auctions",
+          url: "https://www.catawiki.com/en/u/2153245",
+          logo: "/images/catawiki-logo-white.svg",
+          bgColor: "cw-grad",
+          textColor: "white",
+        },
+        {
+          id: "instagram",
+          title: "Instagram",
+          eyebrow: "Photography",
+          text: "New arrivals and macro detail",
+          url: "https://www.instagram.com/mediterranic_fossils/",
+          logo: "",
+          bgColor: "ig-grad",
+          textColor: "white",
+        },
+        {
+          id: "facebook",
+          title: "Facebook",
+          eyebrow: "Community",
+          text: "Fossils from Morocco",
+          url: "https://www.facebook.com/mediterranic",
+          logo: "",
+          bgColor: "fb-grad",
+          textColor: "white",
+        },
+        {
+          id: "whatsapp",
+          title: "WhatsApp",
+          eyebrow: "Direct",
+          text: "Ask for photos or a shipping quote",
+          url: "https://wa.me/351912345678",
+          logo: "",
+          bgColor: "wa-grad",
+          textColor: "white",
+        },
+      ],
       ebayLabel: "eBay Verified Store",
       catawikiLabel: "Catawiki Expert Seller",
       instagramLabel: "Instagram",
@@ -813,12 +886,15 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   {
     id: "h9",
     label: "H9 · Marketplaces",
-    note: "Movable. Verified marketplace and social buttons. Destination URLs remain in Store settings.",
+    note: "Movable. Add boxes, custom links, descriptions, logo images and background colors. Drag to reorder. eBay brand colors and Catawiki logo are preserved by default.",
     fields: [
-      { path: ["home", "marketplaces", "ebayLabel"], label: "eBay button", type: "text" },
-      { path: ["home", "marketplaces", "catawikiLabel"], label: "Catawiki button", type: "text" },
-      { path: ["home", "marketplaces", "instagramLabel"], label: "Instagram button", type: "text" },
-      { path: ["home", "marketplaces", "facebookLabel"], label: "Facebook button", type: "text" },
+      { path: ["home", "marketplaces", "eyebrow"], label: "Eyebrow", type: "text" },
+      { path: ["home", "marketplaces", "title"], label: "Title", type: "text" },
+      { path: ["home", "marketplaces", "description"], label: "Description", type: "textarea" },
+      { path: ["home", "marketplaces", "ebayLabel"], label: "Legacy eBay button label", type: "text" },
+      { path: ["home", "marketplaces", "catawikiLabel"], label: "Legacy Catawiki button label", type: "text" },
+      { path: ["home", "marketplaces", "instagramLabel"], label: "Legacy Instagram button label", type: "text" },
+      { path: ["home", "marketplaces", "facebookLabel"], label: "Legacy Facebook button label", type: "text" },
     ],
   },
   {

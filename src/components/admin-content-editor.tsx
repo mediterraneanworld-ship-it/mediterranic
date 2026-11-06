@@ -9,11 +9,15 @@ import {
   GripVertical,
   ImagePlus,
   Loader2,
+  Palette,
+  Plus,
   RotateCcw,
   Save,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
+import type { MarketplaceBox } from "@/lib/site-content";
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { CONNOISSEUR_GLASS_IMAGE } from "@/lib/release-info";
 import {
@@ -64,6 +68,8 @@ export function AdminContentEditor({
   });
   const [draggedId, setDraggedId] = useState<HomeSectionId | null>(null);
   const [dragOverId, setDragOverId] = useState<HomeSectionId | null>(null);
+  const [draggedBoxIdx, setDraggedBoxIdx] = useState<number | null>(null);
+  const [dragOverBoxIdx, setDragOverBoxIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -116,6 +122,78 @@ export function AdminContentEditor({
   function resetHomeOrder() {
     setSectionOrder([...DEFAULT_HOME_ORDER]);
     notify("Home section order reset to default. Save all pages to publish.");
+  }
+
+  const marketplaceBoxes = useMemo(() => {
+    const raw = readContent(content, ["home", "marketplaces", "boxes"]);
+    return (Array.isArray(raw) ? raw : []) as MarketplaceBox[];
+  }, [content]);
+
+  function updateMarketplaceBoxes(boxes: MarketplaceBox[]) {
+    update(["home", "marketplaces", "boxes"], boxes);
+  }
+
+  function updateBox(index: number, key: keyof MarketplaceBox, val: unknown) {
+    const next = [...marketplaceBoxes];
+    if (next[index]) {
+      next[index] = { ...next[index], [key]: val };
+      updateMarketplaceBoxes(next);
+    }
+  }
+
+  function addMarketplaceBox() {
+    const next = [
+      ...marketplaceBoxes,
+      {
+        id: `box-${Date.now()}`,
+        title: "New Marketplace",
+        eyebrow: "Storefront",
+        text: "Direct verified link",
+        url: "https://",
+        logo: "",
+        bgColor: "#0b2030",
+        textColor: "white" as const,
+      },
+    ];
+    updateMarketplaceBoxes(next);
+    notify("Marketplace box added. Edit details and save changes.");
+  }
+
+  function deleteMarketplaceBox(index: number) {
+    const next = marketplaceBoxes.filter((_, i) => i !== index);
+    updateMarketplaceBoxes(next);
+    notify("Marketplace box removed.");
+  }
+
+  function moveMarketplaceBox(from: number, to: number) {
+    if (from < 0 || to < 0 || from >= marketplaceBoxes.length || to >= marketplaceBoxes.length || from === to) return;
+    const next = [...marketplaceBoxes];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    updateMarketplaceBoxes(next);
+  }
+
+  async function handleBoxLogoUpload(boxIndex: number, e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const key = `box-logo-${boxIndex}`;
+    setUploading(key);
+    try {
+      const body = new FormData();
+      body.append("files", file);
+      const res = await fetch("/api/admin/upload", { method: "POST", body });
+      const data = (await res.json().catch(() => ({}))) as { files?: { url: string }[]; error?: string };
+      if (res.ok && data.files?.[0]) {
+        updateBox(boxIndex, "logo", data.files[0].url);
+        notify("Marketplace logo uploaded.");
+      } else {
+        notify(data.error ?? "Upload failed.");
+      }
+    } catch {
+      notify("Upload failed. Please try again.");
+    } finally {
+      setUploading(null);
+    }
   }
 
   async function handleUpload(field: ContentField, e: ChangeEvent<HTMLInputElement>) {
@@ -592,6 +670,286 @@ export function AdminContentEditor({
                     <div className="border-t border-ink/10 bg-parchment/30 p-4 sm:p-6">
                       {group.note && <p className="mb-4 text-xs leading-relaxed text-ink/60">{group.note}</p>}
                       <div className="grid gap-4 md:grid-cols-2">{group.fields.map((f) => renderField(f))}</div>
+
+                      {/* H9 Dedicated Marketplace Box Manager with Drag & Reorder, Logo and Colors */}
+                      {sectionId === "h9" && (
+                        <div className="mt-8 border-t border-ink/10 pt-6">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <h4 className="font-display text-xl text-ink">Marketplace Boxes &amp; Links</h4>
+                              <p className="text-xs text-ink/60">
+                                Reorder boxes by dragging or with arrows. Add boxes, pick background colors or brand presets, and upload logos.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={addMarketplaceBox}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-xs uppercase tracking-[0.14em] text-parchment transition hover:bg-sea"
+                            >
+                              <Plus size={13} /> Add marketplace box
+                            </button>
+                          </div>
+
+                          <div className="mt-5 space-y-4">
+                            {marketplaceBoxes.map((box, bIdx) => {
+                              const isBoxDragging = draggedBoxIdx === bIdx;
+                              const isBoxTarget = dragOverBoxIdx === bIdx && draggedBoxIdx !== bIdx;
+                              const isPreset = ["ebay-quad", "cw-grad", "ig-grad", "fb-grad", "wa-grad"].includes(box.bgColor || "");
+
+                              return (
+                                <div
+                                  key={box.id || `box-${bIdx}`}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setDraggedBoxIdx(bIdx);
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("text/plain", String(bIdx));
+                                  }}
+                                  onDragOver={(e) => {
+                                    if (draggedBoxIdx === null || draggedBoxIdx === bIdx) return;
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                    if (dragOverBoxIdx !== bIdx) setDragOverBoxIdx(bIdx);
+                                  }}
+                                  onDragLeave={() => {
+                                    if (dragOverBoxIdx === bIdx) setDragOverBoxIdx(null);
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (draggedBoxIdx !== null && draggedBoxIdx !== bIdx) {
+                                      moveMarketplaceBox(draggedBoxIdx, bIdx);
+                                    }
+                                    setDraggedBoxIdx(null);
+                                    setDragOverBoxIdx(null);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggedBoxIdx(null);
+                                    setDragOverBoxIdx(null);
+                                  }}
+                                  className={`rounded-sm border bg-white p-4 transition ${
+                                    isBoxTarget
+                                      ? "border-sea ring-2 ring-sea/30"
+                                      : isBoxDragging
+                                        ? "opacity-50"
+                                        : "border-ink/15 hover:border-ink/30"
+                                  }`}
+                                >
+                                  {/* Box Bar */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink/10 pb-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="cursor-grab text-ink/35 active:cursor-grabbing hover:text-ink" title="Drag to reorder box">
+                                        <GripVertical size={16} />
+                                      </span>
+                                      <span className="rounded bg-ink/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-ink">
+                                        Box #{bIdx + 1}
+                                      </span>
+                                      <span className="font-medium text-sm text-ink">{box.title || "Untitled box"}</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => moveMarketplaceBox(bIdx, bIdx - 1)}
+                                        disabled={bIdx === 0}
+                                        aria-label={`Move box ${bIdx + 1} up`}
+                                        title="Move up"
+                                        className="grid h-7 w-7 place-items-center rounded border border-ink/15 text-ink/60 hover:border-ink hover:text-ink disabled:opacity-30"
+                                      >
+                                        <ArrowUp size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => moveMarketplaceBox(bIdx, bIdx + 1)}
+                                        disabled={bIdx === marketplaceBoxes.length - 1}
+                                        aria-label={`Move box ${bIdx + 1} down`}
+                                        title="Move down"
+                                        className="grid h-7 w-7 place-items-center rounded border border-ink/15 text-ink/60 hover:border-ink hover:text-ink disabled:opacity-30"
+                                      >
+                                        <ArrowDown size={12} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => deleteMarketplaceBox(bIdx)}
+                                        aria-label={`Delete box ${bIdx + 1}`}
+                                        title="Delete box"
+                                        className="grid h-7 w-7 place-items-center rounded border border-ink/15 text-ink/40 hover:border-terracotta hover:text-terracotta"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Box Fields */}
+                                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    <label className="block">
+                                      <span className={labelClass}>Title</span>
+                                      <input
+                                        value={box.title || ""}
+                                        onChange={(e) => updateBox(bIdx, "title", e.target.value)}
+                                        placeholder="eBay store, Catawiki, etc."
+                                        className={`${inputClass} mt-1`}
+                                      />
+                                    </label>
+
+                                    <label className="block">
+                                      <span className={labelClass}>Small label (eyebrow)</span>
+                                      <input
+                                        value={box.eyebrow || ""}
+                                        onChange={(e) => updateBox(bIdx, "eyebrow", e.target.value)}
+                                        placeholder="Marketplace, Auctions, etc."
+                                        className={`${inputClass} mt-1`}
+                                      />
+                                    </label>
+
+                                    <label className="block sm:col-span-2 lg:col-span-1">
+                                      <span className={labelClass}>Link destination (URL)</span>
+                                      <input
+                                        value={box.url || ""}
+                                        onChange={(e) => updateBox(bIdx, "url", e.target.value)}
+                                        placeholder="https://..."
+                                        className={`${inputClass} mt-1`}
+                                      />
+                                    </label>
+
+                                    <label className="block sm:col-span-2">
+                                      <span className={labelClass}>Description / subtitle</span>
+                                      <input
+                                        value={box.text || ""}
+                                        onChange={(e) => updateBox(bIdx, "text", e.target.value)}
+                                        placeholder="Fixed prices and best offers"
+                                        className={`${inputClass} mt-1`}
+                                      />
+                                    </label>
+
+                                    {/* Logo selector */}
+                                    <div className="block sm:col-span-2 lg:col-span-1">
+                                      <span className={labelClass}>Logo / icon image</span>
+                                      <div className="mt-1 flex items-center gap-2">
+                                        <input
+                                          value={box.logo || ""}
+                                          onChange={(e) => updateBox(bIdx, "logo", e.target.value)}
+                                          placeholder="/images/... or upload"
+                                          className={`${inputClass}`}
+                                        />
+                                        <label className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded bg-ink px-2.5 py-2 text-[10px] uppercase tracking-wider text-parchment hover:bg-sea">
+                                          <Upload size={12} />
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => void handleBoxLogoUpload(bIdx, e)}
+                                            className="hidden"
+                                          />
+                                        </label>
+                                        {box.logo && (
+                                          <button
+                                            type="button"
+                                            onClick={() => updateBox(bIdx, "logo", "")}
+                                            className="text-xs text-ink/40 hover:text-terracotta"
+                                            title="Clear logo"
+                                          >
+                                            <X size={14} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Background Color & Style Presets */}
+                                  <div className="mt-4 border-t border-ink/10 pt-3">
+                                    <span className={labelClass}>Background color &amp; brand style</span>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => updateBox(bIdx, "bgColor", "ebay-quad")}
+                                        className={`rounded-sm px-3 py-1.5 text-xs text-white transition ${
+                                          box.bgColor === "ebay-quad" ? "ring-2 ring-ink ring-offset-1" : "opacity-80 hover:opacity-100"
+                                        } ebay-quad`}
+                                      >
+                                        eBay Quad (102°)
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          updateBox(bIdx, "bgColor", "cw-grad");
+                                          if (!box.logo) updateBox(bIdx, "logo", "/images/catawiki-logo-white.svg");
+                                        }}
+                                        className={`rounded-sm px-3 py-1.5 text-xs text-white transition ${
+                                          box.bgColor === "cw-grad" ? "ring-2 ring-ink ring-offset-1" : "opacity-80 hover:opacity-100"
+                                        } cw-grad`}
+                                      >
+                                        Catawiki (#0033FF)
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateBox(bIdx, "bgColor", "wa-grad")}
+                                        className={`rounded-sm px-3 py-1.5 text-xs text-white transition ${
+                                          box.bgColor === "wa-grad" ? "ring-2 ring-ink ring-offset-1" : "opacity-80 hover:opacity-100"
+                                        } wa-grad`}
+                                      >
+                                        WhatsApp (#25D366)
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateBox(bIdx, "bgColor", "ig-grad")}
+                                        className={`rounded-sm px-3 py-1.5 text-xs text-white transition ${
+                                          box.bgColor === "ig-grad" ? "ring-2 ring-ink ring-offset-1" : "opacity-80 hover:opacity-100"
+                                        } ig-grad`}
+                                      >
+                                        Instagram
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateBox(bIdx, "bgColor", "fb-grad")}
+                                        className={`rounded-sm px-3 py-1.5 text-xs text-white transition ${
+                                          box.bgColor === "fb-grad" ? "ring-2 ring-ink ring-offset-1" : "opacity-80 hover:opacity-100"
+                                        } fb-grad`}
+                                      >
+                                        Facebook (#1877F2)
+                                      </button>
+
+                                      {/* Custom color picker */}
+                                      <div className="flex items-center gap-1.5 rounded-sm border border-ink/20 bg-parchment/50 px-2 py-1">
+                                        <input
+                                          type="color"
+                                          value={isPreset ? "#0b2030" : box.bgColor || "#0b2030"}
+                                          onChange={(e) => updateBox(bIdx, "bgColor", e.target.value)}
+                                          className="h-6 w-6 cursor-pointer border-0 bg-transparent p-0"
+                                          title="Pick custom hex color"
+                                        />
+                                        <input
+                                          value={isPreset ? "" : box.bgColor || ""}
+                                          onChange={(e) => updateBox(bIdx, "bgColor", e.target.value)}
+                                          placeholder="Custom hex (#...)"
+                                          className="w-24 text-xs bg-transparent outline-none font-mono"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Mini Live Preview */}
+                                    <div className="mt-3 flex items-center gap-2">
+                                      <span className="text-[10px] uppercase tracking-wider text-ink/40">Preview:</span>
+                                      <div
+                                        className={`inline-flex items-center gap-2 rounded-sm px-3.5 py-1.5 text-xs shadow-sm ${
+                                          isPreset ? box.bgColor : ""
+                                        }`}
+                                        style={!isPreset && box.bgColor ? { backgroundColor: box.bgColor, color: "#fff" } : undefined}
+                                      >
+                                        {box.logo && (
+                                          /* eslint-disable-next-line @next/next/no-img-element */
+                                          <img src={box.logo} alt="" className="h-3.5 w-auto object-contain" />
+                                        )}
+                                        <span className="font-semibold text-white">{box.title || "Marketplace"}</span>
+                                        {box.eyebrow && <span className="text-[10px] text-white/75">· {box.eyebrow}</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-4">
                         <span className="text-[11px] text-ink/55">
                           Save changes to <strong>{meta.number} · {meta.label}</strong> (saves all pages to Neon).

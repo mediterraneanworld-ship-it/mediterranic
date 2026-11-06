@@ -118,3 +118,39 @@ test("each H box in Tab 5 admin editor has its own Save changes button", () => {
   assert.match(editor, /Save changes/);
   assert.match(editor, /onClick=\{handleSave\}/);
 });
+
+test("H9 marketplace boxes support custom cards with logos, drag & reorder, and preserve eBay quad colors and Catawiki logo", () => {
+  const merged = content.mergeContent({});
+  const boxes = merged.home.marketplaces.boxes;
+  assert.ok(Array.isArray(boxes) && boxes.length >= 2, "marketplaces has default boxes");
+  const ebayBox = boxes.find((b) => b.id === "ebay");
+  const catawikiBox = boxes.find((b) => b.id === "catawiki");
+  assert.ok(ebayBox, "eBay box exists");
+  assert.equal(ebayBox.bgColor, "ebay-quad", "eBay quad colors preserved");
+  assert.ok(catawikiBox, "Catawiki box exists");
+  assert.equal(catawikiBox.logo, "/images/catawiki-logo-white.svg", "Catawiki white logo preserved");
+  assert.equal(catawikiBox.bgColor, "cw-grad", "Catawiki blue gradient preserved");
+
+  const editor = fs.readFileSync("src/components/admin-content-editor.tsx", "utf8");
+  assert.match(editor, /Marketplace Boxes &amp; Links/);
+  assert.match(editor, /Add marketplace box/);
+  assert.match(editor, /moveMarketplaceBox/);
+  assert.match(editor, /ebay-quad/);
+});
+
+test("H10 reviews rotator supports 2 side by side on mobile and 3 on desktop with random rotation", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  assert.match(page, /<HomeReviewsRotator/);
+  const rotator = fs.readFileSync("src/components/home-reviews-rotator.tsx", "utf8");
+  assert.match(rotator, /grid-cols-2.*lg:grid-cols-3/);
+  assert.match(rotator, /Math\.random\(\)\s*-\s*0\.5/);
+});
+
+test("Admin Tab 6 reviews API and UI allow curator to write real reviews", () => {
+  const api = fs.readFileSync("src/app/api/admin/reviews/route.ts", "utf8");
+  assert.match(api, /export async function POST/);
+  assert.match(api, /moderationStatus:\s*"approved"/);
+  const panel = fs.readFileSync("src/components/admin-review-moderation.tsx", "utf8");
+  assert.match(panel, /Write real review/);
+  assert.match(panel, /Show on home page/);
+});

@@ -302,6 +302,75 @@ function firstMatch(html, re) {
       );
       console.log(`→ logo e favicon sincronizados (turquesa caribenho com M caligráfico)`);
     }
+
+    // 4. avaliações reais na home de produção
+    const figureMatches = [...home.matchAll(/<figure class="[^"]*rounded-sm border border-parchment\/10[^"]*">(.*?)<\/figure>/gs)];
+    let importedReviews = 0;
+    for (const figMatch of figureMatches) {
+      const fig = figMatch[1];
+      const stars = (fig.match(/fill-brass text-brass/g) || []).length || 5;
+      const titleMatch = fig.match(/<p class="font-display text-2xl leading-snug text-parchment">\s*[“"](?:<!-- -->)?(.*?)(?:<!-- -->)?\.?[”"]\s*<\/p>/s);
+      const bodyMatch = fig.match(/<p class="mt-4 text-sm leading-relaxed text-parchment\/65">\s*(.*?)\s*<\/p>/s);
+      const authorMatch = fig.match(/<p class="text-sm font-medium">\s*(.*?)\s*<\/p>/s);
+      const metaMatch = fig.match(/<p class="text-xs text-parchment\/50">\s*(.*?)<!-- -->\s*·<!-- -->\s*<a[^>]*href="\/shop\/([^"]+)"[^>]*>(.*?)<\/a>/s);
+
+      const rTitle = titleMatch ? stripTags(titleMatch[1]) : "";
+      const rBody = bodyMatch ? stripTags(bodyMatch[1]) : "";
+      const rAuthor = authorMatch ? stripTags(authorMatch[1]) : "Collector";
+      const rCountry = metaMatch ? stripTags(metaMatch[1]) : "Worldwide";
+      const rSlug = metaMatch ? metaMatch[2].trim() : "";
+
+      if (rTitle && rBody) {
+        const prodRes = rSlug ? await db.query(`SELECT id FROM products WHERE slug = $1 LIMIT 1`, [rSlug]) : { rows: [] };
+        const prodId = prodRes.rows[0]?.id || (await db.query(`SELECT id FROM products ORDER BY id LIMIT 1`)).rows[0]?.id;
+        if (prodId) {
+          const existing = await db.query(
+            `SELECT id FROM reviews WHERE author_name = $1 AND title = $2 LIMIT 1`,
+            [rAuthor, rTitle],
+          );
+          if (existing.rows.length === 0) {
+            await db.query(
+              `INSERT INTO reviews (product_id, author_name, author_country, rating, title, body, moderation_status, show_on_home, verified_purchase, moderated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, 'approved', true, true, now())`,
+              [prodId, rAuthor, rCountry, stars, rTitle, rBody],
+            );
+            importedReviews += 1;
+          } else {
+            await db.query(
+              `UPDATE reviews SET show_on_home = true, moderation_status = 'approved' WHERE id = $1`,
+              [existing.rows[0].id],
+            );
+          }
+        }
+      }
+    }
+    if (importedReviews > 0) {
+      console.log(`→ ${importedReviews} avaliações reais importadas da home de produção (aprovadas e escolhidas para a home)`);
+    }
+
+    // 5. descarregar todas as imagens enviadas em produção (/api/uploads/1..50)
+    console.log(`→ a verificar e importar fotografias guardadas em produção (/api/uploads/N)...`);
+    let importedUploads = 0;
+    for (let uId = 1; uId <= 50; uId += 1) {
+      try {
+        const uRes = await fetch(`${BASE}/api/uploads/${uId}`);
+        if (uRes.ok) {
+          const mime = uRes.headers.get("content-type") || "image/jpeg";
+          const buf = await uRes.arrayBuffer();
+          const base64 = Buffer.from(buf).toString("base64");
+          const ext = mime.includes("png") ? "png" : "jpg";
+          await db.query(
+            `INSERT INTO uploaded_images (id, filename, mime_type, data_base64)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (id) DO UPDATE SET filename = EXCLUDED.filename, mime_type = EXCLUDED.mime_type, data_base64 = EXCLUDED.data_base64`,
+            [uId, `${uId}.${ext}`, mime, base64],
+          );
+          importedUploads += 1;
+        }
+      } catch {}
+    }
+    await db.query(`SELECT setval('uploaded_images_id_seq', COALESCE((SELECT MAX(id) FROM uploaded_images), 1))`);
+    console.log(`→ ${importedUploads} fotografias de uploads de produção sincronizadas localmente`);
   } catch (e) {
     console.warn(`! home: ${e.message}`);
   }

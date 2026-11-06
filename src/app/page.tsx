@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Award, ExternalLink, Gem, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { Reveal } from "@/components/reveal";
+import { HomeReviewsRotator } from "@/components/home-reviews-rotator";
 import { StarRating } from "@/components/star-rating";
 import { COLLECTIONS } from "@/lib/collections";
 import { collectionsOf } from "@/lib/product-collections";
@@ -429,64 +430,70 @@ export default async function HomePage() {
       </section>
     ),
     h9: (
-      <section className="bg-parchment">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-5 pb-10 lg:px-8">
-          {[
-            { href: settings.ebayUrl, label: c.marketplaces.ebayLabel },
-            { href: settings.catawikiUrl, label: c.marketplaces.catawikiLabel },
-            { href: settings.instagramUrl, label: c.marketplaces.instagramLabel },
-            { href: settings.facebookUrl, label: c.marketplaces.facebookLabel },
-          ].filter((item) => item.href && item.label).map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ink transition hover:border-ink hover:bg-white"
-            >
-              {item.label} <ExternalLink size={12} />
-            </a>
-          ))}
+      <section className="border-t border-ink/10 bg-bone/40 py-12 md:py-16">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          {(c.marketplaces.title || c.marketplaces.eyebrow) && (
+            <div className="mb-8 text-center sm:text-left">
+              {c.marketplaces.eyebrow && (
+                <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{c.marketplaces.eyebrow}</p>
+              )}
+              {c.marketplaces.title && (
+                <h2 className="mt-2 font-display text-3xl text-ink md:text-4xl">{c.marketplaces.title}</h2>
+              )}
+              {c.marketplaces.description && (
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/65">{c.marketplaces.description}</p>
+              )}
+            </div>
+          )}
+
+          {/* Customizable marketplace boxes with drag-order, logo and background colors */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {(c.marketplaces.boxes || []).map((box) => {
+              const isPreset = ["ebay-quad", "cw-grad", "ig-grad", "fb-grad", "wa-grad"].includes(box.bgColor || "");
+              const url = box.url || (box.id === "ebay" ? settings.ebayUrl : box.id === "catawiki" ? settings.catawikiUrl : box.id === "instagram" ? settings.instagramUrl : box.id === "facebook" ? settings.facebookUrl : settings.ebayUrl);
+
+              return (
+                <a
+                  key={box.id}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`group flex items-center justify-between gap-3 rounded-sm border border-transparent px-4 py-3.5 text-white shadow-sm transition hover:brightness-110 hover:shadow-md ${
+                    isPreset ? box.bgColor : ""
+                  }`}
+                  style={!isPreset && box.bgColor ? { backgroundColor: box.bgColor, color: "#fff" } : undefined}
+                >
+                  <div className="min-w-0">
+                    {box.eyebrow && (
+                      <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.22em] text-white/80">
+                        {box.eyebrow}
+                      </p>
+                    )}
+                    {box.logo ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={box.logo} alt={box.title} className="mt-1 h-5 w-auto max-w-[130px] object-contain object-left" />
+                    ) : (
+                      <p className="whitespace-nowrap font-display text-lg leading-tight text-white">{box.title}</p>
+                    )}
+                    {box.text && (
+                      <p className="truncate text-[11px] text-white/80">{box.text}</p>
+                    )}
+                  </div>
+                  <ExternalLink size={14} className="shrink-0 text-white/80 transition group-hover:text-white group-hover:translate-x-0.5" />
+                </a>
+              );
+            })}
+          </div>
         </div>
       </section>
     ),
     h10: testimonials.length > 0 ? (
-      // Testimonials (only genuine client reviews)
-      <section className="bg-midnight py-16 md:py-28 text-parchment">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8">
-          <Reveal>
-            <p className="text-center text-[11px] uppercase tracking-[0.32em] text-brass">
-              {c.testimonials.eyebrow}
-            </p>
-            <h2 className="mx-auto mt-4 max-w-2xl text-center font-display text-5xl leading-[1.02] md:text-6xl">
-              {c.testimonials.title}
-            </h2>
-          </Reveal>
-
-          <div className={`mt-16 grid gap-6 ${testimonials.length === 1 ? "mx-auto max-w-xl" : testimonials.length === 2 || testimonials.length === 4 ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
-            {testimonials.map((t, i) => (
-              <Reveal key={t.id} delay={i * 0.12}>
-                <figure className="flex h-full flex-col rounded-sm border border-parchment/10 bg-parchment/[0.03] p-8">
-                  <StarRating rating={t.rating} size={14} />
-                  <blockquote className="mt-6 flex-1">
-                    <p className="font-display text-2xl leading-snug text-parchment">&ldquo;{t.title}.&rdquo;</p>
-                    <p className="mt-4 text-sm leading-relaxed text-parchment/65">{t.body}</p>
-                  </blockquote>
-                  <figcaption className="mt-8 border-t border-parchment/10 pt-5">
-                    <p className="text-sm font-medium">{t.authorName}</p>
-                    <p className="text-xs text-parchment/50">
-                      {t.authorCountry} ·{" "}
-                      <Link href={`/shop/${t.productSlug}`} className="text-brass hover:underline">
-                        {t.productName}
-                      </Link>
-                    </p>
-                  </figcaption>
-                </figure>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
+      // Testimonials rotator: at least 2 side by side on mobile, 3 side by side on desktop, rotating randomly
+      <HomeReviewsRotator
+        testimonials={testimonials}
+        eyebrow={c.testimonials.eyebrow}
+        title={c.testimonials.title}
+      />
     ) : null,
     h11: (
       // Everywhere you can find us — the Linktree, in page

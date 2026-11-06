@@ -63,6 +63,58 @@ export async function GET(request: Request) {
  *  - { id, showOnHome }: the curator's home page choice (public reviews only, up to the limit).
  * No review is ever deleted.
  */
+export async function POST(request: Request) {
+  if (!(await isAdminAuthenticated())) return Response.json({ error: "Unauthorized." }, { status: 401, headers });
+  const body = await request.json().catch(() => null) as {
+    authorName?: unknown;
+    authorCountry?: unknown;
+    rating?: unknown;
+    title?: unknown;
+    body?: unknown;
+    productId?: unknown;
+    showOnHome?: unknown;
+    verifiedPurchase?: unknown;
+  } | null;
+
+  if (!body || typeof body.authorName !== "string" || !body.authorName.trim() ||
+      typeof body.title !== "string" || !body.title.trim() ||
+      typeof body.body !== "string" || !body.body.trim()) {
+    return Response.json({ error: "Author name, title and review text are required." }, { status: 400, headers });
+  }
+
+  await ensureSchema();
+
+  let pId = Number(body.productId);
+  if (!Number.isInteger(pId) || pId <= 0) {
+    const [first] = await db.select({ id: products.id }).from(products).where(eq(products.published, true)).limit(1);
+    if (!first) return Response.json({ error: "Catalogue is empty. Seed or create a piece first." }, { status: 400, headers });
+    pId = first.id;
+  }
+
+  const rating = Math.max(1, Math.min(5, Math.round(Number(body.rating) || 5)));
+  const authorCountry = typeof body.authorCountry === "string" && body.authorCountry.trim() ? body.authorCountry.trim() : "Worldwide";
+  const showOnHome = Boolean(body.showOnHome);
+  const verifiedPurchase = Boolean(body.verifiedPurchase ?? true);
+
+  const [created] = await db
+    .insert(reviews)
+    .values({
+      authorName: body.authorName.trim(),
+      authorCountry,
+      rating,
+      title: body.title.trim(),
+      body: body.body.trim(),
+      productId: pId,
+      moderationStatus: "approved",
+      moderatedAt: new Date(),
+      showOnHome,
+      verifiedPurchase,
+    })
+    .returning();
+
+  return Response.json({ ok: true, review: created }, { status: 201, headers });
+}
+
 export async function PATCH(request: Request) {
   if (!(await isAdminAuthenticated())) return Response.json({ error: "Unauthorized." }, { status: 401, headers });
   const body = await request.json().catch(() => null) as { id?: unknown; status?: unknown; showOnHome?: unknown } | null;

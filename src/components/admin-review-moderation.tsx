@@ -21,7 +21,11 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "rejected", label: "Rejected" }, { id: "all", label: "All" },
 ];
 
-export function AdminReviewModeration() {
+export function AdminReviewModeration({
+  products = [],
+}: {
+  products?: { id: number; name: string; slug: string }[];
+}) {
   const [filter, setFilter] = useState<Filter>("pending");
   const [page, setPage] = useState(1);
   const [queue, setQueue] = useState<Queue | null>(null);
@@ -29,6 +33,19 @@ export function AdminReviewModeration() {
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // New review form fields
+  const [authorName, setAuthorName] = useState("");
+  const [authorCountry, setAuthorCountry] = useState("");
+  const [rating, setRating] = useState(5);
+  const [productId, setProductId] = useState<number>(products[0]?.id ?? 0);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [showOnHome, setShowOnHome] = useState(true);
+  const [verifiedPurchase, setVerifiedPurchase] = useState(true);
+
   const request = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
@@ -90,19 +107,215 @@ export function AdminReviewModeration() {
     } finally { setBusy(null); }
   }
 
+  async function handleCreateReview(e: React.FormEvent) {
+    e.preventDefault();
+    if (!authorName.trim() || !title.trim() || !body.trim()) {
+      setError("Author name, title and review text are required.");
+      return;
+    }
+    setCreating(true);
+    setError("");
+    setNotice("");
+    try {
+      const res = await fetch("/api/admin/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authorName: authorName.trim(),
+          authorCountry: authorCountry.trim() || "Worldwide",
+          rating,
+          productId: productId || products[0]?.id || 1,
+          title: title.trim(),
+          body: body.trim(),
+          showOnHome,
+          verifiedPurchase,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Could not create review.");
+      // Reset form
+      setAuthorName("");
+      setAuthorCountry("");
+      setTitle("");
+      setBody("");
+      setShowAddForm(false);
+      setFilter("approved");
+      await load();
+      setNotice(
+        showOnHome
+          ? "Review added and approved! It is now active and chosen for the home page."
+          : "Review added and approved for its piece page.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create review.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   const pages = Math.max(1, Math.ceil((queue?.total ?? 0) / (queue?.pageSize ?? 20)));
   return (
     <section className="mt-10 space-y-6" aria-label="Review moderation">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-brass">Owners &amp; visitors</p>
-          <h2 className="mt-2 font-display text-3xl text-ink">Review moderation</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/65">New comments stay private until you approve them. Only approved reviews count towards public ratings. Previously published reviews remain visible unless you change their status. Rejection hides a review; it never deletes it.</p>
+          <h2 className="mt-2 font-display text-3xl text-ink">Review moderation &amp; Curator reviews</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/65">
+            Manage visitor submissions or write real reviews you have received over the years to feature on the homepage.
+            Only approved reviews appear publicly.
+          </p>
         </div>
-        <button type="button" onClick={() => void load()} disabled={loading || busy !== null} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs text-ink hover:border-sea disabled:opacity-50">
-          <RefreshCw size={14} aria-hidden="true" className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAddForm((v) => !v)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 text-xs uppercase tracking-wider text-parchment hover:bg-sea"
+          >
+            {showAddForm ? "Cancel" : "+ Write real review"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading || busy !== null}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-ink/20 px-5 text-xs text-ink hover:border-sea disabled:opacity-50"
+          >
+            <RefreshCw size={14} aria-hidden="true" className={loading ? "animate-spin motion-reduce:animate-none" : ""} /> Refresh
+          </button>
+        </div>
       </div>
+
+      {/* Expandable Write Review Form */}
+      {showAddForm && (
+        <form
+          onSubmit={handleCreateReview}
+          className="rounded-sm border border-sea/30 bg-white p-5 shadow-sm sm:p-6"
+        >
+          <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+            <div>
+              <h3 className="font-display text-2xl text-ink">Add a genuine collector review</h3>
+              <p className="text-xs text-ink/60">
+                Write real reviews received over the years to display on the home page and in the catalogue.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(false)}
+              className="text-ink/40 hover:text-ink text-sm"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block">
+              <span className="block text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">Author name *</span>
+              <input
+                required
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                placeholder="e.g. Pierre D."
+                className="mt-1 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sea"
+              />
+            </label>
+
+            <label className="block">
+              <span className="block text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">Country / location</span>
+              <input
+                value={authorCountry}
+                onChange={(e) => setAuthorCountry(e.target.value)}
+                placeholder="e.g. France, USA, Japan"
+                className="mt-1 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sea"
+              />
+            </label>
+
+            <label className="block">
+              <span className="block text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">Rating (stars)</span>
+              <select
+                value={rating}
+                onChange={(e) => setRating(Number(e.target.value))}
+                className="mt-1 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sea"
+              >
+                <option value={5}>★★★★★ (5 stars)</option>
+                <option value={4}>★★★★☆ (4 stars)</option>
+                <option value={3}>★★★☆☆ (3 stars)</option>
+                <option value={2}>★★☆☆☆ (2 stars)</option>
+                <option value={1}>★☆☆☆☆ (1 star)</option>
+              </select>
+            </label>
+
+            {products.length > 0 && (
+              <label className="block sm:col-span-2 lg:col-span-3">
+                <span className="block text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">Associated piece / specimen</span>
+                <select
+                  value={productId || products[0]?.id}
+                  onChange={(e) => setProductId(Number(e.target.value))}
+                  className="mt-1 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sea"
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.slug})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="block sm:col-span-2 lg:col-span-3">
+              <span className="block text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">Review headline / title *</span>
+              <input
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Exceptional Fezouata specimen, impeccably prepared"
+                className="mt-1 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sea"
+              />
+            </label>
+
+            <label className="block sm:col-span-2 lg:col-span-3">
+              <span className="block text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">Review body text *</span>
+              <textarea
+                required
+                rows={3}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="e.g. Arrived perfectly crated with museum documentation. Spines are sharp and natural."
+                className="mt-1 w-full rounded-sm border border-ink/20 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sea"
+              />
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-ink/10 pt-4">
+            <div className="flex flex-wrap items-center gap-6">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-ink">
+                <input
+                  type="checkbox"
+                  checked={showOnHome}
+                  onChange={(e) => setShowOnHome(e.target.checked)}
+                  className="h-4 w-4 rounded border-ink/30 text-sea focus:ring-sea"
+                />
+                Show on home page (rotates with other chosen reviews)
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-ink">
+                <input
+                  type="checkbox"
+                  checked={verifiedPurchase}
+                  onChange={(e) => setVerifiedPurchase(e.target.checked)}
+                  className="h-4 w-4 rounded border-ink/30 text-sea focus:ring-sea"
+                />
+                Mark as verified owner
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={creating}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-sea px-6 text-xs uppercase tracking-wider text-parchment hover:bg-ink disabled:opacity-50"
+            >
+              {creating ? "Publishing…" : "Publish review"}
+            </button>
+          </div>
+        </form>
+      )}
       <div className="flex flex-wrap gap-2" aria-label="Review filters">
         {FILTERS.map(({ id, label }) => <button key={id} type="button" aria-pressed={filter === id} disabled={busy !== null}
           onClick={() => { setFilter(id); setPage(1); }}

@@ -5,7 +5,7 @@
  * glance: if the admin says an older version, or /api/version reports a
  * feature as false, the deployment is not carrying the whole codebase.
  */
-export const CODE_VERSION = "2026-11-05-af";
+export const CODE_VERSION = "2026-11-05-ag";
 
 export const REQUIRED_FEATURES = [
   "order-notifications",
@@ -69,6 +69,10 @@ export const REQUIRED_FEATURES = [
   "home-sections-full-inline-editor",
   "hero-photo-buttons-title-desc-order",
   "admin-save-button-per-h-card",
+  "curator-reviews-writer",
+  "home-reviews-rotator-mobile-pairs",
+  "marketplaces-box-builder-drag-reorder",
+  "live-uploads-and-reviews-mirrored",
 ] as const;
 
 export function codeManifest() {

@@ -2273,7 +2273,9 @@ export function AdminDashboard({
         </button>
       </div>
 
-      {tab === "reviews" && <AdminReviewModeration />}
+      {tab === "reviews" && (
+        <AdminReviewModeration products={initialProducts.map((p) => ({ id: p.id, name: p.name, slug: p.slug }))} />
+      )}
       {tab === "shipping" && <AdminShippingPanel />}
 
       {/* TAB 1: PRODUCTS */}

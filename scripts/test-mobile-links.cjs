@@ -75,9 +75,9 @@ test("sync from production no longer expects the retired eyebrow", () => {
   assert.match(mirror, /if \(heroBlock\) \{/);
 });
 
-test("version 2026-11-05-af lists this round's features", () => {
+test("version 2026-11-05-ag lists this round's features", () => {
   const v = read("src/lib/version.ts");
-  assert.match(v, /export const CODE_VERSION = "2026-11-05-af";/);
+  assert.match(v, /export const CODE_VERSION = "2026-11-05-ag";/);
   for (const feature of ["hero-moved-up", "home-sections-tightened", "link-cards-coloured-compact", "labels-one-line", "footer-gap-halved"]) {
     assert.ok(v.includes(`"${feature}"`), feature);
   }

@@ -179,3 +179,47 @@ test("H6 home collection cards place letters below the box images", () => {
   assert.ok(textBoxIdx >= 0, "text block exists");
   assert.ok(imgBoxIdx < textBoxIdx, "image is placed above the text block");
 });
+
+
+test("home archive teaser is photo and title only; the new invitation stays below it", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  const start = page.indexOf("{archivePieces.slice(0, 4)");
+  const block = page.slice(start, page.indexOf("{c.closing.alsoOn}", start));
+  assert.match(block, /<figure key=\{p\.id\}/);
+  assert.match(block, /src=\{p\.images\[0\]\.src\}/);
+  assert.match(block, /<figcaption[^>]*>\{p\.name\}<\/figcaption>/);
+  assert.ok(!/<(?:a|Link)\b/.test(block), "home specimen previews have no anchors");
+  assert.ok(!/href|onClick|cursor-pointer|group-hover:scale/.test(block), "no navigation or clickable affordance");
+  assert.ok(block.indexOf("</figure>") < block.indexOf("{c.closing.archiveNote}"), "note is below the specimen cards");
+  const defaults = content.mergeContent({}).home.closing;
+  assert.equal(defaults.archiveTitle, "Pieces that found their collectors last days.");
+  assert.equal(defaults.archiveNote, "Visit the whole archive, where you can request similar specimens.");
+  const upgraded = content.mergeContent({ home: { closing: { archiveTitle: "Pieces that found their collectors" } } });
+  assert.equal(upgraded.home.closing.archiveTitle, defaults.archiveTitle);
+  assert.equal(content.mergeContent({ home: { closing: { archiveTitle: "My own archive title" } } }).home.closing.archiveTitle, "My own archive title");
+  assert.match(fs.readFileSync("src/lib/site-content.ts", "utf8"), /Archive block · line below the pieces/);
+  assert.match(page, /href="\/archive"/, "the general archive navigation is preserved");
+});
+
+test("archive page keeps individual specimen links and request-a-similar guidance", () => {
+  const archive = fs.readFileSync("src/app/archive/page.tsx", "utf8");
+  assert.match(archive, /<Link key=\{p\.slug\} href=\{`\/shop\/\$\{p\.slug\}`\}/);
+  assert.match(archive, /\{copy\.cta\}/);
+  assert.equal(content.mergeContent({}).archive.cta, "Request a similar specimen");
+  const detail = fs.readFileSync("src/app/shop/[slug]/page.tsx", "utf8");
+  assert.match(detail, /product\.stock <= 0/);
+  assert.match(detail, /Request a similar specimen/);
+  assert.match(detail, /mailto:\$\{settings\.contactEmail\}/);
+});
+
+test("every H header row is clickable, while reorder controls and the drag handle stay independent", () => {
+  const editor = fs.readFileSync("src/components/admin-content-editor.tsx", "utf8");
+  const row = editor.slice(editor.indexOf('{/* Clicking anywhere in the header row'), editor.indexOf('{/* Inline content editor */}'));
+  assert.match(row, /cursor-pointer/);
+  assert.match(row, /onClick=\{\(event\) =>/);
+  assert.match(row, /toggleSectionOpen\(sectionId\)/);
+  assert.match(row, /data-no-toggle/);
+  assert.match(row, /button, input, textarea, select, a, label, \[data-no-toggle\]/);
+  assert.match(editor, /aria-expanded=\{isOpen\}/);
+  assert.match(editor, /const \[openSections, setOpenSections\] = useState<Record<string, boolean>>\(\{\}\);/);
+});

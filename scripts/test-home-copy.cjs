@@ -71,11 +71,11 @@ test("legacy settings seeds no longer carry the old hero line", () => {
   assert.ok(!/Five hundred million years/.test(read("src/lib/catalog.ts")));
 });
 
-test("version 2026-11-05-aj records the change", () => {
+test("version 2026-11-05-am records the change", () => {
   const v = load("src/lib/version.ts", {
     "@/lib/site-url": { PUBLIC_SITE_URL: "https://mediterranic.vercel.app", PUBLIC_SITE_URL_SOURCE: "default" },
   });
-  assert.equal(v.CODE_VERSION, "2026-11-05-aj");
+  assert.equal(v.CODE_VERSION, "2026-11-05-am");
   for (const feature of ["home-million-years-lines-retired", "collections-ages-below-cards", "hero-line-as-saved"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }

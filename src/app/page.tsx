@@ -693,8 +693,10 @@ export default async function HomePage() {
                 </Link>
               </div>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {/* Home: photo and title only, using the cover chosen in the admin.
+                    Individual specimen links belong on /archive, not on this teaser. */}
                 {archivePieces.slice(0, 4).map((p) => (
-                  <Link key={p.slug} href={`/shop/${p.slug}`} className="group block">
+                  <figure key={p.id} className="block">
                     <div className="relative aspect-square overflow-hidden rounded-sm bg-bone">
                       {p.images[0] && (
                         <Image
@@ -702,14 +704,19 @@ export default async function HomePage() {
                           alt={p.images[0].alt}
                           fill
                           sizes="(min-width: 768px) 22vw, 46vw"
-                          className="object-cover transition-transform duration-[1.2s] group-hover:scale-[1.05]"
+                          className="object-cover"
                         />
                       )}
                     </div>
-                    <p className="mt-3 font-display text-lg leading-tight text-ink">{p.name}</p>
-                  </Link>
+                    <figcaption className="mt-3 font-display text-lg leading-tight text-ink">{p.name}</figcaption>
+                  </figure>
                 ))}
               </div>
+              {c.closing.archiveNote.trim() && (
+                <p className="mt-6 text-center text-sm leading-relaxed text-ink/65">
+                  {c.closing.archiveNote}
+                </p>
+              )}
             </div>
           )}
 

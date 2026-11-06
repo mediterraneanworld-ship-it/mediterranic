@@ -65,3 +65,11 @@ test("footer wordmark stays on one line and upload IDs revalidate by content has
   assert.match(route, /status: 304/);
   assert.doesNotMatch(route, /Cache-Control[^\n]*immutable/);
 });
+
+
+test('public mirror reads the archive invitation without confusing it with closing copy', () => {
+  const html = '<main><section><h2>Begin <em class="text-terracotta">collecting</em></h2><p>Closing description.</p><div><div><div><h3>Pieces that found their collectors last days.</h3></div></div><div><figure><img src="/images/hero.jpg" alt="Example"><figcaption>Example</figcaption></figure></div><p>Visit the whole archive, where you can request similar specimens.</p></div></section></main>';
+  const result = homeFromHtml(html);
+  assert.equal(result.home.closing.archiveTitle, 'Pieces that found their collectors last days.');
+  assert.equal(result.home.closing.archiveNote, 'Visit the whole archive, where you can request similar specimens.');
+});

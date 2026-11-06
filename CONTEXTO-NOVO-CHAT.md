@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-05-aj. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-05-am. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -58,9 +58,9 @@ Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. 
 
 ## 5.1. Estrutura da homepage e estado desta entrega
 H0 Top Bar; H1 Header; H2 Hero; H3 Hero Stats; H4 Trust Strip; H5 Channels; H6 Collections; H7 Featured; H8 Provenance; H9 Marketplaces; H10 Reviews; H11 Links; H12 Closing; H13 Footer.
-No admin, tab 5, todas as caixas H começam recolhidas. H0/H1 ficam no topo e H13 no fim; H2–H12 podem ser reordenadas. Cada caixa tem Save changes.
+No admin, tab 5, todas as caixas H começam recolhidas. Um clique em qualquer parte da linha de cabeçalho abre/recolhe a caixa; botões e pega de arrastar mantêm acções próprias. H0/H1 ficam no topo e H13 no fim; H2–H12 podem ser reordenadas. Cada caixa tem Save changes.
 H2, de cima para baixo: fotografia, legenda, botões, título (normal + itálico), descrição. H6: The Cambrian Explosion; texto abaixo das imagens. H9: caixas reordenáveis, links, texto, logo e cor; eBay e Catawiki mantêm a identidade visual.
-H10: avaliações escolhidas/aprovadas rodam aleatoriamente; duas colunas em telemóvel e três em desktop. O curador pode escrever avaliações reais na tab 6.
+H12 (decisão actual): título "Pieces that found their collectors last days."; até quatro cartões APENAS com a primeira fotografia escolhida no admin e o título por baixo, SEM links nem navegação ao clicar. Por baixo dos cartões: "Visit the whole archive, where you can request similar specimens." Ambos os textos são editáveis em Tab 5 → H12. Os botões gerais para /archive mantêm-se. Na página /archive, sim: cada peça abre a sua ficha individual, sem preço e com Request a similar specimen. Não voltar a pôr links das fichas nos cartões da homepage. H10: avaliações escolhidas/aprovadas rodam aleatoriamente; duas colunas em telemóvel e três em desktop. O curador pode escrever avaliações reais na tab 6.
 pull-live.cjs só escreve em PostgreSQL loopback local. Copia páginas públicas, textos visíveis e fotografias referenciadas; verifica SHA-256, cria uploads locais separados e nunca sobrescreve IDs existentes. Falhas ficam não verificadas e preservam dados locais. Não é um backup privado completo.
 O rodapé mantém MEDITERRANIC numa linha. /api/uploads/N usa ETag e revalidação, não cache immutable. A capa /covers/connoisseur-cyphaspis.jpg redirecciona com Location relativo, funcionando também atrás do proxy da sandbox.
 Tradução: CANCELADA por decisão do dono. Manter a loja e o admin em inglês; não acrescentar tradutor nem geolocalização de idioma.
@@ -107,20 +107,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app
-Admin sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/admin
-Versão sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/api/version
-Checkout sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/checkout
-Arquivo sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/archive
-Envios sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shipping
-Featured sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/featured
-Site Only sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/covers/connoisseur-cyphaspis.jpg
-SOS sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/sos
-Texto SOS: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/api/sos-context
-ZIP completo: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/downloads/mediterranic-2026-11-05-aj.zip
+Sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app
+Admin sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/admin
+Versão sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/api/version
+Checkout sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/checkout
+Arquivo sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/archive
+Envios sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shipping
+Featured sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/featured
+Site Only sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-iul8hz6xizeamhtootqjx.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/sos
+Texto SOS: https://3000-iul8hz6xizeamhtootqjx.e2b.app/api/sos-context
+ZIP completo: https://3000-iul8hz6xizeamhtootqjx.e2b.app/downloads/mediterranic-2026-11-05-am.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -202,3 +202,10 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - receipt-moderation-history-retained
 - deleted-specimen-no-auto-reimport
 - cover-preview-relative-redirect
+- home-archive-specimens-not-linked
+- admin-section-row-click-to-edit
+- home-archive-individual-links-restored
+- home-archive-last-days-title
+- home-archive-similar-specimens-note
+- home-archive-photo-title-only
+- archive-page-specimen-links-preserved

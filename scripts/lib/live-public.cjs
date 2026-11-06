@@ -256,6 +256,11 @@ function homeFromHtml(html) {
     assign(result.home.closing, "ctaArchive", text($, closing.find('a[href="/archive"]').first()));
     assign(result.home.closing, "archiveEyebrow", text($, closing.find("h3").first().prev("p")));
     assign(result.home.closing, "archiveTitle", text($, closing.find("h3").first()));
+    const archiveBlock = closing.find("h3").first().parent().parent().parent();
+    // Home previews are figures without anchors; older public deployments may
+    // still have links. Read either format without making the teaser clickable.
+    const archiveGrid = archiveBlock.children("div").filter((_, el) => $(el).children("figure, a").length > 0).first();
+    if (archiveGrid.length) assign(result.home.closing, "archiveNote", text($, archiveGrid.next("p")));
   }
   const footer = $("footer");
   const firstColumn = footer.children("div").first().children("div").first();

@@ -173,6 +173,7 @@ export type SiteContent = {
       ctaArchive: string;
       archiveEyebrow: string;
       archiveTitle: string;
+      archiveNote: string;
       archiveCta: string;
       alsoOn: string;
       ebayLabel: string;
@@ -475,7 +476,8 @@ export const DEFAULT_CONTENT: SiteContent = {
       soussUrl: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
       ctaArchive: "The Archive",
       archiveEyebrow: "From the archive",
-      archiveTitle: "Pieces that found their collectors",
+      archiveTitle: "Pieces that found their collectors last days.",
+      archiveNote: "Visit the whole archive, where you can request similar specimens.",
       archiveCta: "View all →",
       alsoOn: "Also on",
       ebayLabel: "Our eBay store",
@@ -650,6 +652,11 @@ export function mergeContent(stored: unknown): SiteContent {
   merged.layout.home = normalizeHomeOrder(merged.layout.home);
   if (merged.home.collections.cards.cambrianDawn.title === "Souss Lagerstätte") {
     merged.home.collections.cards.cambrianDawn.title = "The Cambrian Explosion";
+  }
+  // Display-only upgrade of the previous default. Never rewrite the stored jsonb;
+  // a curator's different title remains editable and is never overwritten.
+  if (merged.home.closing.archiveTitle.trim() === "Pieces that found their collectors") {
+    merged.home.closing.archiveTitle = DEFAULT_CONTENT.home.closing.archiveTitle;
   }
   return merged;
 }
@@ -910,6 +917,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { path: ["home", "closing", "ctaArchive"], label: "Button · archive", type: "text" },
       { path: ["home", "closing", "archiveEyebrow"], label: "Archive block · eyebrow", type: "text" },
       { path: ["home", "closing", "archiveTitle"], label: "Archive block · title", type: "text" },
+      { path: ["home", "closing", "archiveNote"], label: "Archive block · line below the pieces", type: "text" },
       { path: ["home", "closing", "archiveCta"], label: "Archive block · link", type: "text" },
       { path: ["home", "closing", "alsoOn"], label: "Marketplace row · prefix", type: "text" },
       { path: ["home", "closing", "ebayLabel"], label: "Marketplace row · eBay", type: "text" },

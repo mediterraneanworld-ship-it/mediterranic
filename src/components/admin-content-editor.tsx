@@ -537,8 +537,8 @@ export function AdminContentEditor({
         <div className="space-y-3">
           <p className="text-xs text-ink/55">
             <strong>H0 Top Bar</strong> and <strong>H1 Header</strong> are fixed at the top; <strong>H13 Footer</strong> is
-            fixed at the bottom. <strong>H2–H12</strong> can be reordered freely. Click any card to edit its texts,
-            photographs and links.
+            fixed at the bottom. <strong>H2–H12</strong> can be reordered freely. Click a section’s row to open or close
+            its editor; the grip and movement buttons keep their own actions.
           </p>
 
           <ol className="space-y-3">
@@ -589,11 +589,21 @@ export function AdminContentEditor({
                         : "border-ink/15 hover:border-ink/30"
                   }`}
                 >
-                  {/* Block bar */}
-                  <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4">
+                  {/* Clicking anywhere in the header row expands this section.
+                      Native controls stop propagation so moving/saving never toggles it. */}
+                  <div
+                    className="flex cursor-pointer items-center justify-between gap-3 p-3.5 hover:bg-bone/30 sm:p-4"
+                    onClick={(event) => {
+                      const target = event.target;
+                      if (!(target instanceof Element) || target.closest("button, input, textarea, select, a, label, [data-no-toggle]")) return;
+                      toggleSectionOpen(sectionId);
+                    }}
+                  >
                     <div className="flex min-w-0 items-center gap-3">
                       {!isFixed ? (
                         <span
+                          data-no-toggle
+                          draggable={!isFixed}
                           className="cursor-grab text-ink/35 active:cursor-grabbing hover:text-ink"
                           title="Drag to reposition"
                         >

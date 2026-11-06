@@ -204,7 +204,7 @@ test("cover: one bundled 3:4 image, one stable address, every reference agrees",
 
 test("the version manifest lists the shipping table and the bundled cover", () => {
   const v = load("src/lib/version.ts");
-  assert.equal(v.CODE_VERSION, "2026-11-05-aj");
+  assert.equal(v.CODE_VERSION, "2026-11-05-am");
   for (const feature of ["shipping-weight-table", "covers-route-bundled-cover", "shipping-table-admin-tab"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }

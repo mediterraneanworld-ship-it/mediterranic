@@ -30,8 +30,8 @@ export async function SiteFooter() {
     <footer className="mt-16 bg-midnight text-parchment/80">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
-        <div className="space-y-5 lg:col-span-1">
-          <p className="font-display text-3xl uppercase tracking-[0.2em] text-parchment">{content.header.wordmark}</p>
+        <div className="min-w-0 space-y-5 lg:col-span-1">
+          <p className="whitespace-nowrap font-display text-[clamp(1.125rem,2vw,1.75rem)] uppercase leading-tight tracking-[0.12em] text-parchment">{content.header.wordmark}</p>
           <p className="max-w-xs text-sm leading-relaxed text-parchment/65">{footer.tagline}</p>
           <div className="pt-4">
             <NewsletterForm title={footer.newsletterTitle} copy={footer.newsletterCopy} />

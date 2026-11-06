@@ -369,7 +369,7 @@ export const DEFAULT_CONTENT: SiteContent = {
           href: "",
         },
         cambrianDawn: {
-          title: "Souss Lagerstätte",
+          title: "The Cambrian Explosion",
           label: "",
           description: "The earliest chapter. Paradoxides and the great Cambrian assemblages of the Anti-Atlas, from the seas that first filled with complex animal life.",
           href: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
@@ -425,54 +425,24 @@ export const DEFAULT_CONTENT: SiteContent = {
       description: "Follow our live auctions on Catawiki, browse fixed-price pieces on eBay, or message us directly.",
       boxes: [
         {
-          id: "ebay",
-          title: "eBay store",
-          eyebrow: "Marketplace",
-          text: "Fixed prices and best offers",
-          url: "https://www.ebay.com/str/mederranic",
-          logo: "",
-          bgColor: "ebay-quad",
-          textColor: "white",
+          id: "ebay", title: "eBay store", eyebrow: "Marketplace", text: "Fixed prices and best offers",
+          url: "", logo: "", bgColor: "ebay-quad", textColor: "white",
         },
         {
-          id: "catawiki",
-          title: "Catawiki",
-          eyebrow: "Auctions",
-          text: "Weekly Natural History auctions",
-          url: "https://www.catawiki.com/en/u/2153245",
-          logo: "/images/catawiki-logo-white.svg",
-          bgColor: "cw-grad",
-          textColor: "white",
+          id: "catawiki", title: "Catawiki", eyebrow: "Auctions", text: "Weekly Natural History auctions",
+          url: "", logo: "/images/catawiki-logo-white.svg", bgColor: "cw-grad", textColor: "white",
         },
         {
-          id: "instagram",
-          title: "Instagram",
-          eyebrow: "Photography",
-          text: "New arrivals and macro detail",
-          url: "https://www.instagram.com/mediterranic_fossils/",
-          logo: "",
-          bgColor: "ig-grad",
-          textColor: "white",
+          id: "instagram", title: "Instagram", eyebrow: "Photography", text: "New arrivals and macro detail",
+          url: "", logo: "", bgColor: "ig-grad", textColor: "white",
         },
         {
-          id: "facebook",
-          title: "Facebook",
-          eyebrow: "Community",
-          text: "Fossils from Morocco",
-          url: "https://www.facebook.com/mediterranic",
-          logo: "",
-          bgColor: "fb-grad",
-          textColor: "white",
+          id: "facebook", title: "Facebook", eyebrow: "Community", text: "Fossils from Morocco",
+          url: "", logo: "", bgColor: "fb-grad", textColor: "white",
         },
         {
-          id: "whatsapp",
-          title: "WhatsApp",
-          eyebrow: "Direct",
-          text: "Ask for photos or a shipping quote",
-          url: "https://wa.me/351912345678",
-          logo: "",
-          bgColor: "wa-grad",
-          textColor: "white",
+          id: "whatsapp", title: "WhatsApp", eyebrow: "Direct", text: "Ask for photos or a shipping quote",
+          url: "", logo: "", bgColor: "wa-grad", textColor: "white",
         },
       ],
       ebayLabel: "eBay Verified Store",
@@ -678,6 +648,9 @@ function mergeValue<T>(base: T, override: unknown): T {
 export function mergeContent(stored: unknown): SiteContent {
   const merged = mergeValue(DEFAULT_CONTENT, stored);
   merged.layout.home = normalizeHomeOrder(merged.layout.home);
+  if (merged.home.collections.cards.cambrianDawn.title === "Souss Lagerstätte") {
+    merged.home.collections.cards.cambrianDawn.title = "The Cambrian Explosion";
+  }
   return merged;
 }
 
@@ -851,7 +824,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { path: ["home", "collections", "covers", "connoisseur"], label: "Cover · The Connoisseur", type: "image" },
       ...collectionCardFields("devonianCrown", "Devonian Crown"),
       ...collectionCardFields("ordovicianMariners", "Ordovician Mariners"),
-      ...collectionCardFields("cambrianDawn", "Souss Lagerstätte"),
+      ...collectionCardFields("cambrianDawn", "The Cambrian Explosion"),
       ...collectionCardFields("connoisseur", "The Connoisseur"),
       { path: ["home", "collections", "pieceSingular"], label: "Count label · singular", type: "text" },
       { path: ["home", "collections", "piecePlural"], label: "Count label · plural", type: "text" },

@@ -1,6 +1,7 @@
+import { getStoredOrderItems } from "@/lib/order-history";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { orderItems, orderNotifications, orders } from "@/db/schema";
+import { orderNotifications, orders } from "@/db/schema";
 import { ensureSchema } from "@/lib/schema-migrate";
 import { sendMail as sendSharedMail, usesRestrictedSender, RESTRICTED_SENDER_HELP } from "@/lib/mailer";
 import {
@@ -25,7 +26,7 @@ function shopUrl(): string {
 async function compose(orderId: string, event: OrderEvent): Promise<{ input: OrderEmailInput } | null> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   if (!order) return null;
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  const items = await getStoredOrderItems(orderId);
   const lines: OrderEmailLine[] = items.map((item) => ({
     name: item.productName,
     quantity: item.quantity,

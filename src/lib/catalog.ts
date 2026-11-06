@@ -1,7 +1,8 @@
+import { getStoredOrderItems } from "@/lib/order-history";
 import { and, asc, avg, count, desc, eq, gte, isNull, or } from "drizzle-orm";
 import { HOME_REVIEW_AUTOMATIC, HOME_REVIEW_LIMIT } from "@/lib/home-reviews";
 import { db } from "@/db";
-import { newsletterSends, newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
+import { newsletterSends, newsletterSubscribers, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
 import { mergeContent, type SiteContent } from "@/lib/site-content";
@@ -195,7 +196,7 @@ export async function getStoreStats() {
 export async function getOrderWithItems(id: string) {
   const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
   if (!order) return null;
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
+  const items = await getStoredOrderItems(id);
   return { order, items };
 }
 
@@ -224,7 +225,7 @@ export async function getSiteContent(): Promise<SiteContent> {
 
 export async function getAllOrdersWithItems() {
   const allOrders = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(50);
-  const allItems = await db.select().from(orderItems);
+  const allItems = await getStoredOrderItems();
   const allNotifications = await db.select().from(orderNotifications);
   return allOrders.map((order) => ({
     order,

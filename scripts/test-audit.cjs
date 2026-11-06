@@ -172,7 +172,7 @@ test('buyer note is accepted, trimmed, bounded and never changes the price',asyn
  assert.match(form,/customerNote: String\(data\.get\("customerNote"\) \?\? ""\)/);
 });
 test('tracking links are validated and buyer e-mails carry the order reference',()=>{
- const messages=load('src/lib/order-messages.ts',{imports:{'drizzle-orm':{eq:(...x)=>x},'@/db':{db:{}}, '@/db/schema':{}, '@/lib/mailer':{curatorMailbox:()=>'mediterranean.world@gmail.com',escapeHtml:(v)=>v,mailShell:()=>'',sendMail:async()=>({ok:true,detail:'fixture'})}, '@/lib/order-email':{orderReference:()=> 'MED-FIXTURE'}, '@/lib/site-url':load('src/lib/site-url.ts')}});
+ const messages=load('src/lib/order-messages.ts',{imports:{'@/lib/order-history':{getStoredOrderItems:async()=>{throw Error('Unexpected receipt query in pure mail test')}},'drizzle-orm':{eq:(...x)=>x},'@/db':{db:{}}, '@/db/schema':{}, '@/lib/mailer':{curatorMailbox:()=>'mediterranean.world@gmail.com',escapeHtml:(v)=>v,mailShell:()=>'',sendMail:async()=>({ok:true,detail:'fixture'})}, '@/lib/order-email':{orderReference:()=> 'MED-FIXTURE'}, '@/lib/site-url':load('src/lib/site-url.ts')}});
  const link=messages.normalizeTracking('https://www.dhl.com/track?id=AB123456789');
  assert.equal(link.code,'AB123456789');
  assert.equal(link.url,'https://www.dhl.com/track?id=AB123456789');
@@ -230,7 +230,8 @@ test('WhatsApp stays below Instagram on desktop and its public link survives liv
  const instagram=section.indexOf('>Instagram</p>');const facebook=section.indexOf('>Facebook</p>');const whatsapp=section.indexOf('>WhatsApp</p>');
  assert.ok(instagram>=0&&instagram<facebook&&facebook<whatsapp,'desktop row order: Instagram, then WhatsApp beneath it');
  const mirror=fs.readFileSync('scripts/pull-live.cjs','utf8');
- assert.match(mirror,/wa\\\.me/);assert.match(mirror,/whatsapp_phone=COALESCE/);
+ const parser=fs.readFileSync('scripts/lib/live-public.cjs','utf8');
+ assert.match(parser,/host === "wa\.me"/);assert.match(mirror,/settingsPatch\.whatsappPhone/);assert.match(mirror,/mergeObserved/);
 });
 test('admin table Edit opens inline below the row without scrolling the page',()=>{
  const admin=fs.readFileSync('src/components/admin-dashboard.tsx','utf8');

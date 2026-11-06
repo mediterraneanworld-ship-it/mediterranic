@@ -1,386 +1,293 @@
 /**
- * PASSO 0 de cada sessão de trabalho: espelhar a loja publicada para o
- * ambiente local, para que o preview mostre as peças e os textos REAIS.
+ * Production PUBLIC pages -> LOCAL PostgreSQL only. Never connects to Neon.
+ *   node scripts/pull-live.cjs https://mediterranic.vercel.app
  *
- *   node scripts/pull-live.cjs [https://mediterranic.vercel.app]
- *
- * Lê apenas as páginas públicas (sitemap, páginas de produto, /archive e a
- * home), por isso funciona sem a palavra-passe do back-office. Faz upsert por
- * slug na base de dados local — NUNCA apaga nada. As fotografias guardadas na
- * base de dados da loja (/api/uploads/N) são descarregadas e inseridas na base
- * local, com os URLs remapeados.
- *
- * Nota: isto espelha a produção -> sandbox. O caminho inverso (sandbox ->
- * produção) continua a ser o push do código; os dados de produção nunca são
- * tocados por este script.
+ * Downloads the actual bytes of every referenced photograph, verifies SHA-256,
+ * and allocates a separate local upload when needed. Existing upload IDs are
+ * never overwritten. Missing/unreadable source data leaves local data intact.
+ * Private drafts, orders, subscribers and admin-only settings are not public;
+ * use the authenticated admin backup for a complete private copy.
  */
-const { Client } = require("pg");
+require("dotenv").config({ quiet: true });
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
+const { eq, and } = require("drizzle-orm");
+const { assertLocalDatabase, productFromHtml, homeFromHtml, shippingFromHtml, publicImagePath, replaceImageReferences } = require("./lib/live-public.cjs");
 
-const BASE = (process.argv[2] || "https://mediterranic.vercel.app").replace(/\/$/, "");
-const DB = process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/app_db";
-
-/* ---------------- helpers ---------------- */
-
-async function getText(url) {
-  const res = await fetch(url, { headers: { "User-Agent": "mediterranic-sync" } });
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  return res.text();
+assertLocalDatabase(process.env.DATABASE_URL);
+const source = new URL(process.argv[2] || "https://mediterranic.vercel.app");
+if (source.protocol !== "https:" || source.hostname !== "mediterranic.vercel.app" || source.username || source.password) {
+  throw new Error("Only the official HTTPS production storefront can be used as the public source.");
 }
+const BASE = source.origin;
+const { register } = require("tsx/cjs/api");
+const unregister = register();
+const { db, pool } = require("../src/db/index.ts");
+const { products, uploadedImages, siteSettings, reviews, productDeletions } = require("../src/db/schema.ts");
+const { ensureSchema } = require("../src/lib/schema-migrate.ts");
+const { mergeContent, DEFAULT_CONTENT } = require("../src/lib/site-content.ts");
+const { DEFAULT_SITE_SETTINGS } = require("../src/lib/catalog.ts");
 
-function decodeRsc(html) {
-  // Next serialises client-component props into self.__next_f.push([1,"..."])
-  const chunks = [...html.matchAll(/self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g)].map((m) => m[1]);
-  let blob = chunks.join("");
-  blob = blob
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
-    .replace(/\\n/g, "\n")
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, "\\");
-  return blob;
-}
-
-/** Extracts one balanced JSON value starting at `start` in `text`. */
-function balancedJson(text, start) {
-  const open = text[start];
-  const close = open === "{" ? "}" : "]";
-  let depth = 0;
-  let inStr = false;
-  for (let i = start; i < text.length; i += 1) {
-    const ch = text[i];
-    if (inStr) {
-      if (ch === "\\") i += 1;
-      else if (ch === '"') inStr = false;
-    } else if (ch === '"') inStr = true;
-    else if (ch === open) depth += 1;
-    else if (ch === close) {
-      depth -= 1;
-      if (depth === 0) return text.slice(start, i + 1);
-    }
+const sha256 = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
+const report = { verified: 0, reused: 0, insertedImages: 0, products: 0, failures: [], pages: [] };
+const imageCache = new Map();
+const verifiedMappings = new Map();
+let existingImages = [];
+const failure = (scope, error) => { report.failures.push(`${scope}: ${error instanceof Error ? error.message : String(error)}`); };
+const assign = (object, key, value) => { if (typeof value === "string" && value.trim()) object[key] = value.trim(); };
+const mergeObserved = (target, values) => {
+  for (const [key, value] of Object.entries(values || {})) {
+    if (value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length)) continue;
+    target[key] = value;
   }
+};
+
+async function fetchWithRetry(url, accept = "text/html") {
+  let last;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(url, { headers: { "User-Agent": "mediterranic-public-mirror", Accept: accept }, signal: AbortSignal.timeout(25000), redirect: "error" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response;
+    } catch (error) { last = error; }
+  }
+  throw last;
+}
+async function htmlPage(route) {
+  const response = await fetchWithRetry(BASE + route);
+  const html = await response.text();
+  if (!html.includes("</html>")) throw new Error(`${route}: incomplete HTML`);
+  report.pages.push(route);
+  return html;
+}
+function imageType(bytes, declared) {
+  if (bytes.length < 12 || bytes.length > 25 * 1024 * 1024) return null;
+  if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return { mime: "image/png", ext: "png" };
+  if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return { mime: "image/jpeg", ext: "jpg" };
+  if (bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return { mime: "image/webp", ext: "webp" };
+  if (/^GIF8[79]a$/.test(bytes.toString("ascii", 0, 6))) return { mime: "image/gif", ext: "gif" };
+  if (bytes.toString("ascii", 4, 8) === "ftyp" && /avif|avis/.test(bytes.toString("ascii", 8, 32))) return { mime: "image/avif", ext: "avif" };
+  if (declared === "image/svg+xml" && /^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/.test(bytes.toString("utf8").slice(0, 300))) return { mime: "image/svg+xml", ext: "svg" };
   return null;
 }
 
-function findJsonAfter(blob, key) {
-  const idx = blob.indexOf(key);
-  if (idx < 0) return null;
-  const start = blob.indexOf(blob[idx + key.length] === "[" ? "[" : "{", idx + key.length - 1);
-  const openIdx = idx + key.length;
-  const raw = balancedJson(blob, openIdx);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function stripTags(s) {
-  return s
-    .replace(/<[^>]+>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&ldquo;|&rdquo;/g, '"')
-    .replace(/&rsquo;|&#x27;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function firstMatch(html, re) {
-  const m = html.match(re);
-  return m ? stripTags(m[1]) : null;
-}
-
-/* ---------------- main ---------------- */
-
-(async () => {
-  const db = new Client({ connectionString: DB });
-  await db.connect();
-
-  console.log(`→ loja: ${BASE}`);
-
-  // 1. slugs do sitemap
-  const sitemap = await getText(`${BASE}/sitemap.xml`);
-  const slugs = [...new Set([...sitemap.matchAll(/\/shop\/([a-z0-9-]+)<\/loc>/g)].map((m) => m[1]))];
-  console.log(`→ ${slugs.length} peças no sitemap`);
-
-  // 2. peças no arquivo público (archived=true; podem não estar no sitemap)
-  const archiveHtml = await getText(`${BASE}/archive`);
-  const archivedSlugs = new Set([...archiveHtml.matchAll(/href="\/shop\/([a-z0-9-]+)"/g)].map((m) => m[1]));
-  for (const s of archivedSlugs) if (!slugs.includes(s)) slugs.push(s);
-  console.log(`→ ${archivedSlugs.size} peças no arquivo público`);
-
-  // cache de uploads remotos -> URL local
-  const uploadMap = new Map();
-  async function localiseImage(src) {
-    if (!src || !src.startsWith("/api/uploads/")) return src; // /images/... vem do repo
-    if (uploadMap.has(src)) return uploadMap.get(src);
-    const res = await fetch(`${BASE}${src}`);
-    if (!res.ok) {
-      uploadMap.set(src, src);
-      return src;
+async function localiseImage(value) {
+  const original = publicImagePath(value);
+  if (!original) return value;
+  const key = original.split("?")[0];
+  if (imageCache.has(key)) return imageCache.get(key);
+  const task = (async () => {
+    const response = await fetchWithRetry(BASE + key, "image/*");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const type = imageType(bytes, (response.headers.get("content-type") || "").split(";")[0]);
+    if (!type) throw new Error("response is not a supported photograph");
+    const digest = sha256(bytes);
+    const staticFile = path.resolve(process.cwd(), "public", "." + key);
+    if (key.startsWith("/images/") && staticFile.startsWith(path.resolve(process.cwd(), "public/images") + path.sep) && fs.existsSync(staticFile) && sha256(fs.readFileSync(staticFile)) === digest) {
+      report.reused++; report.verified++; verifiedMappings.set(key, key); return key;
     }
-    const mime = res.headers.get("content-type") || "image/jpeg";
-    const buf = Buffer.from(await res.arrayBuffer());
-    const { rows } = await db.query(
-      `INSERT INTO uploaded_images (filename, mime_type, data_base64) VALUES ($1,$2,$3) RETURNING id`,
-      [src.split("/").pop() + ".jpg", mime, buf.toString("base64")],
-    );
-    const local = `/api/uploads/${rows[0].id}`;
-    uploadMap.set(src, local);
-    console.log(`   foto ${src} → ${local} (${Math.round(buf.length / 1024)} kB)`);
+    const filename = `live:${source.hostname}:${key}:${digest}.${type.ext}`;
+    const existing = existingImages.find((image) => image.filename === filename && sha256(Buffer.from(image.dataBase64, "base64")) === digest);
+    let localId;
+    if (existing) { localId = existing.id; report.reused++; }
+    else {
+      const [inserted] = await db.insert(uploadedImages).values({ filename, mimeType: type.mime, dataBase64: bytes.toString("base64") }).returning({ id: uploadedImages.id });
+      localId = inserted.id;
+      existingImages.push({ id: localId, filename, dataBase64: bytes.toString("base64") });
+      report.insertedImages++;
+    }
+    const local = `/api/uploads/${localId}`;
+    const stored = await db.select({ dataBase64: uploadedImages.dataBase64 }).from(uploadedImages).where(eq(uploadedImages.id, localId)).limit(1);
+    if (!stored[0] || sha256(Buffer.from(stored[0].dataBase64, "base64")) !== digest) throw new Error("local byte verification failed");
+    report.verified++;
+    verifiedMappings.set(key, local);
     return local;
-  }
+  })().catch((error) => { failure(key, error); return null; });
+  imageCache.set(key, task);
+  return task;
+}
 
-  let updated = 0;
-  let inserted = 0;
-
-  for (const slug of slugs) {
-    let html;
-    try {
-      html = await getText(`${BASE}/shop/${slug}`);
-    } catch (e) {
-      console.warn(`   ! ${slug}: ${e.message}`);
-      continue;
-    }
-    const blob = decodeRsc(html);
-
-    // props do AddToCart: slug,name,priceCents,image,stock,listingChannel,externalListingUrl
-    const marker = `"slug":"${slug}","name":"`;
-    const mi = blob.indexOf(marker);
-    let core = null;
-    if (mi >= 0) {
-      const objStart = blob.lastIndexOf("{", mi);
-      core = objStart >= 0 ? (() => { try { return JSON.parse(balancedJson(blob, objStart)); } catch { return null; } })() : null;
-    }
-    const images = findJsonAfter(blob, '"images":') || [];
-
-    // specs visíveis
-    const specs = Object.fromEntries(
-      [...html.matchAll(/<dt[^>]*>([^<]+)<\/dt><dd[^>]*>([^<]+)<\/dd>/g)].map((m) => [stripTags(m[1]), stripTags(m[2])]),
-    );
-    const name = core?.name || firstMatch(html, /<h1[^>]*>(.*?)<\/h1>/s) || slug;
-    const description = firstMatch(html, /About this piece<\/h2><p[^>]*>(.*?)<\/p>/s) || "";
-    const provenance = firstMatch(html, /Where it came from<\/h2><p[^>]*>(.*?)<\/p>/s) || "";
-    const shortDescription =
-      firstMatch(html, /"description":"((?:[^"\\]|\\.)*)"/) || description.slice(0, 180) || name;
-    const hasCertificate = html.includes("certificate of authenticity and geological data card included");
-    const videoMatch = html.match(/src="(https:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|player\.vimeo\.com)[^"]+)"/);
-    const period = specs["Period"] || null;
-    // Dimensions are free text on the live page ("Specimen: 8.7 x 9.0 cm");
-    // older pages still label the row "Length". Keep exactly what is shown.
-    const lengthMm = specs["Dimensions"] || specs["Length"] || null;
-    const collection =
-      period === "Devonian" ? "devonian-crown" : period === "Ordovician" ? "ordovician-mariners" : "cambrian-dawn";
-    const archived = archivedSlugs.has(slug);
-
-    // galeria com uploads localizados
-    const localImages = [];
-    for (const img of images) {
-      localImages.push({ ...img, src: await localiseImage(img.src) });
-    }
-    if (localImages.length === 0) localImages.push({ src: "/images/hero.jpg", alt: name, label: "Specimen" });
-
-    const row = {
-      slug,
-      name,
-      species: specs["Species"] || name,
-      category: "specimen",
-      collection,
-      period,
-      locality: specs["Locality"] || "Morocco",
-      formation: specs["Formation"] || null,
-      lengthMm,
-      preparation: specs["Preparation"] || "Hand prepared",
-      priceCents: core?.priceCents ?? 0,
-      stock: archived ? 0 : core?.stock ?? 0,
-      listingChannel: archived ? null : core?.listingChannel ?? null,
-      externalListingUrl: core?.externalListingUrl || null,
-      videoUrl: videoMatch ? videoMatch[1] : null,
-      hasCertificate,
-      archived,
-      shortDescription,
-      description: description || shortDescription,
-      provenance: provenance || "Sourced in Morocco through our licensed quarry network.",
-      images: JSON.stringify(localImages),
-    };
-
-    const existing = await db.query(`SELECT id FROM products WHERE slug=$1`, [slug]);
-    if (existing.rows.length > 0) {
-      await db.query(
-        `UPDATE products SET name=$2, species=$3, collection=$4, period=$5, locality=$6, formation=$7,
-           length_mm=$8, preparation=$9, price_cents=$10, stock=$11, listing_channel=$12,
-           external_listing_url=$13, video_url=$14, has_certificate=$15, archived=$16,
-           short_description=$17, description=$18, provenance=$19, images=$20::jsonb, published=true
-         WHERE slug=$1`,
-        [slug, row.name, row.species, row.collection, row.period, row.locality, row.formation,
-          row.lengthMm, row.preparation, row.priceCents, row.stock, row.listingChannel,
-          row.externalListingUrl, row.videoUrl, row.hasCertificate, row.archived,
-          row.shortDescription, row.description, row.provenance, row.images],
-      );
-      updated += 1;
-    } else {
-      await db.query(
-        `INSERT INTO products (slug, name, species, category, collection, period, locality, formation,
-           length_mm, preparation, price_cents, stock, listing_channel, external_listing_url, video_url,
-           has_certificate, archived, short_description, description, provenance, images, published, featured)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,true,false)`,
-        [slug, row.name, row.species, row.category, row.collection, row.period, row.locality, row.formation,
-          row.lengthMm, row.preparation, row.priceCents, row.stock, row.listingChannel, row.externalListingUrl,
-          row.videoUrl, row.hasCertificate, row.archived, row.shortDescription, row.description,
-          row.provenance, row.images],
-      );
-      inserted += 1;
-    }
-    console.log(
-      `   ✓ ${slug} (${row.listingChannel ?? (archived ? "archive" : "unavailable")}${row.priceCents ? ", €" + Math.round(row.priceCents / 100) : ""})`,
-    );
-  }
-
-  // 3. textos do hero e da proveniência, a partir da home pública
+async function main() {
+  await ensureSchema();
+  existingImages = await db.select({ id: uploadedImages.id, filename: uploadedImages.filename, dataBase64: uploadedImages.dataBase64 }).from(uploadedImages);
+  console.log(`→ ${BASE} → LOCAL sandbox only`);
+  const sitemapResponse = await fetchWithRetry(BASE + "/sitemap.xml", "application/xml");
+  const sitemap = await sitemapResponse.text();
+  const slugs = new Set([...sitemap.matchAll(/\/shop\/([a-z0-9-]+)<\/loc>/g)].map((match) => match[1]));
+  if (!slugs.size) throw new Error("Public sitemap has no specimens; refusing to treat this as an empty store.");
+  let archiveVerified = false;
+  const archived = new Set();
   try {
-    const home = await getText(`${BASE}/`);
-    // The eyebrow line is retired from the public home: only the title is mirrored.
-    const heroBlock = home.match(/<h1[^>]*>(.*?)<em[^>]*>(.*?)<\/em>/s);
-    const heroDescription = firstMatch(home, /<\/h1><p[^>]*>(.*?)<\/p>/s);
-    const heroImage = home.match(/src="(\/(?:images|api\/uploads)[^"]+)"[^>]*alt="A hand-prepared/);
-    if (heroBlock) {
-      await db.query(
-        `UPDATE site_settings SET hero_title=$1, hero_title_italic=$2,
-           hero_description=COALESCE($3, hero_description),
-           hero_image=COALESCE($4, hero_image), updated_at=now() WHERE id=1`,
-        [
-          stripTags(heroBlock[1]),
-          stripTags(heroBlock[2]),
-          heroDescription,
-          heroImage ? await localiseImage(heroImage[1]) : null,
-        ],
-      );
-      console.log(`→ textos do hero sincronizados ("${stripTags(heroBlock[1])} ${stripTags(heroBlock[2])}")`);
-    }
-
-    // Public social links are also the source used by the storefront cards.
-    // Mirroring them keeps WhatsApp visible in the sandbox. COALESCE means a
-    // temporarily missing link never clears a value already stored locally.
-    const ebayUrl = home.match(/href="(https:\/\/(?:www\.)?ebay\.[^"/]+\/str\/[^"]+)"/i)?.[1] ?? null;
-    const catawikiUrl = home.match(/href="(https:\/\/(?:www\.)?catawiki\.com\/[^"]*\/u\/[^"]+)"/i)?.[1] ?? null;
-    const instagramUrl = home.match(/href="(https:\/\/(?:www\.)?instagram\.com\/[^"]+)"/i)?.[1] ?? null;
-    const facebookUrl = home.match(/href="(https:\/\/(?:www\.)?facebook\.com\/[^"]+)"/i)?.[1] ?? null;
-    const whatsappPhone = home.match(/href="https:\/\/wa\.me\/([0-9]+)"/i)?.[1] ?? null;
-    await db.query(
-      `UPDATE site_settings SET
-         ebay_url=COALESCE($1, ebay_url), catawiki_url=COALESCE($2, catawiki_url),
-         instagram_url=COALESCE($3, instagram_url), facebook_url=COALESCE($4, facebook_url),
-         whatsapp_phone=COALESCE($5, whatsapp_phone), updated_at=now() WHERE id=1`,
-      [ebayUrl, catawikiUrl, instagramUrl, facebookUrl, whatsappPhone],
-    );
-    console.log(`→ links sociais sincronizados${whatsappPhone ? " (WhatsApp incluído)" : ""}`);
-
-    // Logo do cabeçalho e favicon (fundo azul turquesa caribenho com M caligráfico)
-    const logoMatch = home.match(/<header.*?<a[^>]*href=\"\/\"[^>]*>.*?<img[^>]*src=\"([^\"]+)\"/s);
-    const faviconMatch = home.match(/<link[^>]*rel=\"(?:shortcut )?icon\"[^>]*href=\"([^\"]+)\"/);
-    const liveLogo = logoMatch ? await localiseImage(logoMatch[1]) : null;
-    const liveFavicon = faviconMatch ? await localiseImage(faviconMatch[1]) : null;
-    if (liveLogo || liveFavicon) {
-      await db.query(
-        `UPDATE site_settings SET
-           content = jsonb_set(
-             jsonb_set(
-               COALESCE(content, '{}'::jsonb) || jsonb_build_object(
-                 'header', COALESCE(content->'header', '{}'::jsonb),
-                 'site', COALESCE(content->'site', '{}'::jsonb)
-               ),
-               '{header,logoImage}',
-               to_jsonb(COALESCE($1, content->'header'->>'logoImage', '/images/favicon-m-caribbean.png')::text),
-               true
-             ),
-             '{site,favicon}',
-             to_jsonb(COALESCE($2, content->'site'->>'favicon', '/images/favicon-m-caribbean.png')::text),
-               true
-           ),
-           updated_at=now() WHERE id=1`,
-        [liveLogo, liveFavicon],
-      );
-      console.log(`→ logo e favicon sincronizados (turquesa caribenho com M caligráfico)`);
-    }
-
-    // 4. avaliações reais na home de produção
-    const figureMatches = [...home.matchAll(/<figure class="[^"]*rounded-sm border border-parchment\/10[^"]*">(.*?)<\/figure>/gs)];
-    let importedReviews = 0;
-    for (const figMatch of figureMatches) {
-      const fig = figMatch[1];
-      const stars = (fig.match(/fill-brass text-brass/g) || []).length || 5;
-      const titleMatch = fig.match(/<p class="font-display text-2xl leading-snug text-parchment">\s*[“"](?:<!-- -->)?(.*?)(?:<!-- -->)?\.?[”"]\s*<\/p>/s);
-      const bodyMatch = fig.match(/<p class="mt-4 text-sm leading-relaxed text-parchment\/65">\s*(.*?)\s*<\/p>/s);
-      const authorMatch = fig.match(/<p class="text-sm font-medium">\s*(.*?)\s*<\/p>/s);
-      const metaMatch = fig.match(/<p class="text-xs text-parchment\/50">\s*(.*?)<!-- -->\s*·<!-- -->\s*<a[^>]*href="\/shop\/([^"]+)"[^>]*>(.*?)<\/a>/s);
-
-      const rTitle = titleMatch ? stripTags(titleMatch[1]) : "";
-      const rBody = bodyMatch ? stripTags(bodyMatch[1]) : "";
-      const rAuthor = authorMatch ? stripTags(authorMatch[1]) : "Collector";
-      const rCountry = metaMatch ? stripTags(metaMatch[1]) : "Worldwide";
-      const rSlug = metaMatch ? metaMatch[2].trim() : "";
-
-      if (rTitle && rBody) {
-        const prodRes = rSlug ? await db.query(`SELECT id FROM products WHERE slug = $1 LIMIT 1`, [rSlug]) : { rows: [] };
-        const prodId = prodRes.rows[0]?.id || (await db.query(`SELECT id FROM products ORDER BY id LIMIT 1`)).rows[0]?.id;
-        if (prodId) {
-          const existing = await db.query(
-            `SELECT id FROM reviews WHERE author_name = $1 AND title = $2 LIMIT 1`,
-            [rAuthor, rTitle],
-          );
-          if (existing.rows.length === 0) {
-            await db.query(
-              `INSERT INTO reviews (product_id, author_name, author_country, rating, title, body, moderation_status, show_on_home, verified_purchase, moderated_at)
-               VALUES ($1, $2, $3, $4, $5, $6, 'approved', true, true, now())`,
-              [prodId, rAuthor, rCountry, stars, rTitle, rBody],
-            );
-            importedReviews += 1;
-          } else {
-            await db.query(
-              `UPDATE reviews SET show_on_home = true, moderation_status = 'approved' WHERE id = $1`,
-              [existing.rows[0].id],
-            );
-          }
-        }
-      }
-    }
-    if (importedReviews > 0) {
-      console.log(`→ ${importedReviews} avaliações reais importadas da home de produção (aprovadas e escolhidas para a home)`);
-    }
-
-    // 5. descarregar todas as imagens enviadas em produção (/api/uploads/1..50)
-    console.log(`→ a verificar e importar fotografias guardadas em produção (/api/uploads/N)...`);
-    let importedUploads = 0;
-    for (let uId = 1; uId <= 50; uId += 1) {
-      try {
-        const uRes = await fetch(`${BASE}/api/uploads/${uId}`);
-        if (uRes.ok) {
-          const mime = uRes.headers.get("content-type") || "image/jpeg";
-          const buf = await uRes.arrayBuffer();
-          const base64 = Buffer.from(buf).toString("base64");
-          const ext = mime.includes("png") ? "png" : "jpg";
-          await db.query(
-            `INSERT INTO uploaded_images (id, filename, mime_type, data_base64)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (id) DO UPDATE SET filename = EXCLUDED.filename, mime_type = EXCLUDED.mime_type, data_base64 = EXCLUDED.data_base64`,
-            [uId, `${uId}.${ext}`, mime, base64],
-          );
-          importedUploads += 1;
-        }
-      } catch {}
-    }
-    await db.query(`SELECT setval('uploaded_images_id_seq', COALESCE((SELECT MAX(id) FROM uploaded_images), 1))`);
-    console.log(`→ ${importedUploads} fotografias de uploads de produção sincronizadas localmente`);
-  } catch (e) {
-    console.warn(`! home: ${e.message}`);
+    const archive = await htmlPage("/archive");
+    archiveVerified = true;
+    for (const match of archive.matchAll(/href="\/shop\/([a-z0-9-]+)"/g)) { archived.add(match[1]); slugs.add(match[1]); }
+  } catch (error) { failure("archive", error); }
+  for (const route of ["/shop", "/featured"]) {
+    try {
+      const html = await htmlPage(route);
+      for (const match of html.matchAll(/href="\/shop\/([a-z0-9-]+)"/g)) slugs.add(match[1]);
+    } catch (error) { failure(route, error); }
   }
 
-  await db.query(
-    `SELECT setval(pg_get_serial_sequence('products','id'), COALESCE((SELECT MAX(id) FROM products), 1))`,
-  );
-  await db.end();
-  console.log(`\n✓ sincronizado: ${updated} actualizadas, ${inserted} novas. Nada foi apagado.`);
-})().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+  const deletions = await db.select({ slug: productDeletions.slug }).from(productDeletions);
+  const removedSlugs = new Set(deletions.map((record) => record.slug));
+  for (const slug of slugs) {
+    if (removedSlugs.has(slug)) { console.log(`  – ${slug}: explicitly deleted locally; not re-imported`); continue; }
+    try {
+      const html = await htmlPage(`/shop/${slug}`);
+      const live = productFromHtml(html, slug);
+      const [existing] = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
+      const patch = {};
+      assign(patch, "name", live.name);
+      assign(patch, "description", live.description);
+      assign(patch, "provenance", live.provenance);
+      const specKeys = { Species: "species", Period: "period", Locality: "locality", Formation: "formation", Dimensions: "lengthMm", Length: "lengthMm", Preparation: "preparation" };
+      for (const [label, key] of Object.entries(specKeys)) if (!(key === "lengthMm" && patch.lengthMm)) assign(patch, key, live.specs[label]);
+      if (live.reference && /^(?:[A-Z]{2,6})?\d{4}$/.test(live.reference) && !/^(?:18|19|20)\d{2}$/.test(live.reference)) patch.specimenReference = live.reference;
+      if (live.images) {
+        const local = await Promise.all(live.images.map((image) => {
+          const src = publicImagePath(image.src);
+          return src ? localiseImage(src) : Promise.resolve(imageSafeExternal(image.src));
+        }));
+        if (local.every(Boolean)) patch.images = live.images.map((image, index) => ({ ...image, src: local[index] }));
+        else failure(`${slug}:gallery`, "one or more photographs unverified; existing gallery kept");
+      } else failure(`${slug}:gallery`, "public gallery not readable; existing gallery kept");
+      const core = live.purchase;
+      const validCore = core && core.slug === slug && Number.isInteger(core.priceCents) && core.priceCents >= 0 && Number.isInteger(core.stock) && core.stock >= 0 && [null, "direct", "ebay", "catawiki"].includes(core.listingChannel);
+      if (validCore && !archived.has(slug)) {
+        patch.priceCents = core.priceCents; patch.stock = core.stock; patch.listingChannel = core.listingChannel;
+        if (typeof core.externalListingUrl === "string") patch.externalListingUrl = core.externalListingUrl || null;
+      } else if (!validCore && !archived.has(slug)) failure(`${slug}:commerce`, "public price/channel unverified; local commerce data kept");
+      if (archiveVerified) {
+        patch.archived = archived.has(slug);
+        if (patch.archived) { patch.stock = 0; patch.listingChannel = null; }
+      }
+      if (html.includes("certificate of authenticity and geological data card included")) patch.hasCertificate = true;
+      if (existing) await db.update(products).set(patch).where(eq(products.id, existing.id));
+      else await db.insert(products).values({
+        slug, name: live.name || slug, species: live.specs.Species || "", category: "specimen", collection: "", collections: [],
+        period: live.specs.Period || null, locality: live.specs.Locality || "", formation: live.specs.Formation || null,
+        lengthMm: live.specs.Dimensions || live.specs.Length || null, preparation: live.specs.Preparation || "",
+        priceCents: validCore ? core.priceCents : 0, stock: archived.has(slug) ? 0 : validCore ? core.stock : 0,
+        listingChannel: archived.has(slug) ? null : validCore ? core.listingChannel : null,
+        externalListingUrl: validCore && typeof core.externalListingUrl === "string" ? core.externalListingUrl : null,
+        archived: archiveVerified ? archived.has(slug) : false, published: true, featured: false,
+        shortDescription: (live.description || live.name || slug).slice(0, 180), description: live.description || "", provenance: live.provenance || "",
+        images: patch.images || [], specimenReference: patch.specimenReference || null,
+      });
+      report.products++;
+      for (const review of live.reviews) await mirrorReview(review, false);
+      console.log(`  ✓ ${slug}: ${patch.images?.length ?? existing?.images.length ?? 0} photographs; commerce ${validCore || archived.has(slug) ? "verified" : "preserved/unverified"}`);
+    } catch (error) { failure(slug, error); }
+  }
+
+  let settingsRow = (await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1))[0];
+  if (!settingsRow) {
+    await db.insert(siteSettings).values(DEFAULT_SITE_SETTINGS).onConflictDoNothing();
+    settingsRow = (await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1))[0];
+  }
+  const content = mergeContent(settingsRow?.content || {});
+  const settingsPatch = {};
+  try {
+    const html = await htmlPage("/");
+    const live = homeFromHtml(html);
+    const covers = {};
+    for (const [key, src] of Object.entries(live.covers)) if (src) covers[key] = await localiseImage(src);
+    const h = live.home;
+    assign(content.home.hero, "title", h.heroTitle); assign(content.home.hero, "titleItalic", h.heroTitleItalic);
+    assign(content.home.hero, "description", h.heroDescription); assign(content.home.hero, "caption", h.heroCaption);
+    assign(content.home.hero, "primaryCta", h.heroPrimary); assign(content.home.hero, "secondaryCta", h.heroSecondary);
+    if (covers.hero) content.home.hero.image = covers.hero;
+    if (h.statLabels) for (const [index, key] of ["years", "feedbacks", "specimens", "eras"].entries()) assign(content.home.hero.stats, key, h.statLabels[index]);
+    if (h.trust) content.home.trust.items = h.trust;
+    if (h.channels) Object.assign(content.home.channels, h.channels);
+    if (h.collections) for (const key of ["eyebrow", "title", "subtitle"]) assign(content.home.collections, key, h.collections[key]);
+    const coverKeys = ["devonianCrown", "ordovicianMariners", "cambrianDawn", "connoisseur"];
+    const collectionBySlug = { "devonian-crown": 0, "ordovician-mariners": 1, "cambrian-dawn": 2, "the-connoisseur": 3 };
+    for (const card of h.collectionCards || []) {
+      let index = card.index;
+      try { const slug = new URL(card.href, BASE).searchParams.get("collection"); if (slug in collectionBySlug) index = collectionBySlug[slug]; } catch {}
+      const key = coverKeys[index];
+      if (!key) continue;
+      if (card.src) { const local = await localiseImage(card.src); if (local) content.home.collections.covers[key] = local; }
+      const target = content.home.collections.cards[key];
+      assign(target, "title", key === "cambrianDawn" && card.title === "Souss Lagerstätte" ? DEFAULT_CONTENT.home.collections.cards.cambrianDawn.title : card.title);
+      assign(target, "description", card.description);
+      target.label = card.label;
+      assign(target, "href", card.href);
+    }
+    if (h.featured) Object.assign(content.home.featured, h.featured);
+    if (h.provenance) {
+      mergeObserved(content.home.provenance, h.provenance);
+      if (covers.provenance) content.home.provenance.image = covers.provenance;
+    }
+    if (h.testimonials) mergeObserved(content.home.testimonials, h.testimonials);
+    if (h.links) {
+      for (const key of ["eyebrow", "title", "description", "footnote"]) assign(content.home.links, key, h.links[key]);
+      for (const [key, card] of Object.entries(h.links.cards || {})) if (content.home.links.cards[key]) mergeObserved(content.home.links.cards[key], card);
+    }
+    if (h.closing) mergeObserved(content.home.closing, h.closing);
+    mergeObserved(content.header, live.header);
+    if (live.header.nav) mergeObserved(content.header, live.header.nav);
+    delete content.header.nav;
+    mergeObserved(content.footer, live.footer);
+    Object.assign(settingsPatch, live.settings);
+    if (covers.logo) content.header.logoImage = covers.logo;
+    if (covers.favicon) content.site.favicon = covers.favicon;
+    if (settingsPatch.whatsappPhone) settingsPatch.whatsappPhone = "+" + settingsPatch.whatsappPhone;
+    for (const box of content.home.marketplaces.boxes) {
+      const key = box.id === "whatsapp" ? "whatsappPhone" : box.id + "Url";
+      const value = settingsPatch[key] || settingsRow?.[key];
+      if (value) box.url = box.id === "whatsapp" ? `https://wa.me/${String(value).replace(/\D/g, "")}` : value;
+    }
+    for (const review of live.reviews) await mirrorReview(review, true);
+    const linkedHomeImages = Object.values(covers).filter(Boolean).length + (h.collectionCards || []).filter((card) => card.src).length;
+    console.log(`  ✓ home: ${linkedHomeImages} hero/collection/logo photographs linked to saved content`);
+  } catch (error) { failure("home", error); }
+
+  try {
+    const live = shippingFromHtml(await htmlPage("/shipping"));
+    Object.assign(content.shipping, { eyebrow: live.eyebrow || content.shipping.eyebrow, intro: live.intro || content.shipping.intro });
+    Object.assign(content.shipping, live.sections);
+    if (typeof live.freeShipping === "boolean") content.commerce.freeShipping = live.freeShipping;
+  } catch (error) { failure("shipping", error); }
+
+  // Repair only references for which the original production bytes were verified.
+  const repairedContent = replaceImageReferences(content, verifiedMappings);
+  const mirrored = {
+    heroEyebrow: repairedContent.home.hero.eyebrow, heroTitle: repairedContent.home.hero.title,
+    heroTitleItalic: repairedContent.home.hero.titleItalic, heroDescription: repairedContent.home.hero.description,
+    heroImage: repairedContent.home.hero.image, provenanceEyebrow: repairedContent.home.provenance.eyebrow,
+    provenanceTitle: repairedContent.home.provenance.title, provenanceTitleItalic: repairedContent.home.provenance.titleItalic,
+    provenanceBody: repairedContent.home.provenance.body, provenanceImage: repairedContent.home.provenance.image,
+  };
+  await db.update(siteSettings).set({ ...settingsPatch, ...mirrored, content: repairedContent, updatedAt: new Date() }).where(eq(siteSettings.id, 1));
+  for (const row of await db.select({ id: products.id, images: products.images }).from(products)) {
+    const images = replaceImageReferences(row.images, verifiedMappings);
+    if (JSON.stringify(images) !== JSON.stringify(row.images)) await db.update(products).set({ images }).where(eq(products.id, row.id));
+  }
+  console.log(`\nMedia: ${report.verified} byte-verified references, ${report.insertedImages} new local uploads, ${report.reused} unchanged/reused.`);
+  console.log(`Public mirror: ${report.products} specimens, ${report.pages.length} pages. Existing upload IDs were not overwritten.`);
+  if (report.failures.length) {
+    console.warn(`NOT VERIFIED (${report.failures.length}); existing local data was preserved:`);
+    for (const item of report.failures) console.warn(`  ! ${item}`);
+    process.exitCode = 2;
+  }
+  console.log("Private/admin-only fields are not exposed by public pages. Use Download backup for a complete private copy.");
+}
+function imageSafeExternal(src) { return typeof src === "string" && /^https:\/\//.test(src) ? src : null; }
+async function mirrorReview(review, onHome) {
+  if (!review.productSlug || !review.rating) return;
+  const [product] = await db.select({ id: products.id }).from(products).where(eq(products.slug, review.productSlug)).limit(1);
+  if (!product) return;
+  const [existing] = await db.select().from(reviews).where(and(eq(reviews.productId, product.id), eq(reviews.authorName, review.authorName), eq(reviews.title, review.title), eq(reviews.body, review.body))).limit(1);
+  if (existing) {
+    // Never reverse a curator's rejection or pending decision during a mirror.
+    if (onHome && (existing.moderationStatus === "approved" || existing.moderationStatus === null)) await db.update(reviews).set({ showOnHome: true }).where(eq(reviews.id, existing.id));
+    return;
+  }
+  await db.insert(reviews).values({ productId: product.id, authorName: review.authorName, authorCountry: review.authorCountry || "", rating: review.rating, title: review.title, body: review.body, moderationStatus: "approved", moderatedAt: new Date(), showOnHome: onHome, verifiedPurchase: false });
+}
+
+main().catch((error) => { console.error("Mirror stopped:", error.message); process.exitCode = 1; }).finally(async () => { unregister(); await pool.end(); });

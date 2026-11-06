@@ -1,4 +1,7 @@
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { publicationIssues, publicationMessage } from "@/lib/admin-product-rules";
+import { permanentlyDeleteProduct, ProductDeletionError } from "@/lib/product-deletion-service";
 import { db } from "@/db";
 import { products, type ProductImage } from "@/db/schema";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
@@ -23,6 +26,7 @@ export async function POST(request: Request) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({ error: "Invalid request." }, { status: 400 });
   try {
     await ensureSchema();
+    if (body.published !== undefined && typeof body.published !== "boolean") throw new MarketplaceError("Choose Publish or Unpublish explicitly.", 400);
     const id = body.id === null || body.id === undefined ? null : Number(body.id);
     if (id !== null && (!Number.isInteger(id) || id <= 0)) throw new MarketplaceError("Invalid specimen ID.", 400);
     const [existing] = id ? await db.select().from(products).where(eq(products.id, id)).limit(1) : [];
@@ -53,10 +57,15 @@ export async function POST(request: Request) {
         return Response.json({ product: updated });
       }
       if (body.action === "set-published") {
-        if (body.published && ((!existing.archived && existing.priceCents <= 0) || !existing.images.length || !existing.description)) {
-          throw new MarketplaceError("Add a euro price, photograph and description before publishing.", 400);
-        }
-        const [updated] = await db.update(products).set({ published: Boolean(body.published) }).where(eq(products.id, id)).returning();
+        if (typeof body.published !== "boolean") throw new MarketplaceError("Choose Publish or Unpublish explicitly.", 400);
+        const issues = body.published ? publicationIssues(existing) : [];
+        if (issues.length) return Response.json({ error: publicationMessage(issues), issues, missing: issues.map((issue) => issue.field) }, { status: 400 });
+        const [updated] = await db.update(products).set({
+          published: body.published,
+          ...(body.published && (existing.listingChannel === "ebay" || existing.listingChannel === "catawiki") ? { externalListingUrl: savedListing(existing, existing.listingChannel) } : {}),
+          ...(body.published && !existing.description.trim() && existing.shortDescription.trim() ? { description: existing.shortDescription.trim() } : {}),
+        }).where(eq(products.id, id)).returning();
+        refreshProductPaths(existing.slug);
         return Response.json({ product: updated });
       }
       throw new MarketplaceError("Unknown action.", 400);
@@ -72,10 +81,10 @@ export async function POST(request: Request) {
     const priceCents = body.priceDollars === undefined ? existing?.priceCents ?? 0 : money(body.priceDollars) ?? 0;
     const siteOnlyPriceCents = body.siteOnlyPriceDollars === undefined ? existing?.siteOnlyPriceCents ?? null : money(body.siteOnlyPriceDollars);
     const compareAtCents = body.compareAtDollars === undefined ? existing?.compareAtCents ?? null : money(body.compareAtDollars);
-    // An explicit null clears the channel (a piece that is no longer offered
-  // anywhere); anything unrecognised falls back to the stored value.
-  const proposedChannel =
-    body.listingChannel === null ? "" : str(body.listingChannel ?? existing?.listingChannel) || "direct";
+    // An explicit null/empty value clears the channel; omission preserves it.
+    const proposedChannel = body.listingChannel === undefined
+      ? existing ? existing.listingChannel ?? "" : "direct"
+      : body.listingChannel === null ? "" : str(body.listingChannel);
     // An empty channel is valid: it means the piece is offered nowhere.
     if (proposedChannel && !["direct", "ebay", "catawiki"].includes(proposedChannel)) {
       throw new MarketplaceError("Invalid sales channel.", 400);
@@ -92,9 +101,6 @@ export async function POST(request: Request) {
     const externalListingUrl = proposedChannel === "ebay" || proposedChannel === "catawiki"
       ? savedListing(linked, proposedChannel)
       : submittedUrl;
-    if (!archived && published && proposedChannel !== "direct" && !externalListingUrl) {
-      throw new MarketplaceError(`Paste the ${proposedChannel} listing URL before publishing this channel.`, 400);
-    }
     const typedReference = body.specimenReference === undefined ? null : str(body.specimenReference);
     const reference = normalizeReference(
       typedReference
@@ -111,13 +117,13 @@ export async function POST(request: Request) {
       src: str(image.src), alt: str(image.alt) || `${name} — view ${index + 1}`,
       label: str(image.label) || (index === 0 ? "Full specimen" : `View ${index + 1}`),
     }));
-    const missing: string[] = [];
-    if (published) {
-      if (!archived && priceCents <= 0) missing.push("a price in EUR");
-      if (!images.length) missing.push("at least one photograph");
-      if (!description && !shortDescription) missing.push("a description");
-    }
-    if (missing.length) return Response.json({ error: `Before publishing, add ${missing.join(", ")}. Otherwise save as a draft.`, missing }, { status: 400 });
+    const issues = published ? publicationIssues({
+      name, archived, stock, priceCents, images, description, shortDescription,
+      listingChannel: archived ? null : proposedChannel || null,
+      marketplaceActive: existing && proposedChannel === existing.listingChannel ? existing.marketplaceActive : null,
+      externalListingUrl, ebayListingUrl: savedListing(linked, "ebay"), catawikiListingUrl: savedListing(linked, "catawiki"),
+    }) : [];
+    if (issues.length) return Response.json({ error: publicationMessage(issues), issues, missing: issues.map((issue) => issue.field) }, { status: 400 });
     const all = !existing ? await db.select().from(products) : [];
     if (!existing) {
       const known = matchListing({ url: externalListingUrl ?? "", title: reference ? `Specimen ID: ${reference}` : name }, all);
@@ -163,6 +169,7 @@ export async function POST(request: Request) {
     const [product] = existing
       ? await db.update(products).set(values).where(eq(products.id, existing.id)).returning()
       : await db.insert(products).values(values).returning();
+    refreshProductPaths(product.slug);
     return Response.json({ product }, { status: existing ? 200 : 201 });
   } catch (error) {
     if (error instanceof MarketplaceError) return Response.json({ error: error.message }, { status: error.status });
@@ -172,15 +179,25 @@ export async function POST(request: Request) {
   }
 }
 
+function refreshProductPaths(slug: string) {
+  for (const route of ["/", "/admin", "/shop", "/archive", "/featured", `/shop/${slug}`, "/sitemap.xml"]) revalidatePath(route);
+}
+
 export async function DELETE(request: Request) {
   if (!(await isAdminAuthenticated())) return Response.json({ error: "Unauthorized." }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("id"));
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: "Invalid ID." }, { status: 400 });
-  await ensureSchema();
-  // A removal must not cascade into reviews or historical order items.
-  // Keep the record/photos/history, but remove it from all public storefronts.
-  const [product] = await db.update(products).set({ published: false, archived: true, stock: 0, listingChannel: null })
-    .where(eq(products.id, id)).returning({ id: products.id });
-  if (!product) return Response.json({ error: "Specimen not found." }, { status: 404 });
-  return Response.json({ ok: true, preserved: true, message: "Removed from the storefront; the record is kept as an archive draft." });
+  const body = await request.json().catch(() => null) as { confirmation?: unknown } | null;
+  if (!body || typeof body.confirmation !== "string" || !body.confirmation.trim()) {
+    return Response.json({ error: "Permanent deletion requires an explicit confirmation." }, { status: 400 });
+  }
+  try {
+    const deleted = await permanentlyDeleteProduct(id, body.confirmation.trim());
+    refreshProductPaths(deleted.slug);
+    return Response.json({ ok: true, deleted, message: "Permanently deleted from the catalogue and archive. Order receipts and review moderation history were retained." }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    if (error instanceof ProductDeletionError) return Response.json({ error: error.message }, { status: error.status });
+    console.error("Permanent deletion rolled back", error);
+    return Response.json({ error: "Could not delete this specimen. The transaction was rolled back; no partial deletion was kept." }, { status: 500 });
+  }
 }

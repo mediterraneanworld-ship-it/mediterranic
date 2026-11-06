@@ -21,7 +21,10 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { sortAdminProducts } from "@/lib/admin-product-rules";
+import { isAvailable } from "@/lib/product-visibility";
+import { AdminDeleteProductDialog } from "@/components/admin-delete-product-dialog";
 import type { ProductImage } from "@/db/schema";
 import type { NewsletterSend, NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
 import type { NewsletterCadence, NewsletterPiece, NewsletterSettings } from "@/lib/newsletter-send";
@@ -189,7 +192,7 @@ function toEditable(p: ProductWithStats): EditableProduct {
     hasCertificate: p.hasCertificate ?? false,
     siteOnlyPriceDollars: p.siteOnlyPriceCents ? (p.siteOnlyPriceCents / 100).toFixed(2) : "",
     archived: p.archived ?? false,
-    listingChannel: p.listingChannel ?? "direct",
+    listingChannel: p.listingChannel ?? "",
     externalListingUrl: p.externalListingUrl ?? "",
     ebayListingUrl: savedListing(p, "ebay") ?? "",
     catawikiListingUrl: savedListing(p, "catawiki") ?? "",
@@ -309,6 +312,17 @@ export function AdminDashboard({
   const [newsletterCadenceWarning, setNewsletterCadenceWarning] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditableProduct | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [editorError, setEditorError] = useState("");
+  const [productActionBusy, setProductActionBusy] = useState<number | null>(null);
+  const [rowNotices, setRowNotices] = useState<Record<number, { error: boolean; text: string }>>({});
+  const [productOverrides, setProductOverrides] = useState<Record<number, ProductWithStats>>({});
+  const [deletedProductIds, setDeletedProductIds] = useState<number[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<ProductWithStats | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  useEffect(() => { setProductOverrides({}); }, [initialProducts]);
+  const tableProducts = sortAdminProducts(initialProducts
+    .filter((product) => !deletedProductIds.includes(product.id))
+    .map((product) => productOverrides[product.id] ?? product));
   const [uploading, setUploading] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importingUrl, setImportingUrl] = useState(false);
@@ -929,21 +943,42 @@ export function AdminDashboard({
   }
 
   async function handleTogglePublished(product: ProductWithStats, next: boolean) {
-    const res = await fetch("/api/admin/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "set-published", id: product.id, published: next }),
-    });
-    if (res.ok) {
-      notify(next ? `"${product.name}" is now live on the storefront.` : `"${product.name}" moved to drafts (hidden from the shop).`);
-      router.refresh();
-    } else {
-      notify("Could not change visibility.");
+    if (productActionBusy !== null || savingProduct) return;
+    // Publishing from an open editor must include the changes just typed there.
+    if (editing?.id === product.id) {
+      await saveProductDraft({ ...editing, published: next });
+      return;
     }
+    setProductActionBusy(product.id);
+    try {
+      const res = await fetch("/api/admin/products", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set-published", id: product.id, published: next }),
+      });
+      const data = await res.json().catch(() => ({})) as { product?: ProductWithStats; error?: string; missing?: string[] };
+      if (!res.ok || !data.product) {
+        const message = data.error ?? "Could not change visibility. Please retry.";
+        setRowNotices((prev) => ({ ...prev, [product.id]: { error: true, text: message } }));
+        if (next && data.missing?.length && (!editing || window.confirm("Open this specimen's editor? Unsaved edits in the other form will be discarded."))) {
+          setEditorError(message);
+          setEditing({ ...toEditable(product), published: true });
+        }
+        return;
+      }
+      setProductOverrides((prev) => ({ ...prev, [product.id]: { ...product, ...data.product } }));
+      const message = next
+        ? product.archived ? "Published in the archive (no price)." : isAvailable(product) ? "Published on the storefront." : "Published as Unavailable (no price)."
+        : "Unpublished. Kept as a draft.";
+      setRowNotices((prev) => ({ ...prev, [product.id]: { error: false, text: message } }));
+      router.refresh();
+    } catch {
+      setRowNotices((prev) => ({ ...prev, [product.id]: { error: true, text: "Connection error. Visibility was not confirmed; refresh before retrying." } }));
+    } finally { setProductActionBusy(null); }
   }
 
   /** Prepare a new draft without altering the original or following its old listings. */
   function handleDuplicate(product: ProductWithStats) {
+    setEditorError("");
     setEditing({
       ...toEditable(product),
       id: null,
@@ -962,13 +997,31 @@ export function AdminDashboard({
   }
 
 
-  async function handleDeleteProduct(product: ProductWithStats) {
-    if (!window.confirm(`Remove "${product.name}" from the storefront? The record, photos and history will be kept as an archive draft.`)) return;
-    const res = await fetch(`/api/admin/products?id=${product.id}`, { method: "DELETE" });
-    if (res.ok) {
-      notify(`"${product.name}" removed from the storefront; archive draft kept.`);
+  function handleDeleteProduct(product: ProductWithStats) {
+    setDeleteError("");
+    setDeleteTarget(product);
+  }
+
+  async function confirmDeleteProduct() {
+    if (!deleteTarget || productActionBusy !== null) return;
+    const target = deleteTarget;
+    setProductActionBusy(target.id);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/admin/products?id=${target.id}`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: target.slug }),
+      });
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) { setDeleteError(data.error ?? "Could not delete this specimen. Nothing was changed."); return; }
+      setDeletedProductIds((prev) => [...prev, target.id]);
+      if (editing?.id === target.id || editing?.duplicateOfId === target.id) setEditing(null);
+      if (channelBox?.product.id === target.id) setChannelBox(null);
+      setDeleteTarget(null);
+      notify(`"${target.name}" permanently deleted from the catalogue and archive.`);
       router.refresh();
-    }
+    } catch { setDeleteError("Connection error. Refresh the catalogue before retrying; the deletion could not be confirmed."); }
+    finally { setProductActionBusy(null); }
   }
 
   async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
@@ -1426,28 +1479,36 @@ export function AdminDashboard({
     setCustomImageUrl("");
   }
 
-  async function handleSaveProduct(e: FormEvent) {
-    e.preventDefault();
-    if (!editing) return;
+  async function saveProductDraft(draft: EditableProduct) {
+    if (savingProduct) return;
     setSavingProduct(true);
+    setEditorError("");
     try {
       const res = await fetch("/api/admin/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editing),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft),
       });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        notify(data.error ?? "Failed to save specimen.");
-        setSavingProduct(false);
+      const data = await res.json().catch(() => ({})) as { error?: string; product?: ProductWithStats };
+      if (!res.ok || !data.product) {
+        const message = data.error ?? "Failed to save specimen.";
+        setEditorError(message);
+        if (draft.id) setRowNotices((prev) => ({ ...prev, [draft.id!]: { error: true, text: message } }));
         return;
       }
-      notify(editing.id ? "Specimen updated in database!" : "New specimen created in database!");
+      if (draft.id) {
+        const stored = data.product;
+        setProductOverrides((prev) => ({ ...prev, [stored.id]: { ...initialProducts.find((product) => product.id === stored.id), ...stored } }));
+        setRowNotices((prev) => ({ ...prev, [stored.id]: { error: false, text: stored.published ? "Saved and published." : "Saved as a draft." } }));
+      }
+      notify(data.product.published ? "Specimen saved and published." : "Specimen saved as a draft.");
       setEditing(null);
       router.refresh();
-    } finally {
-      setSavingProduct(false);
-    }
+    } catch { setEditorError("Connection error. Your edits are still in the form. Please try again."); }
+    finally { setSavingProduct(false); }
+  }
+
+  async function handleSaveProduct(e: FormEvent) {
+    e.preventDefault();
+    if (editing) await saveProductDraft(editing);
   }
 
   async function handleSettingPhotoUpload(
@@ -1520,6 +1581,11 @@ export function AdminDashboard({
                 </button>
               </div>
 
+              {editorError && <p role="alert" className="mt-4 rounded-sm border border-terracotta/25 bg-terracotta/10 p-4 text-sm text-terracotta">{editorError}</p>}
+              <label className="mt-4 flex items-center gap-3 text-sm text-ink">
+                <input type="checkbox" checked={editing.published} disabled={savingProduct} onChange={(event) => setEditing({ ...editing, published: event.target.checked })} className="h-5 w-5 accent-sea" />
+                Publish on save <span className="text-xs text-ink/55">Off = save as draft, hidden from the public shop.</span>
+              </label>
               <div className="mt-6 grid gap-5 md:grid-cols-3">
                 <div>
                   <label className={labelClass}>Title / Display Name *</label>
@@ -1587,6 +1653,7 @@ export function AdminDashboard({
                     onChange={(e) => { const channel = e.target.value; setEditing({ ...editing, listingChannel: channel, externalListingUrl: channel === "ebay" || channel === "catawiki" ? savedListing(editing, channel) ?? "" : editing.externalListingUrl }); }}
                     className={inputClass}
                   >
+                    <option value="">Unavailable (not offered on any channel)</option>
                     <option value="direct">Site Only (Direct Sale on Mediterranic)</option>
                     <option value="catawiki">Live on Catawiki (Shows Catawiki Badge)</option>
                     <option value="ebay">Live on eBay (Shows eBay Badge)</option>
@@ -1666,20 +1733,20 @@ export function AdminDashboard({
                   <label className={labelClass}>Price (EUR €) *</label>
                   <input
                     type="number"
-                    required
-                    min="1"
-                    step="1"
+                    min="0"
+                    step="0.01"
                     value={editing.priceDollars}
                     onChange={(e) => setEditing({ ...editing, priceDollars: e.target.value })}
                     className={inputClass}
                   />
+                  <p className="mt-1 text-xs text-ink/55">Required for a published piece offered for sale. Draft, Unavailable and Archive may have no price.</p>
                 </div>
                 <div>
                   <label className={labelClass}>Compare-At Price (EUR €, optional)</label>
                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.01"
                     value={editing.compareAtDollars}
                     onChange={(e) => setEditing({ ...editing, compareAtDollars: e.target.value })}
                     placeholder="Leave blank if not discounted"
@@ -1691,6 +1758,7 @@ export function AdminDashboard({
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     value={editing.siteOnlyPriceDollars}
                     onChange={(e) => setEditing({ ...editing, siteOnlyPriceDollars: e.target.value })}
                     placeholder="Used if the auction ends unsold"
@@ -2124,7 +2192,7 @@ export function AdminDashboard({
                   disabled={savingProduct}
                   className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-8 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-terracotta disabled:opacity-50"
                 >
-                  <Save size={15} /> {savingProduct ? "Saving…" : "Save Specimen to Database"}
+                  <Save size={15} /> {savingProduct ? "Saving…" : editing.published ? "Save & publish" : "Save draft"}
                 </button>
               </div>
             </form>
@@ -2132,6 +2200,7 @@ export function AdminDashboard({
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+      {deleteTarget && <AdminDeleteProductDialog key={deleteTarget.id} product={deleteTarget} busy={productActionBusy === deleteTarget.id} error={deleteError} onClose={() => { if (productActionBusy === null) setDeleteTarget(null); }} onConfirm={confirmDeleteProduct} />}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/10 pb-8">
         <div>
@@ -2291,7 +2360,7 @@ export function AdminDashboard({
             </div>
             <button
               type="button"
-              onClick={() => setEditing({ ...EMPTY_PRODUCT })}
+              onClick={() => { setEditorError(""); setEditing({ ...EMPTY_PRODUCT }); }}
               className="inline-flex h-12 items-center gap-2 rounded-full bg-terracotta px-6 text-xs uppercase tracking-[0.2em] text-parchment transition hover:bg-ink"
             >
               <Plus size={16} /> Add New Specimen
@@ -2554,6 +2623,7 @@ export function AdminDashboard({
 
 
           {/* Product Table */}
+          <p className="mb-3 text-xs text-ink/60">Available specimens first; Unavailable and Archive at the bottom. Draft is visibility only. Permanent deletion removes the catalogue entry, not its order receipts.</p>
           <div className="overflow-x-auto rounded-sm border border-ink/10 bg-white/70">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-ink/10 bg-bone/60 text-[10px] uppercase tracking-[0.22em] text-ink/60">
@@ -2566,12 +2636,12 @@ export function AdminDashboard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink/10">
-                {initialProducts.map((p) => {
-                  const isSold = p.stock <= 0;
-                  const channel = p.listingChannel ?? "direct";
+                {tableProducts.map((p) => {
+                  const isSold = !isAvailable(p);
+                  const channel = p.listingChannel;
                   return (
-                    <>
-                    <tr key={p.id} className="hover:bg-white">
+                    <Fragment key={p.id}>
+                    <tr data-specimen-id={p.id} data-availability={isSold ? "unavailable" : "available"} className="hover:bg-white">
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="relative h-14 w-12 shrink-0 overflow-hidden rounded-sm bg-bone">
@@ -2663,9 +2733,11 @@ export function AdminDashboard({
                           <button
                             type="button"
                             onClick={() => handleTogglePublished(p, !p.published)}
-                            className="rounded-full border border-ink/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink hover:border-ink"
+                            disabled={productActionBusy !== null || savingProduct}
+                            aria-busy={productActionBusy === p.id}
+                            className="rounded-full border border-ink/20 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-ink hover:border-ink disabled:opacity-40"
                           >
-                            {p.published ? "Unpublish" : "Publish"}
+                            {productActionBusy === p.id ? "Saving…" : p.published ? "Unpublish" : "Publish"}
                           </button>
                           <button
                             type="button"
@@ -2696,12 +2768,14 @@ export function AdminDashboard({
                           <button
                             type="button"
                             onClick={() => handleDeleteProduct(p)}
-                            aria-label={`Delete ${p.name}`}
-                            className="rounded-full p-2 text-ink/40 hover:bg-terracotta/10 hover:text-terracotta"
+                            aria-label={`Delete ${p.name} permanently`}
+                            disabled={productActionBusy !== null || savingProduct}
+                            className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-terracotta/25 px-3 text-[11px] text-terracotta hover:bg-terracotta/10 disabled:opacity-40"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} /> Delete permanently
                           </button>
                         </div>
+                        {rowNotices[p.id] && <p role={rowNotices[p.id].error ? "alert" : "status"} className={`mt-3 max-w-md text-sm ${rowNotices[p.id].error ? "text-terracotta" : "text-sea"}`}>{rowNotices[p.id].text}</p>}
                       </td>
                     </tr>
                     {/* Editor inline, immediately below the piece being edited */}
@@ -2714,7 +2788,7 @@ export function AdminDashboard({
                         </td>
                       </tr>
                     )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

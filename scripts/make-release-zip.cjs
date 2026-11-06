@@ -47,7 +47,14 @@ const EXCLUDES = [
   "*.sqlite3",
   "*.db",
   "*.dump",
+  "*.sql",
   "*.sql.gz",
+  "*backup*.json",
+  ".checks/*",
+  "test-results/*",
+  "playwright-report/*",
+  ".cache/*",
+  ".mirror*",
   "* [0-9]*",
 ];
 
@@ -61,7 +68,7 @@ const entries = execFileSync("unzip", ["-Z1", outFile], { cwd: ROOT, encoding: "
   .filter(Boolean);
 const size = fs.statSync(outFile).size;
 
-const required = ["src/lib/version.ts", "src/app/page.tsx", "vercel.json", "package.json", "public/icon.png"];
+const required = ["src/lib/version.ts", "src/app/page.tsx", "src/components/site-footer.tsx", "src/app/api/uploads/[id]/route.ts", "scripts/pull-live.cjs", "scripts/lib/live-public.cjs", "vercel.json", "package.json", "package-lock.json", "public/icon.png"];
 for (const file of required) {
   if (!entries.includes(file)) throw new Error(`ZIP is incomplete, missing ${file}`);
 }

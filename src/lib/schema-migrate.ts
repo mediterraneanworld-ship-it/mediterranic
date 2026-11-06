@@ -270,6 +270,20 @@ ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "moderated_at" timestamp with tim
 -- Curator's choice for the home page reviews. Additive: no review is changed.
 ALTER TABLE "reviews" ADD COLUMN IF NOT EXISTS "show_on_home" boolean DEFAULT false NOT NULL;
 
+-- Explicit permanent catalogue deletion retains receipt lines and moderation.
+-- Additive only: deployment never removes or rewrites a specimen.
+CREATE TABLE IF NOT EXISTS "product_deletions" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "original_product_id" integer NOT NULL,
+  "slug" text NOT NULL,
+  "name" text NOT NULL,
+  "specimen_reference" text,
+  "listing_keys" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "order_items_snapshot" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "reviews_snapshot" jsonb DEFAULT '[]'::jsonb NOT NULL,
+  "deleted_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+
 -- Shipping by weight class and region (back-office table). New tables only; they are
 -- seeded once, and only while empty. No order, product or saved rate is changed.
 CREATE TABLE IF NOT EXISTS "shipping_weight_classes" (

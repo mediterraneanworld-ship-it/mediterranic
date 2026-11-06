@@ -36,7 +36,7 @@ export const COLLECTIONS: Collection[] = [
   },
   {
     slug: "cambrian-dawn",
-    title: "Souss Lagerstätte",
+    title: "The Cambrian Explosion",
     externalUrl: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
     eyebrow: "c. 485–541 million years",
     description:

@@ -131,6 +131,7 @@ test('all five public review/statistic query paths apply the approval condition'
   } };
   const reviewTable = { productId: 'reviewProductId', moderationStatus: 'reviewModerationStatus', rating: 'reviewRating' };
   const catalog = load('src/lib/catalog.ts', {
+    '@/lib/order-history': { getStoredOrderItems: async () => { throw new Error('Unexpected receipt query in review test'); } },
     '@/lib/home-reviews': load('src/lib/home-reviews.ts'),
     'drizzle-orm': operators, '@/db': { db },
     '@/db/schema': { products: { id: 'productId', published: 'published' }, reviews: reviewTable },

@@ -141,6 +141,21 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").notNull(),
 });
 
+/** Receipt lines and review moderation outlive an explicitly deleted catalogue item.
+ * No product FK: this record is not an archive specimen and cannot be bought or published.
+ */
+export const productDeletions = pgTable("product_deletions", {
+  id: serial("id").primaryKey(),
+  originalProductId: integer("original_product_id").notNull(),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  specimenReference: text("specimen_reference"),
+  listingKeys: jsonb("listing_keys").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  orderItemsSnapshot: jsonb("order_items_snapshot").$type<(typeof orderItems.$inferSelect)[]>().notNull().default(sql`'[]'::jsonb`),
+  reviewsSnapshot: jsonb("reviews_snapshot").$type<(Omit<typeof reviews.$inferSelect, "createdAt" | "moderatedAt"> & { createdAt: string; moderatedAt: string | null })[]>().notNull().default(sql`'[]'::jsonb`),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const siteSettings = pgTable("site_settings", {
   id: integer("id").primaryKey().default(1),
   heroEyebrow: text("hero_eyebrow").notNull(),

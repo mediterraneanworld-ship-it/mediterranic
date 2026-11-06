@@ -72,12 +72,13 @@ test("shipping rates: phones get one card per region; the table only shows from 
 test("sync from production no longer expects the retired eyebrow", () => {
   const mirror = read("scripts/pull-live.cjs");
   assert.ok(!/hero_eyebrow=\$1/.test(mirror));
-  assert.match(mirror, /if \(heroBlock\) \{/);
+  assert.match(mirror, /assign\(content\.home\.hero, "title", h\.heroTitle\)/);
+  assert.ok(!/heroEyebrow:\s*live/.test(mirror), "retired eyebrow is not read from production");
 });
 
-test("version 2026-11-05-ag lists this round's features", () => {
+test("version 2026-11-05-aj lists this round's features", () => {
   const v = read("src/lib/version.ts");
-  assert.match(v, /export const CODE_VERSION = "2026-11-05-ag";/);
+  assert.match(v, /export const CODE_VERSION = "2026-11-05-aj";/);
   for (const feature of ["hero-moved-up", "home-sections-tightened", "link-cards-coloured-compact", "labels-one-line", "footer-gap-halved"]) {
     assert.ok(v.includes(`"${feature}"`), feature);
   }

@@ -1,6 +1,6 @@
 import { count } from "drizzle-orm";
 import { db } from "@/db";
-import { products, reviews } from "@/db/schema";
+import { products, reviews, productDeletions } from "@/db/schema";
 import { SEED_PRODUCTS, SEED_REVIEWS } from "@/lib/seed-data";
 import { ensureSchema } from "@/lib/schema-migrate";
 
@@ -18,6 +18,9 @@ export function ensureSeeded(): Promise<void> {
 
       const [{ value }] = await db.select({ value: count() }).from(products);
       if (Number(value) > 0) return;
+      // Empty after an explicit deletion is intentional, not a fresh database.
+      const [removed] = await db.select({ id: productDeletions.id }).from(productDeletions).limit(1);
+      if (removed) return;
 
       await db.transaction(async (tx) => {
         const inserted = await tx

@@ -9,15 +9,16 @@ export const dynamic = "force-dynamic";
  * The route redirects to the bundled copy, so a path saved in the back-office
  * keeps working after each future deployment.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ file: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ file: string }> }) {
   const { file } = await params;
   const expected = CONNOISSEUR_COVER_PATH.split("/").pop();
   if (file !== expected) return new Response("Not found", { status: 404 });
   return new Response(null, {
     status: 307,
     headers: {
-      Location: new URL(cover.src, request.url).toString(),
-      "Cache-Control": "public, max-age=3600",
+      // A relative Location keeps the visitor-facing host behind any preview proxy.
+      Location: cover.src,
+      "Cache-Control": "public, max-age=0, must-revalidate",
     },
   });
 }

@@ -1,6 +1,6 @@
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
-import { newsletterSubscribers, products, reviews, siteSettings, uploadedImages, orders, orderItems } from "@/db/schema";
+import { newsletterSubscribers, products, reviews, siteSettings, uploadedImages, orders, orderItems, productDeletions } from "@/db/schema";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { ensureSchema } from "@/lib/schema-migrate";
 
@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   await ensureSchema();
-  const [catalogue, allReviews, settingsRows, subs, images, savedOrders, savedItems] = await Promise.all([
+  const [catalogue, allReviews, settingsRows, subs, images, savedOrders, savedItems, deletionHistory] = await Promise.all([
     db.select().from(products).orderBy(asc(products.id)),
     db.select().from(reviews).orderBy(asc(reviews.id)),
     db.select().from(siteSettings),
@@ -25,11 +25,12 @@ export async function GET() {
     db.select().from(uploadedImages).orderBy(asc(uploadedImages.id)),
     db.select().from(orders),
     db.select().from(orderItems),
+    db.select().from(productDeletions).orderBy(asc(productDeletions.id)),
   ]);
 
   const payload = {
     format: "mediterranic-backup",
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     counts: {
       products: catalogue.length,
@@ -44,6 +45,7 @@ export async function GET() {
     uploadedImages: images,
     orders: savedOrders,
     orderItems: savedItems,
+    productDeletions: deletionHistory,
   };
 
   const stamp = new Date().toISOString().slice(0, 10);

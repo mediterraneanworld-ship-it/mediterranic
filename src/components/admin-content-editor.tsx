@@ -62,10 +62,7 @@ export function AdminContentEditor({
   const [content, setContent] = useState<SiteContent>(initialContent);
   const [mainTab, setMainTab] = useState<"home" | "other">("home");
   const [otherGroupId, setOtherGroupId] = useState<string>("shop");
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    h2: true,
-    h6: true,
-  });
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [draggedId, setDraggedId] = useState<HomeSectionId | null>(null);
   const [dragOverId, setDragOverId] = useState<HomeSectionId | null>(null);
   const [draggedBoxIdx, setDraggedBoxIdx] = useState<number | null>(null);

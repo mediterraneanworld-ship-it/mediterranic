@@ -1,6 +1,7 @@
+import { matchesDeletedSpecimen } from "@/lib/admin-product-rules";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { inventorySyncState, products } from "@/db/schema";
+import { inventorySyncState, products, productDeletions } from "@/db/schema";
 import { ensureSchema } from "@/lib/schema-migrate";
 import type { SiteSettings } from "@/lib/catalog";
 import { EbayApiError, ebayErrorMessage, ebayMarketplace, ebaySellerFromUrl, getEbayItem, hasEbayCredentials, listEbaySellerItems, searchEbaySellerItems, type EbayItem } from "@/lib/ebay";
@@ -103,7 +104,9 @@ async function discoverEbay(settings: SiteSettings, specimens: typeof products.$
 type Identity = ReturnType<typeof parseCatawikiIdentity>;
 type Sources = Record<"ebay" | "catawiki", InventorySource>;
 
-async function importNewListing(listing: RemoteListing, signal: AbortSignal) {
+async function importNewListing(listing: RemoteListing, signal: AbortSignal): Promise<{ created: boolean; draft: boolean; productId?: number }> {
+  const priorDeletions = await db.select().from(productDeletions);
+  if (matchesDeletedSpecimen({ url: listing.url, reference: listing.reference }, priorDeletions)) return { created: false, draft: false };
   const matchTitle = listing.reference ? `${listing.title}\nSpecimen ID: ${listing.reference}` : listing.title;
   const parsed = parseListingText(`${listing.title}\n${listing.description}`, listing.url,
     listing.priceCents === null ? "" : (listing.priceCents / 100).toFixed(2), listing.title);
@@ -112,6 +115,8 @@ async function importNewListing(listing: RemoteListing, signal: AbortSignal) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${listingKey(listing.url)!}))`);
     if (listing.reference) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"specimen:" + listing.reference}))`);
+    const deletions = await tx.select().from(productDeletions);
+    if (matchesDeletedSpecimen({ url: listing.url, reference: listing.reference }, deletions)) return { created: false, draft: false };
     const all = await tx.select().from(products);
     const match = matchListing({ url: listing.url, title: matchTitle, description: listing.description }, all);
     if (match.productId) return { created: false, draft: false };

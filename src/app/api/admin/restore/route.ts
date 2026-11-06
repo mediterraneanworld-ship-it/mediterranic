@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { newsletterSubscribers, orderItems, orders, products, reviews, siteSettings, uploadedImages, inventorySyncState } from "@/db/schema";
+import { newsletterSubscribers, orderItems, orders, products, reviews, siteSettings, uploadedImages, inventorySyncState, productDeletions } from "@/db/schema";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { ensureSchema } from "@/lib/schema-migrate";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/catalog";
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 type JsonRow = Record<string, unknown>;
 function revive(row: JsonRow): JsonRow {
   const result = { ...row };
-  for (const name of ["createdAt", "lastPriceCheck", "updatedAt", "marketplaceCheckedAt", "moderatedAt"]) {
+  for (const name of ["createdAt", "lastPriceCheck", "updatedAt", "marketplaceCheckedAt", "moderatedAt", "deletedAt"]) {
     if (typeof result[name] === "string") {
       const parsed = new Date(result[name] as string);
       if (Number.isNaN(parsed.getTime())) delete result[name]; else result[name] = parsed;
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) return Response.json({ error: "Unauthorized." }, { status: 401 });
   const payload = await request.json().catch(() => null) as {
     format?: string; products?: JsonRow[]; settings?: JsonRow | null; subscribers?: JsonRow[];
-    uploadedImages?: JsonRow[]; orders?: JsonRow[]; orderItems?: JsonRow[]; reviews?: JsonRow[];
+    uploadedImages?: JsonRow[]; orders?: JsonRow[]; orderItems?: JsonRow[]; reviews?: JsonRow[]; productDeletions?: JsonRow[];
   } | null;
   if (payload?.format !== "mediterranic-backup" || !Array.isArray(payload.products)) return Response.json({ error: "That is not a Mediterranic backup file." }, { status: 400 });
   try {
@@ -121,6 +121,27 @@ export async function POST(request: Request) {
         const moderationStatus = rest.moderationStatus == null ? null
           : ["pending", "approved", "rejected"].includes(String(rest.moderationStatus)) ? String(rest.moderationStatus) : "pending";
         await tx.insert(reviews).values({ ...(revive(rest) as typeof reviews.$inferInsert), productId, moderationStatus }); reviewsAdded++;
+      }
+      // Receipt and moderation snapshots are historical records, not catalogue entries.
+      // Restoring them never republishes an explicitly deleted specimen.
+      for (const raw of payload.productDeletions ?? []) {
+        if (!raw || typeof raw.slug !== "string" || typeof raw.name !== "string" || !Number.isInteger(Number(raw.originalProductId))) continue;
+        const deletedAt = new Date(String(raw.deletedAt));
+        if (Number.isNaN(deletedAt.getTime())) continue;
+        const [existing] = await tx.select({ id: productDeletions.id }).from(productDeletions)
+          .where(and(eq(productDeletions.slug, raw.slug), eq(productDeletions.deletedAt, deletedAt))).limit(1);
+        if (existing) continue;
+        const historicalItems = (Array.isArray(raw.orderItemsSnapshot) ? raw.orderItemsSnapshot : []).filter((item): item is typeof orderItems.$inferSelect =>
+          Boolean(item && typeof item === "object" && typeof item.orderId === "string" && typeof item.productSlug === "string" &&
+            typeof item.productName === "string" && Number.isInteger(item.id) && Number.isInteger(item.productId) && Number.isInteger(item.unitPriceCents) && Number.isInteger(item.quantity)));
+        const historicalReviews = (Array.isArray(raw.reviewsSnapshot) ? raw.reviewsSnapshot : []).filter((review) =>
+          review && typeof review === "object" && typeof review.authorName === "string" && typeof review.body === "string") as (typeof productDeletions.$inferInsert)["reviewsSnapshot"];
+        await tx.insert(productDeletions).values({
+          originalProductId: Number(raw.originalProductId), slug: raw.slug, name: raw.name,
+          specimenReference: typeof raw.specimenReference === "string" ? raw.specimenReference : null,
+          listingKeys: (Array.isArray(raw.listingKeys) ? raw.listingKeys : []).filter((key): key is string => typeof key === "string"),
+          orderItemsSnapshot: historicalItems, reviewsSnapshot: historicalReviews, deletedAt,
+        });
       }
       // A restored catalogue is not the previously verified remote snapshot.
       // Keep run logs and any current lease; a later sync re-verifies it.

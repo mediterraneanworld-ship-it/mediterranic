@@ -310,27 +310,37 @@ export default async function HomePage() {
               <Link
                 href={c.externalUrl ?? `/shop?collection=${c.slug}`}
                 {...(c.externalUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                className="group relative block aspect-[3/4] overflow-hidden rounded-sm bg-midnight text-parchment"
+                className="group flex flex-col overflow-hidden rounded-sm border border-ink/10 bg-white/80 p-4 transition duration-300 hover:border-ink/25 hover:bg-white hover:shadow-md sm:p-5"
               >
-                <Image
-                  src={covers[c.slug] ?? c.cover}
-                  alt={c.title}
-                  fill
-                  sizes="(min-width: 768px) 33vw, 100vw"
-                  className="object-cover opacity-80 transition-all duration-[1.4s] ease-out group-hover:scale-105 group-hover:opacity-100"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-midnight via-midnight/40 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-7">
-                  {c.homeLabel && <p className="text-[10px] uppercase tracking-[0.28em] text-brass">{c.homeLabel}</p>}
-                  {/* Anchor for card eyebrow regression check: {c.homeLabel && < */}
-                  <h3 className="mt-3 font-display text-4xl leading-none">{c.title}</h3>
-                  <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-parchment/70">{c.description}</p>
-                  <div className="mt-6 flex items-center justify-between border-t border-parchment/15 pt-4 text-[11px] uppercase tracking-[0.2em]">
-                    <span className="text-parchment/60">
+                {/* Specimen / collection cover image: unobstructed so the photograph is clear on phone and desktop */}
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-sm bg-bone sm:aspect-[1/1]">
+                  <Image
+                    src={covers[c.slug] ?? c.cover}
+                    alt={c.title}
+                    fill
+                    sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover transition-all duration-[1.2s] ease-out group-hover:scale-105"
+                  />
+                </div>
+
+                {/* Letters/text positioned below the image */}
+                <div className="mt-4 flex flex-1 flex-col justify-between">
+                  <div>
+                    {c.homeLabel && <p className="text-[10px] uppercase tracking-[0.28em] text-brass">{c.homeLabel}</p>}
+                    {/* Anchor for card eyebrow regression check: {c.homeLabel && < */}
+                    <h3 className="mt-1 font-display text-2xl text-ink transition group-hover:text-sea sm:text-3xl leading-tight">
+                      {c.title}
+                    </h3>
+                    <p className="mt-2 text-xs leading-relaxed text-ink/65 line-clamp-3 sm:text-sm">
+                      {c.description}
+                    </p>
+                  </div>
+                  <div className="mt-5 flex items-center justify-between border-t border-ink/10 pt-3 text-[11px] uppercase tracking-[0.2em] text-ink/60">
+                    <span>
                       {c.count} {c.count === 1 ? content.home.collections.pieceSingular : content.home.collections.piecePlural}
                     </span>
-                    <span className="flex items-center gap-2 transition-transform group-hover:translate-x-1">
-                      {content.home.collections.explore} <ArrowRight size={14} />
+                    <span className="flex items-center gap-1.5 text-sea font-medium transition-transform group-hover:translate-x-1">
+                      {content.home.collections.explore} <ArrowRight size={13} />
                     </span>
                   </div>
                 </div>
@@ -450,7 +460,15 @@ export default async function HomePage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {(c.marketplaces.boxes || []).map((box) => {
               const isPreset = ["ebay-quad", "cw-grad", "ig-grad", "fb-grad", "wa-grad"].includes(box.bgColor || "");
-              const url = box.url || (box.id === "ebay" ? settings.ebayUrl : box.id === "catawiki" ? settings.catawikiUrl : box.id === "instagram" ? settings.instagramUrl : box.id === "facebook" ? settings.facebookUrl : settings.ebayUrl);
+              const liveUrls: Record<string, string> = {
+                ebay: settings.ebayUrl,
+                catawiki: settings.catawikiUrl,
+                instagram: settings.instagramUrl,
+                facebook: settings.facebookUrl,
+                whatsapp: settings.whatsappPhone ? `https://wa.me/${settings.whatsappPhone.replace(/\D/g, "")}` : "",
+              };
+              const url = box.url || liveUrls[box.id] || "";
+              if (!url) return null;
 
               return (
                 <a

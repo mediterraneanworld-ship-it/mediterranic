@@ -154,3 +154,28 @@ test("Admin Tab 6 reviews API and UI allow curator to write real reviews", () =>
   assert.match(panel, /Write real review/);
   assert.match(panel, /Show on home page/);
 });
+
+test("Admin Tab 5 H sections are collapsed by default", () => {
+  const editor = fs.readFileSync("src/components/admin-content-editor.tsx", "utf8");
+  assert.match(editor, /const \[openSections, setOpenSections\] = useState<Record<string, boolean>>\(\{\}\);/);
+});
+
+test("H6 collection card Cambrian reads 'The Cambrian Explosion' in collections and content", () => {
+  const { COLLECTIONS } = load("src/lib/collections.ts");
+  const cambrian = COLLECTIONS.find((c) => c.slug === "cambrian-dawn");
+  assert.equal(cambrian?.title, "The Cambrian Explosion");
+
+  const merged = content.mergeContent({});
+  assert.equal(merged.home.collections.cards.cambrianDawn.title, "The Cambrian Explosion");
+});
+
+test("H6 home collection cards place letters below the box images", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  const h6Section = page.slice(page.indexOf("// {/* Collections */}"), page.indexOf("// {/* Featured */}"));
+  // Image box precedes text box in DOM order
+  const imgBoxIdx = h6Section.indexOf("relative aspect-[4/3]");
+  const textBoxIdx = h6Section.indexOf("{c.title}");
+  assert.ok(imgBoxIdx >= 0, "image box exists");
+  assert.ok(textBoxIdx >= 0, "text block exists");
+  assert.ok(imgBoxIdx < textBoxIdx, "image is placed above the text block");
+});

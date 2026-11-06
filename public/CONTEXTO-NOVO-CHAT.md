@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-05-ag. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-05-aj. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -21,7 +21,7 @@ Se o ZIP ou sandbox antigo tiver expirado, usar master + páginas públicas + es
 ## 3. Fluxo de publicação — nunca fazer merge de src
 Eu edito conteúdo no admin de produção: isso grava no Neon e sobrevive ao deploy.
 Tu alteras código, validas e entregas um ZIP COMPLETO, sem .env, .git, node_modules, .next, caches, logs ou cópias do banco de dados.
-Eu APAGO a src local e copio a src do ZIP. Mantenho .env e .git. Copio também public/ quando existirem imagens novas e vercel.json quando necessário.
+Eu APAGO a src local e copio a src do ZIP. Mantenho .env e .git. Copio também public/ quando existirem imagens novas e vercel.json quando necessário. Nesta entrega, copio ainda scripts/, package.json e package-lock.json do ZIP e executo npm install: o espelhamento usa tsx e cheerio.
 Commit + Push no GitHub Desktop publica pela Vercel. Nunca confundir mudar um ficheiro no sandbox com ter feito deploy em produção.
 Vercel: cada push no master cria um deployment; o site é sempre o último deployment de produção. Os antigos não afectam o site nem os dados (Neon). O Hobby protege sempre o que está no ar, os 3 últimos de produção e os 3 últimos de qualquer tipo; os restantes podem ser apagados (de imediato se o armazenamento passar de 10 GB). Para voltar atrás: Instant Rollback e depois confirmar /api/version. O plano Hobby é para uso pessoal e não comercial: confirmar com o dono se a loja deve passar ao Pro.
 Um deploy não pode apagar nem substituir peças, preços, textos, fotografias, encomendas, subscritores ou decisões de moderação.
@@ -56,6 +56,20 @@ Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. 
 - Envios: tabela por classe de peso (0–500 g; 501–1000 g; 1001–2000 g; mais de 2 kg) × 5 regiões, no admin (separador 7, Shipping rates). Peso do carrinho = soma das peças com caixa. Peça sem peso cobra a classe mais pesada até ter peso. O envio grátis, quando ligado, sobrepõe-se a tudo.
 - Textos da home (admin, separador 5 → Home): título do hero em Hero → Title (first part); linha por baixo dos 4 cartões em Collections → Text below the four cards. As idades (milhões de anos) saíram dos cartões e ficam só nessa linha.
 
+## 5.1. Estrutura da homepage e estado desta entrega
+H0 Top Bar; H1 Header; H2 Hero; H3 Hero Stats; H4 Trust Strip; H5 Channels; H6 Collections; H7 Featured; H8 Provenance; H9 Marketplaces; H10 Reviews; H11 Links; H12 Closing; H13 Footer.
+No admin, tab 5, todas as caixas H começam recolhidas. H0/H1 ficam no topo e H13 no fim; H2–H12 podem ser reordenadas. Cada caixa tem Save changes.
+H2, de cima para baixo: fotografia, legenda, botões, título (normal + itálico), descrição. H6: The Cambrian Explosion; texto abaixo das imagens. H9: caixas reordenáveis, links, texto, logo e cor; eBay e Catawiki mantêm a identidade visual.
+H10: avaliações escolhidas/aprovadas rodam aleatoriamente; duas colunas em telemóvel e três em desktop. O curador pode escrever avaliações reais na tab 6.
+pull-live.cjs só escreve em PostgreSQL loopback local. Copia páginas públicas, textos visíveis e fotografias referenciadas; verifica SHA-256, cria uploads locais separados e nunca sobrescreve IDs existentes. Falhas ficam não verificadas e preservam dados locais. Não é um backup privado completo.
+O rodapé mantém MEDITERRANIC numa linha. /api/uploads/N usa ETag e revalidação, não cache immutable. A capa /covers/connoisseur-cyphaspis.jpg redirecciona com Location relativo, funcionando também atrás do proxy da sandbox.
+Tradução: CANCELADA por decisão do dono. Manter a loja e o admin em inglês; não acrescentar tradutor nem geolocalização de idioma.
+Tab 1: peças disponíveis primeiro e Unavailable/Archive no fim, mantendo a ordem dentro de cada grupo. A visibilidade Draft/Published é independente da disponibilidade.
+Publish e Save & publish partilham a mesma validação. Descrição longa ou curta é aceite. Peças disponíveis precisam de preço EUR e, se externas, link do anúncio correcto. Unavailable/Archive não precisam de preço público. Campos em falta aparecem junto à linha e no editor, sem preços inventados.
+Delete permanently na Tab 1 pede escrever DELETE e remove realmente a peça de products, da loja, da tabela e do arquivo. Não elimina uploads partilhados nem cancela anúncios externos. Pagamentos/invoices em curso bloqueiam a eliminação até resolução.
+Tabela aditiva product_deletions: guarda apenas identidade anti-reimportação e snapshots dos recibos e das reviews/moderação associados. Não é um catálogo nem um arquivo público. O cron e pull-live não reimportam automaticamente as peças eliminadas; a base vazia após eliminação não volta a fazer seed.
+Recibos, CSV, tracking e mensagens usam getStoredOrderItems para conservar linhas de encomendas de peças eliminadas. Backups v4 preservam productDeletions; o restauro explícito desse histórico não republica a peça.
+
 ## 6. Domínio e variáveis Vercel
 A loja continua em https://mediterranic.vercel.app. mediterranic.com só no FIM do projecto; shop.mediterranic.com não existe nem será usado.
 PUBLIC_SITE_URL está centralizado em src/lib/site-url.ts. NEXT_PUBLIC_SITE_URL deixou de ser utilizada e pode ser removida de Production e Preview.
@@ -73,7 +87,7 @@ cron-job.org não herda o segredo da Vercel: actualizar o cabeçalho Authorizati
 - Preservar cores: Site Only #ff9f3d, Catawiki #0033FF, WhatsApp #25D366, eBay a 102°. Contagens de peças/Eras sempre calculadas.
 
 ## 8. Validar antes de entregar
-node --test scripts/test-ebay.cjs scripts/test-audit.cjs scripts/test-inventory.cjs scripts/test-cron.cjs scripts/test-release.cjs
+node --test scripts/test-*.cjs
 npx next typegen
 npm exec tsc -- --noEmit --pretty false
 npm run build
@@ -93,20 +107,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app
-Admin sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/admin
-Versão sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/api/version
-Checkout sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/checkout
-Arquivo sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/archive
-Envios sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/shipping
-Featured sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/featured
-Site Only sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-iiki6qurbynjw1whanoew.e2b.app/covers/connoisseur-cyphaspis.jpg
-SOS sandbox: https://3000-iiki6qurbynjw1whanoew.e2b.app/sos
-Texto SOS: https://3000-iiki6qurbynjw1whanoew.e2b.app/api/sos-context
-ZIP completo: https://3000-iiki6qurbynjw1whanoew.e2b.app/downloads/mediterranic-2026-11-05-ag.zip
+Sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app
+Admin sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/admin
+Versão sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/api/version
+Checkout sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/checkout
+Arquivo sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/archive
+Envios sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shipping
+Featured sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/featured
+Site Only sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/sos
+Texto SOS: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/api/sos-context
+ZIP completo: https://3000-i1cvsm9cyjqo8bx37ugnj.e2b.app/downloads/mediterranic-2026-11-05-aj.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -176,3 +190,15 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - home-reviews-rotator-mobile-pairs
 - marketplaces-box-builder-drag-reorder
 - live-uploads-and-reviews-mirrored
+- admin-tab5-sections-collapsed-default
+- cambrian-explosion-collection-title
+- collections-cards-text-below-image
+- public-media-byte-verified-mirror
+- footer-wordmark-fits-desktop
+- upload-etag-revalidation
+- admin-permanent-specimen-delete
+- admin-unavailable-last
+- draft-publication-consistent
+- receipt-moderation-history-retained
+- deleted-specimen-no-auto-reimport
+- cover-preview-relative-redirect

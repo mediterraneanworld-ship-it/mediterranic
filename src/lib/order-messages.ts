@@ -1,6 +1,7 @@
+import { getStoredOrderItems } from "@/lib/order-history";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orders } from "@/db/schema";
 import { curatorMailbox, escapeHtml, mailShell, sendMail, type SendResult } from "@/lib/mailer";
 import { orderReference } from "@/lib/order-email";
 import { PUBLIC_SITE_URL } from "@/lib/site-url";
@@ -30,7 +31,7 @@ export type OrderContext = {
 export async function loadOrderContext(orderId: string): Promise<OrderContext | null> {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   if (!order) return null;
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
+  const items = await getStoredOrderItems(orderId);
   return {
     id: order.id,
     reference: orderReference(order.id),

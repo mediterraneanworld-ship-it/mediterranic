@@ -56,10 +56,10 @@ export function SiteHeader({ content }: { content: SiteContent["header"] }) {
           )}
           <span className="flex min-w-0 flex-col leading-none">
             <span className="whitespace-nowrap font-display text-[clamp(0.875rem,4.4vw,1.15rem)] uppercase tracking-[0.09em] text-ink transition-colors group-hover:text-sea sm:text-[1.55rem] sm:tracking-[0.22em] lg:text-[1.65rem]">
-              Mediterranic
+              {content.wordmark}
             </span>
             <span className="mt-1 whitespace-nowrap text-[7px] uppercase tracking-[0.18em] min-[360px]:text-[8px] text-brass sm:mt-1.5 sm:text-[9px] sm:tracking-[0.42em]">
-              Moroccan Trilobites
+              {content.tagline}
             </span>
           </span>
         </Link>

@@ -9,6 +9,12 @@ const CARE_LINKS = ["/shipping#rates", "/shipping#returns", "/shipping#packing",
 export async function SiteFooter() {
   const [settings, content] = await Promise.all([getSiteSettings(), getSiteContent()]);
   const footer = content.footer;
+  const collectionCards = {
+    "devonian-crown": content.home.collections.cards.devonianCrown,
+    "ordovician-mariners": content.home.collections.cards.ordovicianMariners,
+    "cambrian-dawn": content.home.collections.cards.cambrianDawn,
+    "the-connoisseur": content.home.collections.cards.connoisseur,
+  };
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -25,7 +31,7 @@ export async function SiteFooter() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div className="space-y-5 lg:col-span-1">
-          <p className="font-display text-3xl uppercase tracking-[0.2em] text-parchment">Mediterranic</p>
+          <p className="font-display text-3xl uppercase tracking-[0.2em] text-parchment">{content.header.wordmark}</p>
           <p className="max-w-xs text-sm leading-relaxed text-parchment/65">{footer.tagline}</p>
           <div className="pt-4">
             <NewsletterForm title={footer.newsletterTitle} copy={footer.newsletterCopy} />
@@ -33,12 +39,12 @@ export async function SiteFooter() {
         </div>
 
         <div>
-          <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">Collections</h3>
+          <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">{footer.collectionsTitle}</h3>
           <ul className="space-y-3 text-sm">
             {COLLECTIONS.map((c) => (
               <li key={c.slug}>
                 <Link href={`/shop?collection=${c.slug}`} className="transition hover:text-parchment">
-                  {c.title}
+                  {collectionCards[c.slug].title}
                 </Link>
               </li>
             ))}
@@ -46,7 +52,7 @@ export async function SiteFooter() {
         </div>
 
         <div>
-          <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">Client care</h3>
+          <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">{footer.clientCareTitle}</h3>
           <ul className="space-y-3 text-sm">
             {footer.clientCare.map((item, i) => (
               <li key={item}>
@@ -57,14 +63,14 @@ export async function SiteFooter() {
             ))}
             <li>
               <Link href="/archive" className="transition hover:text-parchment">
-                The archive
+                {footer.archiveLabel}
               </Link>
             </li>
           </ul>
         </div>
 
         <div>
-          <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">Correspondence</h3>
+          <h3 className="mb-5 text-[11px] uppercase tracking-[0.3em] text-brass">{footer.correspondenceTitle}</h3>
           <ul className="space-y-3 text-sm">
             <li>
               <a href={`mailto:${settings.contactEmail}`} className="transition hover:text-parchment">
@@ -86,7 +92,7 @@ export async function SiteFooter() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 font-medium text-[#4d94ff] transition hover:text-white"
                 >
-                  eBay store <ExternalLink size={11} className="text-[#4d94ff]" />
+                  {footer.ebayLabel} <ExternalLink size={11} className="text-[#4d94ff]" />
                 </a>
               </li>
             )}
@@ -98,7 +104,7 @@ export async function SiteFooter() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 font-medium text-[#5b8cff] transition hover:text-white"
                 >
-                  Catawiki seller page <ExternalLink size={11} className="text-[#5b8cff]" />
+                  {footer.catawikiLabel} <ExternalLink size={11} className="text-[#5b8cff]" />
                 </a>
               </li>
             )}
@@ -110,7 +116,7 @@ export async function SiteFooter() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 transition hover:text-parchment"
                 >
-                  Instagram <ExternalLink size={11} className="text-brass" />
+                  {footer.instagramLabel} <ExternalLink size={11} className="text-brass" />
                 </a>
               </li>
             )}
@@ -122,7 +128,7 @@ export async function SiteFooter() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 transition hover:text-parchment"
                 >
-                  Facebook <ExternalLink size={11} className="text-brass" />
+                  {footer.facebookLabel} <ExternalLink size={11} className="text-brass" />
                 </a>
               </li>
             )}
@@ -136,19 +142,19 @@ export async function SiteFooter() {
           </p>
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <Link href="/shop" className="transition hover:text-parchment">
-              Shop
+              {footer.navShop}
             </Link>
             <Link href="/featured" className="transition hover:text-parchment">
-              Featured &amp; New
+              {footer.navFeatured}
             </Link>
             <Link href="/archive" className="transition hover:text-parchment">
-              Archive
+              {footer.navArchive}
             </Link>
             <Link href="/shipping" className="transition hover:text-parchment">
-              Shipping &amp; returns
+              {footer.navShipping}
             </Link>
             <a href={`mailto:${settings.contactEmail}`} className="transition hover:text-parchment">
-              Contact
+              {footer.navContact}
             </a>
           </nav>
           <p>{footer.legalNote}</p>

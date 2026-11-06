@@ -123,7 +123,7 @@ test("newsletter photos travel inline (cid); a photo that cannot be shrunk never
 
 test("version manifest and SOS handover name this release, the home picker and the new cover", () => {
   const v = load("src/lib/version.ts");
-  assert.equal(v.CODE_VERSION, "2026-11-05-ab");
+  assert.equal(v.CODE_VERSION, "2026-11-05-ad");
   for (const feature of ["home-reviews-picker", "connoisseur-cyphaspis-glass", "newsletter-inline-images", "review-moderation", "sos-handover-page"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }

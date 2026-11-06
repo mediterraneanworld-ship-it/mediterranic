@@ -8,13 +8,21 @@
  * a deploy: the stored document wins, field by field.
  */
 
+import { DEFAULT_HOME_ORDER, normalizeHomeOrder, type HomeSectionId } from "@/lib/home-sections";
+
 export type ContentPair = { title: string; text: string };
+export type LinkCardContent = { eyebrow: string; title: string; text: string };
+export type CollectionCardContent = { title: string; label: string; description: string; href: string };
 
 export type SiteContent = {
+  /** Homepage block order. H0/H1 and H13 are the fixed global frame. */
+  layout: { home: HomeSectionId[] };
   header: {
     trustBar: string[];
     /** Logo image URL; empty = the text wordmark "Mediterranic". */
     logoImage: string;
+    wordmark: string;
+    tagline: string;
     navShopAll: string;
     navSiteOnly: string;
     navEbay: string;
@@ -25,11 +33,24 @@ export type SiteContent = {
     tagline: string;
     newsletterTitle: string;
     newsletterCopy: string;
+    collectionsTitle: string;
+    clientCareTitle: string;
     clientCare: string[];
+    archiveLabel: string;
+    correspondenceTitle: string;
     correspondence: string[];
     marketplacesTitle: string;
+    ebayLabel: string;
+    catawikiLabel: string;
+    instagramLabel: string;
+    facebookLabel: string;
     bottomLine: string;
     legalNote: string;
+    navShop: string;
+    navFeatured: string;
+    navArchive: string;
+    navShipping: string;
+    navContact: string;
   };
   home: {
     hero: {
@@ -81,6 +102,15 @@ export type SiteContent = {
         cambrianDawn: string;
         connoisseur: string;
       };
+      cards: {
+        devonianCrown: CollectionCardContent;
+        ordovicianMariners: CollectionCardContent;
+        cambrianDawn: CollectionCardContent;
+        connoisseur: CollectionCardContent;
+      };
+      pieceSingular: string;
+      piecePlural: string;
+      explore: string;
     };
     featured: { eyebrow: string; title: string; cta: string };
     provenance: {
@@ -95,16 +125,40 @@ export type SiteContent = {
       steps: ContentPair[];
     };
     testimonials: { eyebrow: string; title: string };
-    links: { eyebrow: string; title: string; description: string; footnote: string };
+    marketplaces: {
+      ebayLabel: string;
+      catawikiLabel: string;
+      instagramLabel: string;
+      facebookLabel: string;
+    };
+    links: {
+      eyebrow: string;
+      title: string;
+      description: string;
+      footnote: string;
+      cards: {
+        ebay: LinkCardContent;
+        catawiki: LinkCardContent;
+        trustami: LinkCardContent;
+        instagram: LinkCardContent;
+        facebook: LinkCardContent;
+        whatsapp: LinkCardContent;
+      };
+    };
     closing: {
       titleLead: string;
       titleItalic: string;
       text: string;
       ctaShop: string;
+      soussLabel: string;
+      soussUrl: string;
       ctaArchive: string;
       archiveEyebrow: string;
       archiveTitle: string;
       archiveCta: string;
+      alsoOn: string;
+      ebayLabel: string;
+      catawikiLabel: string;
     };
   };
   shop: {
@@ -166,9 +220,12 @@ export type SiteContent = {
 };
 
 export const DEFAULT_CONTENT: SiteContent = {
+  layout: { home: DEFAULT_HOME_ORDER },
   header: {
     trustBar: ["23 Years in the Field", "eBay & Catawiki Verified", "Safe Worldwide Shipping"],
     logoImage: "/images/logo-m-emblem.png",
+    wordmark: "Mediterranic",
+    tagline: "Moroccan Trilobites",
     navShopAll: "Shop all",
     navSiteOnly: "Only on Site",
     navEbay: "Live on eBay",
@@ -181,6 +238,19 @@ export const DEFAULT_CONTENT: SiteContent = {
     newsletterTitle: "Field notes",
     newsletterCopy:
       "New specimens, preparation stories and auction dates. Twice a month, never more.",
+    collectionsTitle: "Collections",
+    clientCareTitle: "Client care",
+    archiveLabel: "The archive",
+    correspondenceTitle: "Correspondence",
+    ebayLabel: "eBay store",
+    catawikiLabel: "Catawiki seller page",
+    instagramLabel: "Instagram",
+    facebookLabel: "Facebook",
+    navShop: "Shop",
+    navFeatured: "Featured & New",
+    navArchive: "Archive",
+    navShipping: "Shipping & returns",
+    navContact: "Contact",
     clientCare: [
       "Worldwide delivery",
       "30-day considered returns",
@@ -267,6 +337,35 @@ export const DEFAULT_CONTENT: SiteContent = {
         cambrianDawn: "/images/imported/perrector-falloti-the-perrector-field-specimen-1.jpg",
         connoisseur: "/covers/connoisseur-cyphaspis.jpg",
       },
+      cards: {
+        devonianCrown: {
+          title: "The Devonian Crown",
+          label: "",
+          description: "Phacopid and proetid specimens from the Tafilalt and Anti-Atlas. These are the trilobites most collectors picture first: armoured, sculpted and unmistakably ancient.",
+          href: "",
+        },
+        ordovicianMariners: {
+          title: "The Ordovician Mariners",
+          label: "",
+          description: "Older still. Fezouata Shale and Alnif assemblages from the early Palaeozoic seafloor, when the first great marine communities were taking shape.",
+          href: "",
+        },
+        cambrianDawn: {
+          title: "Souss Lagerstätte",
+          label: "",
+          description: "The earliest chapter. Paradoxides and the great Cambrian assemblages of the Anti-Atlas, from the seas that first filled with complex animal life.",
+          href: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
+        },
+        connoisseur: {
+          title: "The Connoisseur",
+          label: "Museum grade",
+          description: "Rare, large and exceptionally preserved. Pieces we would be proud to see in a private study, a boardroom or a foundation's collection.",
+          href: "",
+        },
+      },
+      pieceSingular: "piece",
+      piecePlural: "pieces",
+      explore: "Explore",
     },
     featured: {
       eyebrow: "Most collected",
@@ -302,6 +401,12 @@ export const DEFAULT_CONTENT: SiteContent = {
       eyebrow: "5,000+ verified feedbacks across eBay, Catawiki & direct clients",
       title: "From collectors who have been where you are",
     },
+    marketplaces: {
+      ebayLabel: "eBay Verified Store",
+      catawikiLabel: "Catawiki Expert Seller",
+      instagramLabel: "Instagram",
+      facebookLabel: "Facebook",
+    },
     links: {
       eyebrow: "Everywhere we are",
       title: "One catalogue, many places to find us",
@@ -309,16 +414,29 @@ export const DEFAULT_CONTENT: SiteContent = {
         "The same specimens are also listed on eBay and Catawiki. Choose where you prefer to buy — the price and the certificate are identical.",
       footnote:
         "Scientific references for our Cambrian and Ordovician material are published on our Catawiki seller page.",
+      cards: {
+        ebay: { eyebrow: "Marketplace", title: "eBay store", text: "Fixed prices and best offers" },
+        catawiki: { eyebrow: "Auctions", title: "Catawiki", text: "Weekly Natural History auctions" },
+        trustami: { eyebrow: "Verified rating", title: "", text: "verified ratings" },
+        instagram: { eyebrow: "Photography", title: "Instagram", text: "New arrivals and macro detail" },
+        facebook: { eyebrow: "Community", title: "Facebook", text: "Fossils from Morocco" },
+        whatsapp: { eyebrow: "Direct", title: "WhatsApp", text: "Ask for photos or a shipping quote" },
+      },
     },
     closing: {
       titleLead: "Begin with one specimen,",
       titleItalic: "or a whole shelf.",
       text: "From a Miniature for the desk to a Museum-scale monarch, every piece arrives documented, safely packed and ready to be lived with. Direct enquiries welcome at",
       ctaShop: "Shop the collection",
+      soussLabel: "Souss Lagerstätte",
+      soussUrl: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
       ctaArchive: "The Archive",
       archiveEyebrow: "From the archive",
       archiveTitle: "Pieces that found their collectors",
       archiveCta: "View all →",
+      alsoOn: "Also on",
+      ebayLabel: "Our eBay store",
+      catawikiLabel: "Our Catawiki auctions",
     },
   },
   shop: {
@@ -485,7 +603,9 @@ function mergeValue<T>(base: T, override: unknown): T {
 }
 
 export function mergeContent(stored: unknown): SiteContent {
-  return mergeValue(DEFAULT_CONTENT, stored);
+  const merged = mergeValue(DEFAULT_CONTENT, stored);
+  merged.layout.home = normalizeHomeOrder(merged.layout.home);
+  return merged;
 }
 
 /** Reads a value by path, e.g. `readContent(content, ["home", "hero", "title"])`. */
@@ -542,13 +662,42 @@ const pairFields = (path: string[], label: string, hint?: string): ContentField 
   hint,
 });
 
+const collectionCardFields = (
+  key: "devonianCrown" | "ordovicianMariners" | "cambrianDawn" | "connoisseur",
+  label: string,
+): ContentField[] => [
+  { path: ["home", "collections", "cards", key, "title"], label: `${label} · title`, type: "text" },
+  { path: ["home", "collections", "cards", key, "label"], label: `${label} · small label (optional)`, type: "text" },
+  { path: ["home", "collections", "cards", key, "description"], label: `${label} · description`, type: "textarea" },
+  { path: ["home", "collections", "cards", key, "href"], label: `${label} · custom link (optional)`, type: "text", hint: "Leave empty to open this collection in the shop. External links open in a new tab." },
+];
+
+const linkCardFields = (
+  key: "ebay" | "catawiki" | "trustami" | "instagram" | "facebook" | "whatsapp",
+  label: string,
+): ContentField[] => [
+  { path: ["home", "links", "cards", key, "eyebrow"], label: `${label} · small label`, type: "text" },
+  { path: ["home", "links", "cards", key, "title"], label: `${label} · title${key === "trustami" ? " (empty = live rating)" : key === "catawiki" ? " (alternative text for the wordmark)" : ""}`, type: "text" },
+  { path: ["home", "links", "cards", key, "text"], label: `${label} · description`, type: "text" },
+];
+
 export const CONTENT_GROUPS: ContentGroup[] = [
   {
-    id: "header",
-    label: "Header & navigation",
-    note: "The dark strip at the very top and the menu labels.",
+    id: "h0",
+    label: "H0 · Top Bar",
+    note: "Fixed at the very top of every page. Three short trust messages, one per line.",
     fields: [
       { path: ["header", "trustBar"], label: "Trust bar (one item per line)", type: "lines" },
+    ],
+  },
+  {
+    id: "h1",
+    label: "H1 · Header",
+    note: "Fixed below H0 on every page. Wordmark, emblem and navigation labels.",
+    fields: [
+      { path: ["header", "wordmark"], label: "Wordmark", type: "text" },
+      { path: ["header", "tagline"], label: "Line below the wordmark", type: "text" },
+      { path: ["header", "logoImage"], label: "Emblem / logo (optional)", type: "image" },
       { path: ["header", "navShopAll"], label: "Menu · Shop all", type: "text" },
       { path: ["header", "navSiteOnly"], label: "Menu · Only on Site", type: "text" },
       { path: ["header", "navEbay"], label: "Menu · Live on eBay", type: "text" },
@@ -557,9 +706,9 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
-    id: "home-hero",
-    label: "Home · Hero",
-    note: "The first screen. The photograph is the large circular image.",
+    id: "h2",
+    label: "H2 · Hero",
+    note: "Movable. Opening title, copy, buttons and circular photograph.",
     fields: [
       // Hero eyebrow line retired: not shown on the site and not editable.
       { path: ["home", "hero", "title"], label: "Title (first part)", type: "text" },
@@ -569,6 +718,13 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { path: ["home", "hero", "caption"], label: "Caption under the photo", type: "text" },
       { path: ["home", "hero", "primaryCta"], label: "Button · primary", type: "text" },
       { path: ["home", "hero", "secondaryCta"], label: "Button · secondary", type: "text" },
+    ],
+  },
+  {
+    id: "h3",
+    label: "H3 · Hero Stats",
+    note: "Movable. Specimen and Era totals are always live. Years and feedback totals come from Store settings.",
+    fields: [
       { path: ["home", "hero", "stats", "years"], label: "Stat label · years", type: "text" },
       { path: ["home", "hero", "stats", "feedbacks"], label: "Stat label · verified feedbacks", type: "text" },
       { path: ["home", "hero", "stats", "specimens"], label: "Stat label · specimens (number is automatic)", type: "text" },
@@ -576,15 +732,15 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
-    id: "home-trust",
-    label: "Home · Trust strip",
-    note: "The four icons under the hero.",
+    id: "h4",
+    label: "H4 · Trust Strip",
+    note: "Movable. Four guarantees with icons.",
     fields: [pairFields(["home", "trust", "items"], "Trust items", "Four items: title + one line of text.")],
   },
   {
-    id: "home-channels",
-    label: "Home · Three channels",
-    note: "The three cards: Site Only, eBay, Catawiki.",
+    id: "h5",
+    label: "H5 · Channels",
+    note: "Movable. Site Only, eBay and Catawiki; the three totals are live.",
     fields: [
       { path: ["home", "channels", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "channels", "title"], label: "Title", type: "text" },
@@ -604,9 +760,9 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
-    id: "home-collections",
-    label: "Home · Collections & photos",
-    note: "The four collection cards, the line under them and each cover photograph.",
+    id: "h6",
+    label: "H6 · Collections",
+    note: "Movable. All four cards: text, photographs and optional links. Piece totals stay automatic.",
     fields: [
       { path: ["home", "collections", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "collections", "title"], label: "Title", type: "text" },
@@ -620,11 +776,18 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       },
       { path: ["home", "collections", "covers", "cambrianDawn"], label: "Cover · Cambrian", type: "image" },
       { path: ["home", "collections", "covers", "connoisseur"], label: "Cover · The Connoisseur", type: "image" },
+      ...collectionCardFields("devonianCrown", "Devonian Crown"),
+      ...collectionCardFields("ordovicianMariners", "Ordovician Mariners"),
+      ...collectionCardFields("cambrianDawn", "Souss Lagerstätte"),
+      ...collectionCardFields("connoisseur", "The Connoisseur"),
+      { path: ["home", "collections", "pieceSingular"], label: "Count label · singular", type: "text" },
+      { path: ["home", "collections", "piecePlural"], label: "Count label · plural", type: "text" },
+      { path: ["home", "collections", "explore"], label: "Card link label", type: "text" },
     ],
   },
   {
-    id: "home-featured",
-    label: "Home · Featured specimens",
+    id: "h7",
+    label: "H7 · Featured",
     fields: [
       { path: ["home", "featured", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "featured", "title"], label: "Title", type: "text" },
@@ -632,9 +795,9 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
-    id: "home-provenance",
-    label: "Home · Provenance & photograph",
-    note: "The story panel with the large seafloor photograph and the three numbered steps.",
+    id: "h8",
+    label: "H8 · Provenance",
+    note: "Movable. Story, seafloor photograph, quote and numbered steps.",
     fields: [
       { path: ["home", "provenance", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "provenance", "title"], label: "Title", type: "text" },
@@ -648,35 +811,60 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
-    id: "home-testimonials",
-    label: "Home · Reviews",
+    id: "h9",
+    label: "H9 · Marketplaces",
+    note: "Movable. Verified marketplace and social buttons. Destination URLs remain in Store settings.",
+    fields: [
+      { path: ["home", "marketplaces", "ebayLabel"], label: "eBay button", type: "text" },
+      { path: ["home", "marketplaces", "catawikiLabel"], label: "Catawiki button", type: "text" },
+      { path: ["home", "marketplaces", "instagramLabel"], label: "Instagram button", type: "text" },
+      { path: ["home", "marketplaces", "facebookLabel"], label: "Facebook button", type: "text" },
+    ],
+  },
+  {
+    id: "h10",
+    label: "H10 · Reviews",
+    note: "Movable. Only approved reviews appear; choose them in tab 6 Reviews.",
     fields: [
       { path: ["home", "testimonials", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "testimonials", "title"], label: "Title", type: "text" },
     ],
   },
   {
-    id: "home-links",
-    label: "Home · Marketplaces",
+    id: "h11",
+    label: "H11 · Links",
+    note: "Movable. Six compact link cards. Account and marketplace URLs remain in Store settings.",
     fields: [
       { path: ["home", "links", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "links", "title"], label: "Title", type: "text" },
       { path: ["home", "links", "description"], label: "Description", type: "textarea" },
+      ...linkCardFields("ebay", "eBay"),
+      ...linkCardFields("catawiki", "Catawiki"),
+      ...linkCardFields("trustami", "Trustami"),
+      ...linkCardFields("instagram", "Instagram"),
+      ...linkCardFields("facebook", "Facebook"),
+      ...linkCardFields("whatsapp", "WhatsApp"),
       { path: ["home", "links", "footnote"], label: "Footnote", type: "textarea" },
     ],
   },
   {
-    id: "home-closing",
-    label: "Home · Closing call to action",
+    id: "h12",
+    label: "H12 · Closing",
+    note: "Movable. Final calls to action, archive selection and marketplace links.",
     fields: [
       { path: ["home", "closing", "titleLead"], label: "Title (first part)", type: "text" },
       { path: ["home", "closing", "titleItalic"], label: "Title (italic)", type: "text" },
       { path: ["home", "closing", "text"], label: "Text", type: "textarea" },
       { path: ["home", "closing", "ctaShop"], label: "Button · shop", type: "text" },
+      { path: ["home", "closing", "soussLabel"], label: "Button · Souss Lagerstätte", type: "text" },
+      { path: ["home", "closing", "soussUrl"], label: "Souss Lagerstätte · URL", type: "text" },
       { path: ["home", "closing", "ctaArchive"], label: "Button · archive", type: "text" },
       { path: ["home", "closing", "archiveEyebrow"], label: "Archive block · eyebrow", type: "text" },
       { path: ["home", "closing", "archiveTitle"], label: "Archive block · title", type: "text" },
       { path: ["home", "closing", "archiveCta"], label: "Archive block · link", type: "text" },
+      { path: ["home", "closing", "alsoOn"], label: "Marketplace row · prefix", type: "text" },
+      { path: ["home", "closing", "ebayLabel"], label: "Marketplace row · eBay", type: "text" },
+      { path: ["home", "closing", "catawikiLabel"], label: "Marketplace row · Catawiki", type: "text" },
     ],
   },
   {
@@ -751,25 +939,38 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     ],
   },
   {
-    id: "footer",
-    label: "Footer",
+    id: "h13",
+    label: "H13 · Footer",
+    note: "Fixed at the bottom of every page. Newsletter, collections, client care, correspondence and legal links.",
     fields: [
       { path: ["footer", "tagline"], label: "Tagline", type: "textarea" },
       { path: ["footer", "newsletterTitle"], label: "Newsletter · title", type: "text" },
       { path: ["footer", "newsletterCopy"], label: "Newsletter · text", type: "textarea" },
+      { path: ["footer", "collectionsTitle"], label: "Collections heading", type: "text" },
+      { path: ["footer", "clientCareTitle"], label: "Client care heading", type: "text" },
       { path: ["footer", "clientCare"], label: "Client care list (one per line)", type: "lines" },
+      { path: ["footer", "archiveLabel"], label: "Archive link", type: "text" },
+      { path: ["footer", "correspondenceTitle"], label: "Correspondence heading", type: "text" },
       { path: ["footer", "correspondence"], label: "Correspondence list (one per line)", type: "lines" },
       { path: ["footer", "marketplacesTitle"], label: "Marketplaces heading", type: "text" },
+      { path: ["footer", "ebayLabel"], label: "Marketplace · eBay", type: "text" },
+      { path: ["footer", "catawikiLabel"], label: "Marketplace · Catawiki", type: "text" },
+      { path: ["footer", "instagramLabel"], label: "Marketplace · Instagram", type: "text" },
+      { path: ["footer", "facebookLabel"], label: "Marketplace · Facebook", type: "text" },
       { path: ["footer", "bottomLine"], label: "Bottom line", type: "text" },
       { path: ["footer", "legalNote"], label: "Legal note", type: "text" },
+      { path: ["footer", "navShop"], label: "Bottom navigation · Shop", type: "text" },
+      { path: ["footer", "navFeatured"], label: "Bottom navigation · Featured & New", type: "text" },
+      { path: ["footer", "navArchive"], label: "Bottom navigation · Archive", type: "text" },
+      { path: ["footer", "navShipping"], label: "Bottom navigation · Shipping", type: "text" },
+      { path: ["footer", "navContact"], label: "Bottom navigation · Contact", type: "text" },
     ],
   },
   {
     id: "brand",
-    label: "Brand · logo & favicon",
-    note: "The classic serif MEDITERRANIC lettering is always shown. If you upload an emblem/logo, it sits neatly to the left of the lettering. Leave empty for lettering only.",
+    label: "Brand · favicon",
+    note: "The header wordmark and emblem are edited in H1 · Header.",
     fields: [
-      { path: ["header", "logoImage"], label: "Header emblem / logo (optional, shown next to MEDITERRANIC)", type: "image" },
       { path: ["site", "favicon"], label: "Favicon (browser tab icon)", type: "image" },
     ],
   },

@@ -12,6 +12,7 @@ function load(file, imports = {}) {
     exports: module.exports,
     require: (name) => {
       if (name in imports) return imports[name];
+      if (name === "@/lib/home-sections" || name === "./home-sections") return load("src/lib/home-sections.ts");
       throw Error("Unexpected import " + name + " in " + file);
     },
     process: { env: {} },
@@ -70,11 +71,11 @@ test("legacy settings seeds no longer carry the old hero line", () => {
   assert.ok(!/Five hundred million years/.test(read("src/lib/catalog.ts")));
 });
 
-test("version 2026-11-05-ab records the change", () => {
+test("version 2026-11-05-ad records the change", () => {
   const v = load("src/lib/version.ts", {
     "@/lib/site-url": { PUBLIC_SITE_URL: "https://mediterranic.vercel.app", PUBLIC_SITE_URL_SOURCE: "default" },
   });
-  assert.equal(v.CODE_VERSION, "2026-11-05-ab");
+  assert.equal(v.CODE_VERSION, "2026-11-05-ad");
   for (const feature of ["home-million-years-lines-retired", "collections-ages-below-cards", "hero-line-as-saved"]) {
     assert.ok(v.REQUIRED_FEATURES.includes(feature), feature);
   }

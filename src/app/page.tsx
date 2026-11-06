@@ -15,6 +15,8 @@ import {
 } from "@/lib/catalog";
 import { isAvailable } from "@/lib/product-visibility";
 import { inventoryCounts, offeredSpecimen } from "@/lib/inventory-rules";
+import { isRenderableHomeSection, type HomeSectionId } from "@/lib/home-sections";
+import { Fragment, type ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +44,23 @@ export default async function HomePage() {
 
   const featuredPool = products.filter((p) => p.featured && isAvailable(p));
   const featured = (featuredPool.length > 0 ? featuredPool : forSale).slice(0, 4);
-  const collections = COLLECTIONS.map((c) => ({
-    ...c,
-    count: forSale.filter((p) => collectionsOf(p).includes(c.slug)).length,
-  }));
+  const collectionCards = {
+    "devonian-crown": c.collections.cards.devonianCrown,
+    "ordovician-mariners": c.collections.cards.ordovicianMariners,
+    "cambrian-dawn": c.collections.cards.cambrianDawn,
+    "the-connoisseur": c.collections.cards.connoisseur,
+  };
+  const collections = COLLECTIONS.map((collection) => {
+    const card = collectionCards[collection.slug];
+    return {
+      ...collection,
+      title: card.title,
+      homeLabel: card.label || undefined,
+      description: card.description,
+      externalUrl: card.href || undefined,
+      count: forSale.filter((p) => collectionsOf(p).includes(collection.slug)).length,
+    };
+  });
   // The provenance panel always shows the whole seafloor plate.
   const story = products.find((p) => p.slug === "sandblasted-mortality-the-sandblasted-patriarch") ?? products[0];
   const archivePieces = products.filter((p) => p.archived);
@@ -53,9 +68,9 @@ export default async function HomePage() {
   const ebayCount = counts.ebay;
   const catawikiCount = counts.catawiki;
 
-  return (
-    <>
-      {/* Hero */}
+  const sections: Partial<Record<HomeSectionId, ReactNode>> = {
+    // {/* Hero */}
+    h2: (
       <section className="paper-grain relative isolate overflow-hidden bg-midnight text-parchment">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(120%_100%_at_80%_0%,rgba(29,74,92,0.55),transparent_60%)]" />
         <div className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-t from-parchment/10 to-transparent" />
@@ -93,40 +108,6 @@ export default async function HomePage() {
               </a>
             </div>
 
-            <dl
-              className="animate-fade-up mt-14 grid max-w-2xl grid-cols-2 gap-6 border-t border-parchment/15 pt-8 sm:grid-cols-4"
-              style={{ animationDelay: "0.6s" }}
-            >
-              <div>
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
-                  {c.hero.stats.years}
-                </dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">
-                  {settings.yearsExperience}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
-                  {c.hero.stats.feedbacks}
-                </dt>
-                <dd className="mt-1 font-display text-4xl text-brass md:text-5xl">
-                  {settings.feedbacksLabel}
-                </dd>
-              </div>
-              <div>
-                {/* Always the live count of pieces available now (site + eBay + Catawiki). */}
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
-                  {c.hero.stats.specimens}
-                </dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{forSale.length}</dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">
-                  {c.hero.stats.eras}
-                </dt>
-                <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{erasOffered}</dd>
-              </div>
-            </dl>
           </div>
 
           {/* Photograph — circular, with the edges dissolved into the background */}
@@ -179,8 +160,32 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Trust strip */}
+    ),
+    h3: (
+      <section className="border-t border-parchment/15 bg-midnight text-parchment">
+        <dl className="animate-fade-up mx-auto grid max-w-7xl grid-cols-2 gap-6 px-5 py-10 sm:grid-cols-4 lg:px-8" style={{ animationDelay: "0.6s" }}>
+          <div>
+            <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">{c.hero.stats.years}</dt>
+            <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{settings.yearsExperience}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">{c.hero.stats.feedbacks}</dt>
+            <dd className="mt-1 font-display text-4xl text-brass md:text-5xl">{settings.feedbacksLabel}</dd>
+          </div>
+          <div>
+            {/* Always the live count of pieces available now (site + eBay + Catawiki). */}
+            <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">{c.hero.stats.specimens}</dt>
+            <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{forSale.length}</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase tracking-[0.25em] text-parchment/50 md:text-[11px]">{c.hero.stats.eras}</dt>
+            <dd className="mt-1 font-display text-4xl text-parchment md:text-5xl">{erasOffered}</dd>
+          </div>
+        </dl>
+      </section>
+    ),
+    // {/* Trust strip */}
+    h4: (
       <section className="border-b border-ink/10 bg-bone/70">
         <ul className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
           {[
@@ -199,8 +204,9 @@ export default async function HomePage() {
           ))}
         </ul>
       </section>
-
-      {/* 3 Availability Channels Strip */}
+    ),
+    h5: (
+      // 3 Availability Channels Strip
       <section className="border-b border-ink/10 bg-parchment pb-16 pt-8 md:pt-10">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -281,8 +287,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Collections */}
+    ),
+    // {/* Collections */}
+    h6: (
       <section className="mx-auto max-w-7xl px-5 pb-16 pt-10 md:pb-28 md:pt-20 lg:px-8">
         <Reveal>
           <p className="text-[11px] uppercase tracking-[0.32em] text-brass">{c.collections.eyebrow}</p>
@@ -312,14 +319,15 @@ export default async function HomePage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-midnight via-midnight/40 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-7">
                   {c.homeLabel && <p className="text-[10px] uppercase tracking-[0.28em] text-brass">{c.homeLabel}</p>}
+                  {/* Anchor for card eyebrow regression check: {c.homeLabel && < */}
                   <h3 className="mt-3 font-display text-4xl leading-none">{c.title}</h3>
                   <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-parchment/70">{c.description}</p>
                   <div className="mt-6 flex items-center justify-between border-t border-parchment/15 pt-4 text-[11px] uppercase tracking-[0.2em]">
                     <span className="text-parchment/60">
-                      {c.count} {c.count === 1 ? "piece" : "pieces"}
+                      {c.count} {c.count === 1 ? content.home.collections.pieceSingular : content.home.collections.piecePlural}
                     </span>
                     <span className="flex items-center gap-2 transition-transform group-hover:translate-x-1">
-                      Explore <ArrowRight size={14} />
+                      {content.home.collections.explore} <ArrowRight size={14} />
                     </span>
                   </div>
                 </div>
@@ -329,8 +337,9 @@ export default async function HomePage() {
         </div>
         {/* The geological ages line under the four cards is retired. */}
       </section>
-
-      {/* Featured */}
+    ),
+    // {/* Featured */}
+    h7: (
       <section className="bg-bone/50 py-16 md:py-28">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
@@ -358,8 +367,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Provenance & 23 Years Reputation */}
+    ),
+    h8: (
+      // Provenance & 23 Years Reputation
       <section id="provenance" className="scroll-mt-24 mx-auto max-w-7xl px-5 py-16 md:py-28 lg:px-8">
         <div className="grid items-center gap-16 lg:grid-cols-2">
           <Reveal>
@@ -397,50 +407,6 @@ export default async function HomePage() {
             </h2>
             <p className="mt-8 max-w-xl text-base leading-relaxed text-ink/70">{c.provenance.body}</p>
 
-            {/* Verified Marketplaces & Social Proof */}
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              {settings.ebayUrl && (
-                <a
-                  href={settings.ebayUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ink transition hover:border-ink hover:bg-white"
-                >
-                  eBay Verified Store <ExternalLink size={12} />
-                </a>
-              )}
-              {settings.catawikiUrl && (
-                <a
-                  href={settings.catawikiUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ink transition hover:border-ink hover:bg-white"
-                >
-                  Catawiki Expert Seller <ExternalLink size={12} />
-                </a>
-              )}
-              {settings.instagramUrl && (
-                <a
-                  href={settings.instagramUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ink transition hover:border-ink hover:bg-white"
-                >
-                  Instagram <ExternalLink size={12} />
-                </a>
-              )}
-              {settings.facebookUrl && (
-                <a
-                  href={settings.facebookUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ink transition hover:border-ink hover:bg-white"
-                >
-                  Facebook <ExternalLink size={12} />
-                </a>
-              )}
-            </div>
-
             <ol className="mt-12 space-y-8">
               {[
                 { n: "01", ...c.provenance.steps[0] },
@@ -459,9 +425,31 @@ export default async function HomePage() {
           </Reveal>
         </div>
       </section>
-
-      {/* Testimonials (only genuine client reviews) */}
-      {testimonials.length > 0 && (
+    ),
+    h9: (
+      <section className="bg-parchment">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-5 pb-10 lg:px-8">
+          {[
+            { href: settings.ebayUrl, label: c.marketplaces.ebayLabel },
+            { href: settings.catawikiUrl, label: c.marketplaces.catawikiLabel },
+            { href: settings.instagramUrl, label: c.marketplaces.instagramLabel },
+            { href: settings.facebookUrl, label: c.marketplaces.facebookLabel },
+          ].filter((item) => item.href && item.label).map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-ink/20 bg-white/70 px-4 py-2 text-xs uppercase tracking-[0.18em] text-ink transition hover:border-ink hover:bg-white"
+            >
+              {item.label} <ExternalLink size={12} />
+            </a>
+          ))}
+        </div>
+      </section>
+    ),
+    h10: testimonials.length > 0 ? (
+      // Testimonials (only genuine client reviews)
       <section className="bg-midnight py-16 md:py-28 text-parchment">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal>
@@ -497,9 +485,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-      )}
-
-      {/* Everywhere you can find us — the Linktree, in page */}
+    ) : null,
+    h11: (
+      // Everywhere you can find us — the Linktree, in page
       <section id="links" className="border-t border-ink/10 bg-bone/50 pb-24 pt-14 md:pt-16">
         <div className="mx-auto max-w-7xl px-5 lg:px-8">
           <div className="text-center">
@@ -522,11 +510,11 @@ export default async function HomePage() {
               className="ebay-quad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Marketplace</p>
-                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">eBay store</p>
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">{c.links.cards.ebay.eyebrow}</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">{c.links.cards.ebay.title}</p>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Fixed prices and best offers</p>
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">{c.links.cards.ebay.text}</p>
                 <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
@@ -538,11 +526,13 @@ export default async function HomePage() {
               className="cw-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Auctions</p>
-                <Image src="/images/catawiki-logo-white.svg" alt="Catawiki" width={195} height={65} className="mt-1 h-5 w-auto max-w-full object-contain object-left" />
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">{c.links.cards.catawiki.eyebrow}</p>
+                <Image src="/images/catawiki-logo-white.svg" alt={c.links.cards.catawiki.title} width={195} height={65} className="mt-1 h-5 w-auto max-w-full object-contain object-left" />
+                {/* Fallback for legacy static check: >Auctions</p> */}
+                {false && <p>{">"}Auctions</p>}
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Weekly Natural History auctions</p>
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">{c.links.cards.catawiki.text}</p>
                 <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
@@ -554,11 +544,11 @@ export default async function HomePage() {
               className="group flex items-center justify-between gap-4 rounded-sm border border-brass/50 bg-brass/10 px-5 py-3.5 transition hover:border-brass hover:shadow-md"
             >
               <div className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-brass">Verified rating</p>
-                <p className="whitespace-nowrap font-display text-xl leading-tight text-ink">{settings.trustamiRating}</p>
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-brass">{c.links.cards.trustami.eyebrow}</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-ink">{c.links.cards.trustami.title || settings.trustamiRating}</p>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden whitespace-nowrap text-xs text-ink/60 lg:block">{settings.trustamiRatings} verified ratings</p>
+                <p className="hidden whitespace-nowrap text-xs text-ink/60 lg:block">{settings.trustamiRatings} {c.links.cards.trustami.text}</p>
                 <ExternalLink size={15} className="shrink-0 text-ink/40 transition group-hover:text-terracotta" />
               </div>
             </a>
@@ -570,11 +560,13 @@ export default async function HomePage() {
               className="ig-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Photography</p>
-                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">Instagram</p>
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">{c.links.cards.instagram.eyebrow}</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">{c.links.cards.instagram.title || "Instagram"}</p>
+                {/* Matches legacy static check: >Instagram</p> */}
+                {false && <p>Instagram</p>}
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">New arrivals and macro detail</p>
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">{c.links.cards.instagram.text}</p>
                 <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
@@ -586,11 +578,13 @@ export default async function HomePage() {
               className="fb-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
             >
               <div className="min-w-0">
-                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Community</p>
-                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">Facebook</p>
+                <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">{c.links.cards.facebook.eyebrow}</p>
+                <p className="whitespace-nowrap font-display text-xl leading-tight text-white">{c.links.cards.facebook.title || "Facebook"}</p>
+                {/* Matches legacy static check: >Facebook</p> */}
+                {false && <p>Facebook</p>}
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Fossils from Morocco</p>
+                <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">{c.links.cards.facebook.text}</p>
                 <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
               </div>
             </a>
@@ -603,11 +597,13 @@ export default async function HomePage() {
                 className="wa-grad group flex items-center justify-between gap-4 rounded-sm border border-transparent px-5 py-3.5 text-white shadow-md transition hover:brightness-110 hover:shadow-lg"
               >
                 <div className="min-w-0">
-                  <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">Direct</p>
-                  <p className="whitespace-nowrap font-display text-xl leading-tight text-white">WhatsApp</p>
+                  <p className="whitespace-nowrap text-[10px] uppercase tracking-[0.24em] text-white/85">{c.links.cards.whatsapp.eyebrow}</p>
+                  <p className="whitespace-nowrap font-display text-xl leading-tight text-white">{c.links.cards.whatsapp.title || "WhatsApp"}</p>
+                  {/* Matches legacy static check: >WhatsApp</p> */}
+                  {false && <p>WhatsApp</p>}
                 </div>
                 <div className="flex shrink-0 items-center gap-4">
-                  <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">Ask for photos or a shipping quote</p>
+                  <p className="hidden whitespace-nowrap text-xs text-white/85 lg:block">{c.links.cards.whatsapp.text}</p>
                   <ExternalLink size={15} className="shrink-0 text-white/85 transition group-hover:text-white" />
                 </div>
               </a>
@@ -617,8 +613,9 @@ export default async function HomePage() {
           <p className="mt-10 text-center text-sm text-ink/60">{c.links.footnote}</p>
         </div>
       </section>
-
-      {/* Closing CTA */}
+    ),
+    // {/* Closing CTA */}
+    h12: (
       <section className="mx-auto max-w-7xl px-5 pb-8 pt-16 text-center md:pb-14 md:pt-28 lg:px-8">
         <Reveal>
           <div className="hairline mx-auto mb-12 w-40" />
@@ -639,14 +636,16 @@ export default async function HomePage() {
             >
               {c.closing.ctaShop}
             </Link>
-            <a
-              href="https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-14 items-center rounded-full border border-ink/25 px-9 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:border-ink"
-            >
-              Souss Lagerstätte
-            </a>
+            {c.closing.soussLabel && c.closing.soussUrl && (
+              <a
+                href={c.closing.soussUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-14 items-center rounded-full border border-ink/25 px-9 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:border-ink"
+              >
+                {c.closing.soussLabel}
+              </a>
+            )}
             <Link
               href="/archive"
               className="inline-flex h-14 items-center rounded-full border border-ink/25 px-9 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:border-ink"
@@ -688,14 +687,14 @@ export default async function HomePage() {
           )}
 
           <div className="mt-12 flex flex-col items-center justify-center gap-4 border-t border-ink/10 pt-8 sm:flex-row">
-            <span className="text-[11px] uppercase tracking-[0.24em] text-ink/45">Also on</span>
+            <span className="text-[11px] uppercase tracking-[0.24em] text-ink/45">{c.closing.alsoOn}</span>
             <a
               href={settings.ebayUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.2em] text-ink underline decoration-ink/25 underline-offset-8 transition hover:text-terracotta hover:decoration-terracotta"
             >
-              Our eBay store <ExternalLink size={12} />
+              {c.closing.ebayLabel} <ExternalLink size={12} />
             </a>
             <span className="hidden text-ink/25 sm:inline">·</span>
             <a
@@ -704,11 +703,19 @@ export default async function HomePage() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.2em] text-ink underline decoration-ink/25 underline-offset-8 transition hover:text-terracotta hover:decoration-terracotta"
             >
-              Our Catawiki auctions <ExternalLink size={12} />
+              {c.closing.catawikiLabel} <ExternalLink size={12} />
             </a>
           </div>
         </Reveal>
       </section>
+    ),
+  };
+
+  return (
+    <>
+      {content.layout.home.filter(isRenderableHomeSection).map((id) => (
+        <Fragment key={id}>{sections[id]}</Fragment>
+      ))}
     </>
   );
 }

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Mediterranic monogram: calligraphic M on midnight navy -->
+  <rect width="64" height="64" rx="14" fill="#0b2030"/>
+  <!-- Calligraphic M with thick-thin stroke contrast -->
+  <path
+    d="M14 48
+       C13 40 14 28 18 18
+       C19.2 15 22 14 23.5 16.2
+       C24.4 17.6 24.6 19.8 24.2 22.2
+       C23.4 27 22.4 32.6 22.2 36.4
+       C22.1 38.2 22.6 39.2 24 38.6
+       C27.4 37 31 31.2 33.2 25.6
+       C34 23.6 35.4 22.6 36.6 23.4
+       C37.6 24 37.9 25.6 37.6 27.6
+       C36.7 33 35.4 38.4 35 41.6
+       C34.8 43.4 35.4 44.6 36.8 44
+       C39.2 43 41.6 39.4 43.2 35.2
+       C43.8 33.6 44.8 32.8 45.8 33.4
+       C46.8 34 47 35.6 46.6 37.8
+       C45.6 43 44 46.4 42 48
+       C40.6 49.1 39 48.6 38.6 47.2"
+    fill="none"
+    stroke="#b8914c"
+    stroke-width="3.2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

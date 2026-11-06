@@ -81,7 +81,7 @@ export const SEED_SETTINGS: Omit<SiteSettings, "updatedAt"> = {
     period: ${q(p.period)},
     locality: ${q(p.locality)},
     formation: ${q(p.formation)},
-    lengthMm: ${p.lengthMm ?? "null"},
+    lengthMm: ${q(p.lengthMm)},
     preparation: ${q(p.preparation)},
     priceCents: ${p.priceCents},
     compareAtCents: ${p.compareAtCents ?? "null"},

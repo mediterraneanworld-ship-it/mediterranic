@@ -3,14 +3,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, Mail, Truck } from "lucide-react";
-import { getOrderWithItems } from "@/lib/catalog";
-import { getCountry, SHIPPING_METHODS } from "@/lib/shipping";
+import { getOrderWithItems, getProductBySlug } from "@/lib/catalog";
+import { getCountry, shippingLabel } from "@/lib/shipping";
 import { formatDate, formatPrice } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Order confirmed",
+  title: "Order details",
   robots: { index: false, follow: false },
 };
 
@@ -24,7 +24,10 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
   if (!data) notFound();
 
   const { order, items } = data;
-  const method = SHIPPING_METHODS.find((m) => m.id === order.shippingMethod);
+  const paid = order.status === "confirmed";
+  const specimens = await Promise.all(items.map((item) => getProductBySlug(item.productSlug)));
+  const photoBySlug = new Map(specimens.filter((p) => p !== null).map((p) => [p.slug, p.images[0]?.src]));
+  const methodLabel = shippingLabel(order.country, order.shippingMethod === "insured" ? "protected" : order.shippingMethod);
   const countryName = getCountry(order.country)?.name ?? order.country;
   const reference = `MED-${order.id.slice(0, 8).toUpperCase()}`;
 
@@ -34,13 +37,14 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-sea text-parchment">
           <Check size={28} strokeWidth={1.6} />
         </div>
-        <p className="mt-8 text-[11px] uppercase tracking-[0.32em] text-brass">Order confirmed · {reference}</p>
+        <p className="mt-8 text-[11px] uppercase tracking-[0.32em] text-brass">{paid ? "Order confirmed" : "Order request received — awaiting payment"} · {reference}</p>
         <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">
           Thank you, {order.firstName}.
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-ink/70">
-          Your specimens are being packed by hand and insured for transit. Your certificate of authenticity and a
-          tracking number will follow to <span className="text-ink">{order.email}</span>.
+          {paid
+            ? "Your payment is confirmed. We will prepare your specimens for safe transit and provide tracking details."
+            : "Your request has been recorded, but no payment is confirmed. Contact the studio to arrange payment; dispatch starts only after payment is confirmed."}
         </p>
       </div>
 
@@ -52,7 +56,7 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <li key={item.id} className="flex items-center gap-4 py-5">
                 <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-sm bg-bone">
                   <Image
-                    src={`/images/products/${item.productSlug}.jpg`}
+                    src={photoBySlug.get(item.productSlug) || "/images/hero.jpg"}
                     alt=""
                     fill
                     sizes="64px"
@@ -81,7 +85,7 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <dd>{order.shippingCents === 0 ? "Complimentary" : formatPrice(order.shippingCents)}</dd>
             </div>
             <div className="flex items-baseline justify-between border-t border-ink/10 pt-4">
-              <dt className="text-ink">Total paid</dt>
+              <dt className="text-ink">{paid ? "Total paid" : "Order total — awaiting payment"}</dt>
               <dd className="font-display text-4xl">{formatPrice(order.totalCents)}</dd>
             </div>
           </dl>
@@ -93,8 +97,10 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <Truck size={18} strokeWidth={1.5} />
               <h2 className="font-display text-2xl text-ink">Delivery</h2>
             </div>
-            <p className="mt-4 text-sm font-medium">{method?.label ?? "Insured delivery"}</p>
-            <p className="text-sm text-ink/60">{method?.detail}</p>
+            <p className="mt-4 text-sm font-medium">{methodLabel}</p>
+            <p className="text-sm text-ink/60">
+              {order.shippingCents === 0 ? "Complimentary and protected" : "Carefully packed and tracked"}
+            </p>
             <address className="mt-5 text-sm not-italic leading-relaxed text-ink/75">
               {order.firstName} {order.lastName}
               <br />
@@ -118,8 +124,9 @@ export default async function OrderConfirmationPage({ params }: { params: Promis
               <p className="text-[11px] uppercase tracking-[0.25em]">What happens next</p>
             </div>
             <ol className="mt-5 space-y-4 text-sm leading-relaxed text-parchment/75">
+              {!paid && <li>Payment must be confirmed before preparation and dispatch.</li>}
               <li>1. Specialists verify each specimen and prepare its documentation.</li>
-              <li>2. Your piece is packed in archival materials and insured.</li>
+              <li>2. Your piece is packed in archival materials for safe transit.</li>
               <li>3. A tracking link arrives by email on dispatch.</li>
             </ol>
           </section>

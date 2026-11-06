@@ -4,23 +4,43 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import type { ProductWithStats, SiteSettings } from "@/lib/catalog";
+import type { NewsletterSubscriber, ProductWithStats, SiteSettings } from "@/lib/catalog";
+import type { SiteContent } from "@/lib/site-content";
+import type { NewsletterCadence, NewsletterPiece, NewsletterSettings } from "@/lib/newsletter-send";
+import type { NewsletterSend } from "@/lib/catalog";
 import { AdminDashboard } from "@/components/admin-dashboard";
 
 type OrderEntry = Parameters<typeof AdminDashboard>[0]["orders"];
 
+export type NewsletterAdminData = {
+  sends: NewsletterSend[];
+  settings: NewsletterSettings;
+  cadence: NewsletterCadence;
+  pieces: NewsletterPiece[];
+};
+
 export function AdminGate({
-  products,
+  products = [],
   settings,
-  orders,
+  orders = [],
+  subscribers = [],
+  content,
+  newsletter,
+  authorized,
+  previewMode,
 }: {
-  products: ProductWithStats[];
-  settings: SiteSettings;
-  orders: OrderEntry;
+  products?: ProductWithStats[];
+  settings?: SiteSettings;
+  orders?: OrderEntry;
+  subscribers?: NewsletterSubscriber[];
+  content?: SiteContent;
+  newsletter?: NewsletterAdminData;
+  authorized: boolean;
+  previewMode: boolean;
 }) {
   const router = useRouter();
-  const [authed, setAuthed] = useState(false);
-  const [password, setPassword] = useState("mediterranic23");
+  const [authed, setAuthed] = useState(authorized && !previewMode);
+  const [password, setPassword] = useState(previewMode ? "mediterranic23" : "");
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -37,6 +57,7 @@ export function AdminGate({
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && data.ok) {
         setAuthed(true);
+        router.refresh();
       } else {
         setError(data.error ?? "Incorrect password.");
       }
@@ -50,12 +71,12 @@ export function AdminGate({
   async function handleSignOut() {
     await fetch("/api/admin/auth", { method: "DELETE" }).catch(() => {});
     setAuthed(false);
-    setPassword("mediterranic23");
+    setPassword(previewMode ? "mediterranic23" : "");
     router.refresh();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  if (!authed) {
+  if (!authed || !authorized || !settings || !content) {
     return (
       <div className="mx-auto max-w-md px-5 py-24">
         <div className="rounded-sm border border-ink/15 bg-white/85 p-8 shadow-xl">
@@ -104,8 +125,9 @@ export function AdminGate({
 
           <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-ink/50">
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-sea" />
-            Password is pre-filled for this private preview. Change it via the <code className="rounded bg-bone px-1">ADMIN_PASSWORD</code>{" "}
-            environment variable before going live.
+            {previewMode
+              ? "Password is pre-filled for this development preview only."
+              : "Private back-office. Shop and customer data are only loaded after authentication."}
           </p>
 
           <Link
@@ -124,6 +146,9 @@ export function AdminGate({
       initialProducts={products}
       initialSettings={settings}
       orders={orders}
+      initialSubscribers={subscribers}
+      initialContent={content}
+      initialNewsletter={newsletter}
       onSignOut={handleSignOut}
     />
   );

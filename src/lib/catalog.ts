@@ -1,23 +1,30 @@
-import { and, asc, avg, count, desc, eq, gte } from "drizzle-orm";
+import { and, asc, avg, count, desc, eq, gte, isNull, or } from "drizzle-orm";
+import { HOME_REVIEW_AUTOMATIC, HOME_REVIEW_LIMIT } from "@/lib/home-reviews";
 import { db } from "@/db";
-import { orderItems, orders, products, reviews, siteSettings } from "@/db/schema";
+import { newsletterSends, newsletterSubscribers, orderItems, orderNotifications, orders, products, reviews, siteSettings } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
 import { SEED_SETTINGS } from "@/lib/seed-settings";
+import { mergeContent, type SiteContent } from "@/lib/site-content";
+import { publicProduct, publicProducts } from "@/lib/product-visibility";
+import { safeContent } from "@/lib/public-copy";
 
 export type Product = typeof products.$inferSelect;
 export type Review = typeof reviews.$inferSelect;
 export type SiteSettings = typeof siteSettings.$inferSelect;
+export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
+export type NewsletterSend = typeof newsletterSends.$inferSelect;
 export type ProductWithStats = Product & { rating: number; reviewCount: number };
 
 export const DEFAULT_SITE_SETTINGS: Omit<SiteSettings, "updatedAt"> = SEED_SETTINGS;
 
 export const UNUSED_DEFAULTS: Omit<SiteSettings, "updatedAt"> = {
   id: 1,
+  content: {},
   heroEyebrow: "Moroccan Trilobites · 23 Years of Curatorship",
-  heroTitle: "Five hundred million years,",
+  heroTitle: "Moroccan trilobites,",
   heroTitleItalic: "in your keeping.",
   heroDescription:
-    "Museum-grade trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Direct from nearly 23 years of specialist work, backed by thousands of verified feedbacks on eBay and Catawiki and battle-tested insured worldwide shipping.",
+    "Museum-grade trilobites from the Tafilalt, Anti-Atlas and Fezouata Shale. Direct from nearly 23 years of specialist work, backed by thousands of verified feedbacks on eBay and Catawiki and battle-tested protected worldwide shipping.",
   provenanceEyebrow: "Nearly 23 Years in the Field",
   provenanceTitle: "Known by collectors.",
   provenanceTitleItalic: "Proven across thousands of shipments.",
@@ -38,6 +45,9 @@ export const UNUSED_DEFAULTS: Omit<SiteSettings, "updatedAt"> = {
   heroImage: "/images/hero.jpg",
 };
 
+/** Only approved and already-public legacy reviews reach any public count or list. */
+const publicReviews = () => or(eq(reviews.moderationStatus, "approved"), isNull(reviews.moderationStatus));
+
 async function statsByProduct() {
   const rows = await db
     .select({
@@ -46,6 +56,7 @@ async function statsByProduct() {
       reviewCount: count(),
     })
     .from(reviews)
+    .where(publicReviews())
     .groupBy(reviews.productId);
 
   return new Map(
@@ -76,7 +87,8 @@ export async function getAllProducts({ includeDrafts = false } = {}): Promise<Pr
     ).orderBy(asc(products.id)),
     statsByProduct(),
   ]);
-  return attachStats(list, stats);
+  const result = attachStats(list, stats);
+  return includeDrafts ? result : publicProducts(result);
 }
 
 export async function getProductBySlug(
@@ -91,22 +103,25 @@ export async function getProductBySlug(
     .limit(1);
   if (!product) return null;
   const stats = await statsByProduct();
-  return attachStats([product], stats)[0];
+  const result = attachStats([product], stats)[0];
+  return includeDrafts ? result : publicProduct(result);
 }
 
 export async function getProductReviews(productId: number): Promise<Review[]> {
+  await ensureSeeded();
   return db
     .select()
     .from(reviews)
-    .where(eq(reviews.productId, productId))
+    .where(and(eq(reviews.productId, productId), publicReviews()))
     .orderBy(desc(reviews.createdAt));
 }
 
 export async function getRatingBreakdown(productId: number): Promise<Record<1 | 2 | 3 | 4 | 5, number>> {
+  await ensureSeeded();
   const rows = await db
     .select({ rating: reviews.rating, total: count() })
     .from(reviews)
-    .where(eq(reviews.productId, productId))
+    .where(and(eq(reviews.productId, productId), publicReviews()))
     .groupBy(reviews.rating);
 
   const breakdown: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -132,16 +147,43 @@ export async function getTopReviews(limit = 6) {
     })
     .from(reviews)
     .innerJoin(products, eq(reviews.productId, products.id))
-    .where(gte(reviews.rating, 5))
+    .where(and(gte(reviews.rating, 5), publicReviews(), eq(products.published, true)))
     .orderBy(desc(reviews.createdAt))
     .limit(limit);
+}
+
+/**
+ * Reviews for "From collectors who have been where you are": the curator's
+ * choice, public reviews only, up to the limit. With nothing chosen, the home
+ * keeps the automatic rule (the newest 5-star public reviews).
+ */
+export async function getHomeTestimonials() {
+  await ensureSeeded();
+  const picked = await db
+    .select({
+      id: reviews.id,
+      authorName: reviews.authorName,
+      authorCountry: reviews.authorCountry,
+      rating: reviews.rating,
+      title: reviews.title,
+      body: reviews.body,
+      productName: products.name,
+      productSlug: products.slug,
+    })
+    .from(reviews)
+    .innerJoin(products, eq(reviews.productId, products.id))
+    .where(and(eq(reviews.showOnHome, true), publicReviews(), eq(products.published, true)))
+    .orderBy(desc(reviews.createdAt), desc(reviews.id))
+    .limit(HOME_REVIEW_LIMIT);
+  if (picked.length > 0) return picked;
+  return getTopReviews(HOME_REVIEW_AUTOMATIC);
 }
 
 export async function getStoreStats() {
   await ensureSeeded();
   const [[productRow], [reviewRow]] = await Promise.all([
     db.select({ value: count() }).from(products),
-    db.select({ value: count(), average: avg(reviews.rating) }).from(reviews),
+    db.select({ value: count(), average: avg(reviews.rating) }).from(reviews).where(publicReviews()),
   ]);
   return {
     productCount: Number(productRow?.value ?? 0),
@@ -171,11 +213,51 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   return fallback ?? { ...DEFAULT_SITE_SETTINGS, updatedAt: new Date() };
 }
 
+/**
+ * Every editable text and photograph of the storefront, with the values saved
+ * in the back-office merged over the defaults in src/lib/site-content.ts.
+ */
+export async function getSiteContent(): Promise<SiteContent> {
+  const settings = await getSiteSettings();
+  return safeContent(mergeContent(settings.content));
+}
+
 export async function getAllOrdersWithItems() {
   const allOrders = await db.select().from(orders).orderBy(desc(orders.createdAt)).limit(50);
   const allItems = await db.select().from(orderItems);
+  const allNotifications = await db.select().from(orderNotifications);
   return allOrders.map((order) => ({
     order,
     items: allItems.filter((i) => i.orderId === order.id),
+    notifications: allNotifications
+      .filter((n) => n.orderId === order.id)
+      .map((n) => ({ event: n.event, status: n.status, recipient: n.recipient, detail: n.detail, sentAt: n.sentAt })),
   }));
+}
+
+/** Every newsletter sign-up, newest first. Read-only: nothing here is ever pruned. */
+export async function getNewsletterSubscribers(limit = 1000): Promise<NewsletterSubscriber[]> {
+  await ensureSeeded();
+  return db
+    .select()
+    .from(newsletterSubscribers)
+    .orderBy(desc(newsletterSubscribers.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Records a sign-up. Emails are unique, so a repeated address is simply ignored
+ * and reported back as "already subscribed" instead of creating a duplicate.
+ */
+export async function addNewsletterSubscriber(
+  email: string,
+  source = "footer",
+): Promise<{ added: boolean }> {
+  await ensureSeeded();
+  const [inserted] = await db
+    .insert(newsletterSubscribers)
+    .values({ email, source })
+    .onConflictDoNothing({ target: newsletterSubscribers.email })
+    .returning({ id: newsletterSubscribers.id });
+  return { added: Boolean(inserted) };
 }

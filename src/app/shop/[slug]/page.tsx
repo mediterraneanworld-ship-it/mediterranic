@@ -1,3 +1,4 @@
+import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,8 +14,11 @@ import {
   getProductBySlug,
   getProductReviews,
   getRatingBreakdown,
+  getSiteContent,
   getSiteSettings,
 } from "@/lib/catalog";
+import { isAvailable } from "@/lib/product-visibility";
+import { selectSameShelfProducts } from "@/lib/shelf-recommendations";
 import { getCollection } from "@/lib/collections";
 import { collectionsOf } from "@/lib/product-collections";
 import { formatDate, formatPrice } from "@/lib/format";
@@ -58,6 +62,53 @@ function resolveVideo(url: string | null | undefined): VideoSource | null {
   // than being silently dropped.
   if (/^https?:\/\//i.test(trimmed)) return { kind: "link", url: trimmed };
   return null;
+}
+
+/** Brass separator used between the reference, the size and the weight. */
+function RefDot() {
+  return <span aria-hidden className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-brass" />;
+}
+
+/**
+ * Dimensions are free text, exactly as the curator wrote them
+ * ("Specimen: 8.7 x 9.0 cm · Matrix: 17 x 10.2 cm"). Bare numbers are legacy
+ * millimetre values and keep their " mm" suffix.
+ */
+function formatDimensions(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  return /^\d+(?:[.,]\d+)?$/.test(text) ? `${text} mm` : text;
+}
+
+/**
+ * The collection reference sits directly under the title: PAIS9676 · 46x56 mm · 456g.
+ * It is the number the same piece keeps on every platform, so customers and the
+ * back-office can recognise it without relying on a name or a photograph.
+ */
+function SpecimenReference({
+  reference,
+  lengthMm,
+  weightGrams,
+}: {
+  reference: string | null;
+  lengthMm: string | null;
+  weightGrams: number | null;
+}) {
+  const dimensions = formatDimensions(lengthMm);
+  if (!reference && !dimensions && !weightGrams) return null;
+  return (
+    <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-ink/65">
+      {reference && (
+        <span className="font-medium uppercase tracking-[0.16em] text-ink/80" data-testid="specimen-ref">
+          {reference}
+        </span>
+      )}
+      {reference && dimensions && <RefDot />}
+      {dimensions && <span>{dimensions}</span>}
+      {dimensions && weightGrams && <RefDot />}
+      {weightGrams && <span>{weightGrams} g</span>}
+    </p>
+  );
 }
 
 function SpecimenVideo({ video, name }: { video: VideoSource; name: string }) {
@@ -121,31 +172,30 @@ export default async function ProductPage({ params }: Props) {
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [reviews, breakdown, allProducts, settings] = await Promise.all([
+  const [reviews, breakdown, allProducts, settings, content] = await Promise.all([
     getProductReviews(product.id),
     getRatingBreakdown(product.id),
     getAllProducts(),
     getSiteSettings(),
+    getSiteContent(),
   ]);
+  const copy = content.product;
 
   const productCollections = collectionsOf(product);
   const collection = getCollection(productCollections[0] ?? product.collection);
-  const related = allProducts
-    .filter((p) => p.slug !== product.slug)
-    .map((p) => ({
-      p,
-      score: (p.collection === product.collection ? 2 : 0) + (p.period === product.period ? 1 : 0),
-    }))
-    .sort((a, b) => b.score - a.score || a.p.id - b.p.id)
-    .slice(0, 4)
-    .map((x) => x.p);
+  const related = selectSameShelfProducts(product, allProducts, 4);
 
   const totalReviews = reviews.length;
   const video = resolveVideo(product.videoUrl);
   const isAuction = product.listingChannel === "catawiki" || product.listingChannel === "ebay";
+  // Money is only ever handled for a piece that can actually be bought; for an
+  // unavailable piece nothing reaches the page source, not even hidden.
+  const forSale = isAvailable(product);
+  const publicPriceCents = forSale ? product.priceCents : 0;
+  const compareAtCents = forSale ? product.compareAtCents : null;
   const discount =
-    product.compareAtCents && product.compareAtCents > product.priceCents
-      ? Math.round((1 - product.priceCents / product.compareAtCents) * 100)
+    forSale && compareAtCents && compareAtCents > publicPriceCents
+      ? Math.round((1 - publicPriceCents / compareAtCents) * 100)
       : null;
 
   const specs: [string, string | null][] = [
@@ -153,12 +203,48 @@ export default async function ProductPage({ params }: Props) {
     ["Period", product.period],
     ["Formation", product.formation],
     ["Locality", product.locality],
-    ["Length", product.lengthMm ? `${product.lengthMm} mm` : null],
+    ["Dimensions", formatDimensions(product.lengthMm)],
+    ["Weight", product.weightGrams ? `${product.weightGrams} g` : null],
     ["Preparation", product.preparation],
   ];
 
+  const siteBase = PUBLIC_SITE_URL;
+  const absolute = (src: string) => (src.startsWith("http") ? src : `${siteBase}${src}`);
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.shortDescription,
+    image: product.images.map((i) => absolute(i.src)),
+    category: "Fossil specimen",
+    brand: { "@type": "Brand", name: "Mediterranic" },
+    ...(forSale
+      ? {
+          offers: {
+            "@type": "Offer",
+            url: `${siteBase}/shop/${product.slug}`,
+            priceCurrency: "EUR",
+            price: (publicPriceCents / 100).toFixed(2),
+            availability: "https://schema.org/InStock",
+            itemCondition: "https://schema.org/NewCondition",
+          },
+        }
+      : {
+          offers: {
+            "@type": "Offer",
+            url: `${siteBase}/shop/${product.slug}`,
+            priceCurrency: "EUR",
+            availability: "https://schema.org/OutOfStock",
+          },
+        }),
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-5 pb-28 pt-10 lg:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <nav aria-label="Breadcrumb" className="text-[11px] uppercase tracking-[0.2em] text-ink/50">
         <ol className="flex flex-wrap items-center gap-2">
           <li>
@@ -184,18 +270,26 @@ export default async function ProductPage({ params }: Props) {
       </nav>
 
       <div className="mt-10 grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
-        <div className="lg:sticky lg:top-28 lg:self-start space-y-6">
+        {/* min-w-0: the thumbnail strip's max-content must never widen the
+            column past the phone screen. */}
+        <div className="min-w-0 lg:sticky lg:top-28 lg:self-start space-y-6">
           <ProductGallery images={product.images} name={product.name} />
           {video && <SpecimenVideo video={video} name={product.name} />}
         </div>
 
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] uppercase tracking-[0.3em] text-brass">
             {productCollections.map((slug) => getCollection(slug)?.title).filter(Boolean).join(" · ")}
             {product.period ? ` · ${product.period}` : ""}
           </p>
           <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">{product.name}</h1>
-          <p className="mt-3 font-display text-2xl italic text-ink/60">{product.species}</p>
+
+          {/* Collection reference — the unique number that follows this piece across platforms. */}
+          <SpecimenReference
+            reference={product.specimenReference}
+            lengthMm={product.lengthMm}
+            weightGrams={product.weightGrams}
+          />
 
           <ChannelBanner
             channel={product.listingChannel}
@@ -203,18 +297,14 @@ export default async function ProductPage({ params }: Props) {
             soldOut={product.stock <= 0}
           />
 
-          <a href="#reviews" className="mt-6 inline-flex items-center gap-3 text-sm text-ink/70 transition hover:text-ink">
-            {totalReviews > 0 ? (
-              <>
-                <StarRating rating={product.rating} size={16} />
-                <span>
-                  {product.rating.toFixed(1)} · {totalReviews} {totalReviews === 1 ? "review" : "reviews"}
-                </span>
-              </>
-            ) : (
-              <span>Be the first to review this specimen</span>
-            )}
-          </a>
+          {totalReviews > 0 && (
+            <a href="#reviews" className="mt-6 inline-flex items-center gap-3 text-sm text-ink/70 transition hover:text-ink">
+              <StarRating rating={product.rating} size={16} />
+              <span>
+                {product.rating.toFixed(1)} · {totalReviews} {totalReviews === 1 ? "review" : "reviews"}
+              </span>
+            </a>
+          )}
 
           <div className="mt-8 flex flex-wrap items-baseline gap-x-4 gap-y-2 border-t border-ink/10 pt-8">
             {product.stock <= 0 ? (
@@ -232,12 +322,12 @@ export default async function ProductPage({ params }: Props) {
                 <p className="text-[10px] uppercase tracking-[0.24em] text-ink/50">
                   {isAuction ? "Current price" : "Price"}
                 </p>
-                <span className="font-display text-5xl text-ink">{formatPrice(product.priceCents)}</span>
+                <span className="font-display text-5xl text-ink">{formatPrice(publicPriceCents)}</span>
               </div>
             )}
-            {product.compareAtCents && product.compareAtCents > product.priceCents && (
+            {compareAtCents && compareAtCents > publicPriceCents && (
               <>
-                <span className="text-lg text-ink/40 line-through">{formatPrice(product.compareAtCents)}</span>
+                <span className="text-lg text-ink/40 line-through">{formatPrice(compareAtCents)}</span>
                 <span className="rounded-full bg-terracotta/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-terracotta">
                   Save {discount}%
                 </span>
@@ -252,10 +342,10 @@ export default async function ProductPage({ params }: Props) {
               product={{
                 slug: product.slug,
                 name: product.name,
-                priceCents: product.priceCents,
+                priceCents: publicPriceCents,
                 image: product.images[0].src,
-                stock: product.stock,
-                listingChannel: product.listingChannel,
+                stock: forSale ? product.stock : 0,
+                listingChannel: product.listingChannel ?? undefined,
                 externalListingUrl: product.externalListingUrl,
               }}
             />
@@ -265,7 +355,7 @@ export default async function ProductPage({ params }: Props) {
             {product.hasCertificate ? (
               <li className="flex items-start gap-3">
                 <ShieldCheck size={18} strokeWidth={1.4} className="mt-0.5 shrink-0 text-sea" />
-                Signed certificate of authenticity and geological data card included
+                {copy.certificateLabel} and geological data card included
               </li>
             ) : (
               <li className="flex items-start gap-3">
@@ -275,7 +365,7 @@ export default async function ProductPage({ params }: Props) {
             )}
             <li className="flex items-start gap-3">
               <Truck size={18} strokeWidth={1.4} className="mt-0.5 shrink-0 text-sea" />
-              Fully insured delivery. Complimentary standard shipping over €450
+              Safe, tracked delivery
             </li>
             <li className="flex items-start gap-3">
               <RotateCcw size={18} strokeWidth={1.4} className="mt-0.5 shrink-0 text-sea" />
@@ -297,14 +387,14 @@ export default async function ProductPage({ params }: Props) {
       </div>
 
       {/* Story & provenance */}
-      <section className="mt-32 grid gap-16 border-t border-ink/10 pt-20 lg:grid-cols-2">
+      <section className="mt-20 lg:mt-32 grid gap-10 lg:gap-16 border-t border-ink/10 pt-14 lg:pt-20 lg:grid-cols-2">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-brass">The specimen</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{copy.descriptionTitle}</p>
           <h2 className="mt-4 font-display text-4xl leading-tight text-ink md:text-5xl">About this piece</h2>
           <p className="mt-8 text-base leading-[1.8] text-ink/75">{product.description}</p>
         </div>
         <div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-brass">Provenance</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{copy.provenanceTitle}</p>
           <h2 className="mt-4 font-display text-4xl leading-tight text-ink md:text-5xl">Where it came from</h2>
           <p className="mt-8 text-base leading-[1.8] text-ink/75">{product.provenance}</p>
           <div className="mt-8 flex items-start gap-4 rounded-sm bg-bone p-6">
@@ -318,12 +408,12 @@ export default async function ProductPage({ params }: Props) {
       </section>
 
       {/* Reviews */}
-      <section id="reviews" className="mt-32 scroll-mt-28 border-t border-ink/10 pt-20">
+      <section id="reviews" className="mt-20 lg:mt-32 scroll-mt-28 border-t border-ink/10 pt-14 lg:pt-20">
         <div className="grid gap-16 lg:grid-cols-[360px_1fr]">
           <aside className="space-y-10 lg:sticky lg:top-28 lg:self-start">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.3em] text-brass">Collector reviews</p>
-              <h2 className="mt-4 font-display text-4xl text-ink md:text-5xl">What owners say</h2>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{copy.reviewsTitle}</p>
+              <h2 className="mt-4 font-display text-4xl text-ink md:text-5xl">What Owners and Visitors say</h2>
               {totalReviews > 0 ? (
                 <div className="mt-8 flex items-end gap-5">
                   <span className="font-display text-7xl leading-none text-ink">{product.rating.toFixed(1)}</span>
@@ -335,7 +425,7 @@ export default async function ProductPage({ params }: Props) {
                   </div>
                 </div>
               ) : (
-                <p className="mt-6 text-sm text-ink/60">No reviews yet. Owners are invited to share their experience below.</p>
+                <p className="mt-6 text-sm text-ink/60">Owners and visitors are welcome to share their experience or observations. Reviews appear after curator approval.</p>
               )}
 
               {totalReviews > 0 && (
@@ -363,7 +453,7 @@ export default async function ProductPage({ params }: Props) {
           <div>
             {reviews.length === 0 ? (
               <div className="rounded-sm border border-dashed border-ink/20 p-10 text-center text-ink/60">
-                Be the first collector to share a review of {product.name}.
+                No reviews yet for this specimen.
               </div>
             ) : (
               <ul className="divide-y divide-ink/10">
@@ -397,7 +487,7 @@ export default async function ProductPage({ params }: Props) {
 
       {/* Related */}
       {related.length > 0 && (
-        <section className="mt-32 border-t border-ink/10 pt-20">
+        <section className="mt-20 lg:mt-32 border-t border-ink/10 pt-14 lg:pt-20">
           <div className="mb-12 flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <p className="text-[11px] uppercase tracking-[0.3em] text-brass">Pairs well with</p>

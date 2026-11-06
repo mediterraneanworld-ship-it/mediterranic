@@ -8,11 +8,14 @@ import { ProductCard } from "@/components/product-card";
 import { COLLECTIONS, getCollection } from "@/lib/collections";
 import type { ProductWithStats } from "@/lib/catalog";
 import { collectionsOf } from "@/lib/product-collections";
+import { inventoryCounts, offeredSpecimen } from "@/lib/inventory-rules";
+import { normalizeShopChannel, normalizeShopPeriod, SHOP_PERIODS, shopPeriodFromLabel, type ShopChannel, type ShopPeriod } from "@/lib/shop-links";
+import type { SiteContent } from "@/lib/site-content";
 
 type Category = "all" | "specimen" | "accessory";
-type Period = "all" | "Cambrian" | "Ordovician" | "Devonian";
+type Period = "all" | ShopPeriod;
 type PriceBand = "all" | "under-500" | "500-1500" | "over-1500";
-type Channel = "all" | "direct" | "catawiki" | "ebay";
+type Channel = "all" | ShopChannel;
 type Sort = "featured" | "price-asc" | "price-desc" | "rating" | "name";
 
 type Filters = {
@@ -75,38 +78,41 @@ export function ShopExplorer({
   products,
   initialCollection,
   initialChannel = "all",
+  initialPeriod = "all",
+  copy,
+  inventoryStatus,
 }: {
   products: ProductWithStats[];
   initialCollection: string;
   initialChannel?: string;
+  initialPeriod?: string;
+  copy: SiteContent["shop"];
+  inventoryStatus?: ReactNode;
 }) {
-  const validInitialChannel: Channel =
-    initialChannel === "direct" || initialChannel === "catawiki" || initialChannel === "ebay"
-      ? initialChannel
-      : "all";
+  const validInitialChannel: Channel = normalizeShopChannel(initialChannel);
+  const validInitialPeriod = normalizeShopPeriod(initialPeriod);
 
   const [filters, setFilters] = useState<Filters>({
     ...DEFAULT_FILTERS,
     collection: getCollection(initialCollection) ? initialCollection : "all",
     channel: validInitialChannel,
+    period: validInitialPeriod,
   });
   const [sort, setSort] = useState<Sort>("featured");
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Header links change the URL while this component stays mounted
-  // (e.g. /shop -> /shop?channel=ebay). Follow the URL so every link works.
+  // Header and specimen-label links change the URL while this component stays
+  // mounted (e.g. /shop -> /shop?period=Cambrian). Follow every category link.
   useEffect(() => {
     const collection = getCollection(initialCollection) ? initialCollection : "all";
-    const channel: Channel =
-      initialChannel === "direct" || initialChannel === "catawiki" || initialChannel === "ebay"
-        ? initialChannel
-        : "all";
+    const channel: Channel = normalizeShopChannel(initialChannel);
+    const period = normalizeShopPeriod(initialPeriod);
     setFilters((prev) =>
-      prev.collection === collection && prev.channel === channel
+      prev.collection === collection && prev.channel === channel && prev.period === period
         ? prev
-        : { ...DEFAULT_FILTERS, collection, channel },
+        : { ...DEFAULT_FILTERS, collection, channel, period },
     );
-  }, [initialCollection, initialChannel]);
+  }, [initialCollection, initialChannel, initialPeriod]);
 
   const update = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((f) => ({ ...f, [key]: value }));
@@ -124,11 +130,19 @@ export function ShopExplorer({
   const results = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
     const filtered = products.filter((p) => {
+      if (!offeredSpecimen(p)) return false;
       if (filters.collection !== "all" && !collectionsOf(p).includes(filters.collection)) return false;
-      if (filters.channel !== "all" && (p.listingChannel ?? "direct") !== filters.channel) return false;
+      // Unavailable pieces (no channel) only appear under "All specimens".
+      const pieceChannel = p.listingChannel;
+      if (filters.channel !== "all") {
+        if (filters.channel === "direct") {
+          if (pieceChannel !== "direct") return false;
+        } else if (pieceChannel !== filters.channel) return false;
+      }
       if (filters.category !== "all" && p.category !== filters.category) return false;
-      if (filters.period !== "all" && p.period !== filters.period) return false;
-      if (!matchesPrice(p.priceCents, filters.price)) return false;
+      if (filters.period !== "all" && shopPeriodFromLabel(p.period) !== filters.period) return false;
+      // A piece without a public price (unavailable) never matches a price band.
+      if (filters.price !== "all" && (!p.priceCents || !matchesPrice(p.priceCents, filters.price))) return false;
       if (filters.inStockOnly && p.stock <= 0) return false;
       if (q) {
         const haystack = `${p.name} ${p.species} ${p.locality} ${p.period ?? ""}`.toLowerCase();
@@ -140,7 +154,8 @@ export function ShopExplorer({
     const sorted = [...filtered];
     switch (sort) {
       case "price-asc":
-        sorted.sort((a, b) => a.priceCents - b.priceCents);
+        // Pieces without a price (unavailable) always sit at the end.
+        sorted.sort((a, b) => (a.priceCents || Infinity) - (b.priceCents || Infinity));
         break;
       case "price-desc":
         sorted.sort((a, b) => b.priceCents - a.priceCents);
@@ -161,12 +176,7 @@ export function ShopExplorer({
   const reset = () => setFilters(DEFAULT_FILTERS);
 
   const channelCounts = useMemo(
-    () => ({
-      all: products.length,
-      direct: products.filter((p) => (p.listingChannel ?? "direct") === "direct").length,
-      ebay: products.filter((p) => p.listingChannel === "ebay").length,
-      catawiki: products.filter((p) => p.listingChannel === "catawiki").length,
-    }),
+    () => inventoryCounts(products),
     [products],
   );
 
@@ -189,21 +199,23 @@ export function ShopExplorer({
       <header className="mb-10 grid gap-8 border-b border-ink/10 pb-10 md:grid-cols-[1fr_auto] md:items-end">
         <div>
           <p className="text-[11px] uppercase tracking-[0.32em] text-brass">
-            {activeCollection ? "Collection" : "The collection"}
+            {activeCollection ? "Collection" : copy.eyebrow}
           </p>
           <h1 className="mt-4 font-display text-6xl leading-[0.95] text-ink md:text-7xl">
-            {activeCollection ? activeCollection.title : "Specimens & instruments"}
+            {activeCollection ? activeCollection.title : copy.title}
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink/65">
             {activeCollection
               ? activeCollection.description
-              : "Every specimen is clearly badged by where it is currently offered: exclusively here on Mediterranic, or live on auction on eBay or Catawiki."}
+              : copy.description}
           </p>
         </div>
         <p className="font-display text-xl italic text-ink/55 md:text-right">
-          {products.length} pieces currently in the cabinet
+          {channelCounts.all} specimens currently offered
         </p>
       </header>
+
+      {inventoryStatus}
 
       {/* 3-Channel Quick Switcher Bar */}
       <div className="mb-12 flex flex-wrap items-center justify-between gap-4 rounded-sm border border-ink/10 bg-bone/60 p-3">
@@ -228,6 +240,9 @@ export function ShopExplorer({
                     : "bg-parchment/80 text-ink/75 hover:bg-parchment hover:text-ink"
                 }`}
               >
+                {tab.id === "direct" && <span className="h-2 w-2 rounded-full bg-[#ff9f3d]" />}
+                {tab.id === "ebay" && <span className="h-2 w-2 rounded-full bg-[#0064D2]" />}
+                {tab.id === "catawiki" && <span className="h-2 w-2 rounded-full bg-[#0033FF]" />}
                 <span>{tab.label}</span>
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
@@ -253,7 +268,8 @@ export function ShopExplorer({
 
         <div className="min-w-0">
           {/* Toolbar */}
-          <div className="sticky top-20 z-30 -mx-5 mb-8 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-parchment/90 px-5 py-4 backdrop-blur-xl lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+          {/* Sticks below the 120px mobile header (trust bar + nav). */}
+          <div className="sticky top-[7.5rem] z-30 -mx-5 mb-8 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-parchment/90 px-5 py-4 backdrop-blur-xl lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
             <label className="relative min-w-0 flex-1 sm:max-w-xs">
               <span className="sr-only">Search specimens</span>
               <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
@@ -347,10 +363,8 @@ export function ShopExplorer({
 
           {results.length === 0 ? (
             <div className="rounded-sm border border-dashed border-ink/20 px-8 py-20 text-center">
-              <p className="font-display text-4xl text-ink">Nothing matches just yet</p>
-              <p className="mx-auto mt-4 max-w-md text-sm text-ink/60">
-                Try widening the price band or removing a period filter. New specimens are logged regularly.
-              </p>
+              <p className="font-display text-4xl text-ink">{copy.emptyTitle}</p>
+              <p className="mx-auto mt-4 max-w-md text-sm text-ink/60">{copy.emptyText}</p>
               <button
                 type="button"
                 onClick={reset}
@@ -559,7 +573,7 @@ function FilterPanel({
       </FilterGroup>
 
       <FilterGroup title="Geological period">
-        {(["all", "Cambrian", "Ordovician", "Devonian"] as Period[]).map((value) => (
+        {(["all", ...SHOP_PERIODS] as Period[]).map((value) => (
           <Option
             key={value}
             name="period"

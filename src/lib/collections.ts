@@ -7,7 +7,11 @@ export type CollectionSlug =
 export type Collection = {
   slug: CollectionSlug;
   title: string;
+  /** When set, the home card links here instead of the shop filter. */
+  externalUrl?: string;
   eyebrow: string;
+  /** Label printed on the home card. Left empty for the era cards: their dates appear once, under the cards. */
+  homeLabel?: string;
   description: string;
   /** Product image used as the collection cover */
   cover: string;
@@ -32,7 +36,8 @@ export const COLLECTIONS: Collection[] = [
   },
   {
     slug: "cambrian-dawn",
-    title: "The Cambrian Dawn",
+    title: "Souss Lagerstätte",
+    externalUrl: "https://www.mediterranic.com/Souss-Lagerst%C3%A4tte-site",
     eyebrow: "c. 485–541 million years",
     description:
       "The earliest chapter. Paradoxides and the great Cambrian assemblages of the Anti-Atlas, from the seas that first filled with complex animal life.",
@@ -42,9 +47,10 @@ export const COLLECTIONS: Collection[] = [
     slug: "the-connoisseur",
     title: "The Connoisseur",
     eyebrow: "Museum grade",
+    homeLabel: "Museum grade",
     description:
       "Rare, large and exceptionally preserved. Pieces we would be proud to see in a private study, a boardroom or a foundation's collection.",
-    cover: "/images/products/erbenochile-erbeni.jpg",
+    cover: "/covers/connoisseur-cyphaspis.jpg",
   },
 ];
 

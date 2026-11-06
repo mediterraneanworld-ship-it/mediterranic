@@ -396,7 +396,7 @@ export function parseListingText(raw: string, sourceUrl = "", fallbackPrice = ""
   const provenance = [
     `Sourced in ${locality || "Morocco"} through our licensed quarry network of nearly 23 years.`,
     formation ? `Stratigraphy: ${formation}.` : "",
-    "Delivered fully insured with museum-grade packing to North America, Europe and Japan.",
+    "Delivered with museum-grade packing to North America, Europe and Japan.",
     "Verified seller on eBay and Catawiki with thousands of positive feedbacks.",
   ]
     .filter(Boolean)
@@ -440,13 +440,13 @@ export function buildMarketplaceCopy(input: {
   provenance: string;
 }): string {
   return [
-    `Title: ${input.name} — ${input.species}${input.lengthMm ? ` — ${input.lengthMm} mm` : ""}`,
+    `Title: ${input.name} — ${input.species}${input.lengthMm ? ` — ${input.lengthMm}` : ""}`,
     "",
     `Scientific name: ${input.species}`,
     input.period ? `Geological period: ${input.period}` : "",
     input.locality ? `Locality: ${input.locality}` : "",
     input.formation ? `Formation: ${input.formation}` : "",
-    input.lengthMm ? `Dimensions: ${input.lengthMm} mm` : "",
+    input.lengthMm ? `Dimensions: ${input.lengthMm}` : "",
     input.preparation ? `Preparation / restoration: ${input.preparation}` : "",
     input.priceDollars ? `Price: €${input.priceDollars} EUR` : "",
     "",

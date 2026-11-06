@@ -15,29 +15,33 @@ export const CHANNEL_META: Record<
   direct: {
     shortLabel: "Site Exclusive",
     fullLabel: "Available Only on Mediterranic",
-    subtext: "Direct acquisition · Ready for immediate insured dispatch",
-    pillClass: "bg-parchment/95 text-ink border border-ink/15",
-    dotClass: "bg-sea",
+    subtext: "Direct acquisition · Ready for immediate dispatch",
+    pillClass: "bg-[#ff9f3d] text-[#0c1b26] font-semibold shadow-sm",
+    dotClass: "bg-ink",
   },
   catawiki: {
     shortLabel: "Live on Catawiki",
     fullLabel: "Currently Live on Catawiki Auction",
     subtext: "Direct site checkout paused while auction is active · Returns to Site Only if it does not sell",
-    pillClass: "bg-brass text-ink font-semibold shadow-sm",
-    dotClass: "bg-ink animate-pulse",
+    pillClass: "bg-[#0033FF] text-white font-semibold shadow-sm",
+    dotClass: "bg-white animate-pulse",
   },
   ebay: {
     shortLabel: "Live on eBay",
     fullLabel: "Currently Listed on eBay",
     subtext: "Direct site checkout paused while listing is active · Returns to Site Only if it does not sell",
-    pillClass: "bg-sea text-parchment font-semibold shadow-sm",
-    dotClass: "bg-parchment animate-pulse",
+    pillClass: "ebay-quad text-white font-semibold shadow-sm",
+    dotClass: "bg-white animate-pulse",
   },
 };
 
-export function normalizeChannel(value: string | null | undefined): ListingChannel {
+/**
+ * Null means the piece is not currently offered on any channel — an auction
+ * that ended, for instance. Such pieces get no channel badge at all.
+ */
+export function normalizeChannel(value: string | null | undefined): ListingChannel | null {
   if (value === "catawiki" || value === "ebay") return value;
-  return "direct";
+  return value === "direct" ? "direct" : null;
 }
 
 export function ChannelPill({
@@ -56,6 +60,9 @@ export function ChannelPill({
   }
 
   const normalized = normalizeChannel(channel);
+  // No channel: the "Unavailable" label alone is enough.
+  if (!normalized) return null;
+
   const meta = CHANNEL_META[normalized];
 
   return (
@@ -79,14 +86,14 @@ export function ChannelBanner({
 }) {
   if (soldOut) return null;
   const normalized = normalizeChannel(channel);
-  const meta = CHANNEL_META[normalized];
+  const meta = normalized ? CHANNEL_META[normalized] : null;
 
-  if (normalized === "direct") {
+  if (normalized === "direct" && meta) {
     return (
-      <div className="mt-5 flex items-center gap-3 rounded-sm border border-sea/25 bg-sea/5 px-4 py-3 text-xs text-ink/80">
-        <ShieldCheck size={16} className="shrink-0 text-sea" />
+      <div className="mt-5 flex items-center gap-3 rounded-sm border border-[#ff9f3d] bg-[#ff9f3d]/10 px-4 py-3 text-xs text-ink/80">
+        <ShieldCheck size={16} className="shrink-0 text-[#c9721f]" />
         <div>
-          <span className="font-semibold uppercase tracking-[0.16em] text-sea">{meta.fullLabel}</span>
+          <span className="font-semibold uppercase tracking-[0.16em] text-[#c9721f]">{meta.fullLabel}</span>
           <span className="ml-2 text-ink/65">— {meta.subtext}</span>
         </div>
       </div>
@@ -96,6 +103,7 @@ export function ChannelBanner({
   const platformName = normalized === "catawiki" ? "Catawiki" : "eBay";
   const targetUrl =
     externalUrl?.trim() || (normalized === "catawiki" ? "https://www.catawiki.com" : "https://www.ebay.com");
+  if (!meta) return null;
 
   return (
     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-brass/50 bg-bone/80 px-4 py-3.5 text-xs text-ink">
@@ -110,7 +118,9 @@ export function ChannelBanner({
         href={targetUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-full bg-ink px-3.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-parchment transition hover:bg-terracotta"
+        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-white transition hover:brightness-110 ${
+          normalized === "catawiki" ? "cw-grad" : "ebay-quad"
+        }`}
       >
         Open on {platformName} <ExternalLink size={12} />
       </a>

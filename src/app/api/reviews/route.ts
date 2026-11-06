@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { products, reviews } from "@/db/schema";
 import { ensureSeeded } from "@/lib/seed";
@@ -10,13 +10,11 @@ function clean(value: unknown, max: number): string {
 }
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
+  const parsed: unknown = await request.json().catch(() => null);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
-
+  const body = parsed as Record<string, unknown>;
   const productSlug = clean(body.productSlug, 120);
   const authorName = clean(body.authorName, 60);
   const authorCountry = clean(body.authorCountry, 60);
@@ -27,32 +25,21 @@ export async function POST(request: Request) {
   if (!productSlug) return Response.json({ error: "Missing specimen." }, { status: 400 });
   if (authorName.length < 2) return Response.json({ error: "Please enter your name." }, { status: 400 });
   if (authorCountry.length < 2) return Response.json({ error: "Please enter your country." }, { status: 400 });
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return Response.json({ error: "Rating must be between 1 and 5 stars." }, { status: 400 });
-  }
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return Response.json({ error: "Rating must be between 1 and 5 stars." }, { status: 400 });
   if (title.length < 3) return Response.json({ error: "Please add a headline." }, { status: 400 });
   if (text.length < 20) return Response.json({ error: "Reviews need at least 20 characters." }, { status: 400 });
 
   await ensureSeeded();
-  const [product] = await db
-    .select({ id: products.id })
-    .from(products)
-    .where(eq(products.slug, productSlug))
-    .limit(1);
+  const [product] = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.slug, productSlug), eq(products.published, true))).limit(1);
   if (!product) return Response.json({ error: "Specimen not found." }, { status: 404 });
 
-  const [review] = await db
-    .insert(reviews)
-    .values({
-      productId: product.id,
-      authorName,
-      authorCountry,
-      rating,
-      title,
-      body: text,
-      verifiedPurchase: false,
-    })
-    .returning({ id: reviews.id });
+  const [review] = await db.insert(reviews).values({
+    productId: product.id, authorName, authorCountry, rating, title, body: text,
+    // Never accept publication status or verified-purchase claims from a visitor.
+    moderationStatus: "pending",
+    verifiedPurchase: false,
+  }).returning({ id: reviews.id });
 
-  return Response.json({ id: review.id }, { status: 201 });
+  return Response.json({ id: review.id, status: "pending", message: "Your review is awaiting curator approval." }, { status: 201 });
 }

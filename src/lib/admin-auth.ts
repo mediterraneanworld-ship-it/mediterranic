@@ -2,27 +2,21 @@ import { cookies, headers } from "next/headers";
 
 export const ADMIN_COOKIE_NAME = "mediterranic_admin";
 
-export function getAdminPassword(): string {
-  return process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim().length > 0
-    ? process.env.ADMIN_PASSWORD.trim()
-    : "mediterranic23";
+/** Local development preview only. Never bypass authentication on Vercel. */
+export function isAdminPreview(): boolean {
+  return !process.env.VERCEL && process.env.STRICT_ADMIN_AUTH !== "true";
 }
 
-/**
- * Checks admin authorization. Because the preview runs inside a cross-origin
- * iframe where browsers block third-party cookies, we accept header token,
- * cookie token, or default preview access unless STRICT_ADMIN_AUTH=true.
- */
+export function getAdminPassword(): string {
+  return process.env.ADMIN_PASSWORD?.trim() || (isAdminPreview() ? "mediterranic23" : "");
+}
+
 export async function isAdminAuthenticated(): Promise<boolean> {
-  if (process.env.STRICT_ADMIN_AUTH !== "true") {
-    return true;
-  }
+  if (isAdminPreview()) return true;
+  const password = getAdminPassword();
+  if (!password) return false; // Misconfigured production must fail closed.
   const hdrs = await headers();
-  const headerKey = hdrs.get("x-admin-key")?.trim();
-  if (headerKey && headerKey === getAdminPassword()) {
-    return true;
-  }
-  const jar = await cookies();
-  const token = jar.get(ADMIN_COOKIE_NAME)?.value;
-  return token === getAdminPassword();
+  const key = hdrs.get("x-admin-key")?.trim();
+  if (key && key === password) return true;
+  return (await cookies()).get(ADMIN_COOKIE_NAME)?.value === password;
 }

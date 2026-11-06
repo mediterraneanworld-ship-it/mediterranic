@@ -592,6 +592,20 @@ export function AdminContentEditor({
                     <div className="border-t border-ink/10 bg-parchment/30 p-4 sm:p-6">
                       {group.note && <p className="mb-4 text-xs leading-relaxed text-ink/60">{group.note}</p>}
                       <div className="grid gap-4 md:grid-cols-2">{group.fields.map((f) => renderField(f))}</div>
+                      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-4">
+                        <span className="text-[11px] text-ink/55">
+                          Save changes to <strong>{meta.number} · {meta.label}</strong> (saves all pages to Neon).
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleSave}
+                          disabled={saving}
+                          className="inline-flex h-10 items-center gap-2 rounded-full bg-terracotta px-5 text-xs uppercase tracking-[0.18em] text-parchment transition hover:bg-ink disabled:opacity-50"
+                        >
+                          {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                          {saving ? "Saving…" : "Save changes"}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </li>
@@ -628,6 +642,20 @@ export function AdminContentEditor({
               {activeOtherGroup.note && <p className="mt-1 text-xs text-ink/55">{activeOtherGroup.note}</p>}
             </div>
             <div className="grid gap-4 md:grid-cols-2">{activeOtherGroup.fields.map((f) => renderField(f))}</div>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-ink/10 pt-4">
+              <span className="text-[11px] text-ink/55">
+                Save changes to <strong>{activeOtherGroup.label}</strong> (saves all pages to Neon).
+              </span>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-terracotta px-5 text-xs uppercase tracking-[0.18em] text-parchment transition hover:bg-ink disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
           </div>
         </div>
       )}

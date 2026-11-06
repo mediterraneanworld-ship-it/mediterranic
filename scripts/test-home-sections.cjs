@@ -90,3 +90,31 @@ test("default content carries default layout.home order", () => {
   const merged = content.mergeContent({});
   assert.deepEqual(merged.layout.home, hs.DEFAULT_HOME_ORDER);
 });
+
+test("H2 hero sequence from top to bottom: photograph, caption, buttons, title, description", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  const hero = page.slice(page.indexOf("// {/* Hero */}"), page.indexOf("h3: ("));
+  const photo = hero.indexOf("animate-kenburns object-cover");
+  const caption = hero.indexOf("{c.hero.caption}");
+  const buttons = hero.indexOf("{c.hero.primaryCta}");
+  const title = hero.indexOf("{c.hero.title}");
+  const desc = hero.indexOf("{c.hero.description}");
+
+  assert.ok(photo >= 0, "photograph is in hero");
+  assert.ok(caption >= 0, "caption is in hero");
+  assert.ok(buttons >= 0, "buttons are in hero");
+  assert.ok(title >= 0, "title is in hero");
+  assert.ok(desc >= 0, "description is in hero");
+
+  assert.ok(photo < caption, "photograph is before caption");
+  assert.ok(caption < buttons, "caption is before buttons");
+  assert.ok(buttons < title, "buttons are before title");
+  assert.ok(title < desc, "title is before description");
+});
+
+test("each H box in Tab 5 admin editor has its own Save changes button", () => {
+  const editor = fs.readFileSync("src/components/admin-content-editor.tsx", "utf8");
+  assert.match(editor, /Save changes to <strong>\{meta\.number\}/);
+  assert.match(editor, /Save changes/);
+  assert.match(editor, /onClick=\{handleSave\}/);
+});

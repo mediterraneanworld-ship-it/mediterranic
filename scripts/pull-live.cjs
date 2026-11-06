@@ -274,6 +274,34 @@ function firstMatch(html, re) {
       [ebayUrl, catawikiUrl, instagramUrl, facebookUrl, whatsappPhone],
     );
     console.log(`→ links sociais sincronizados${whatsappPhone ? " (WhatsApp incluído)" : ""}`);
+
+    // Logo do cabeçalho e favicon (fundo azul turquesa caribenho com M caligráfico)
+    const logoMatch = home.match(/<header.*?<a[^>]*href=\"\/\"[^>]*>.*?<img[^>]*src=\"([^\"]+)\"/s);
+    const faviconMatch = home.match(/<link[^>]*rel=\"(?:shortcut )?icon\"[^>]*href=\"([^\"]+)\"/);
+    const liveLogo = logoMatch ? await localiseImage(logoMatch[1]) : null;
+    const liveFavicon = faviconMatch ? await localiseImage(faviconMatch[1]) : null;
+    if (liveLogo || liveFavicon) {
+      await db.query(
+        `UPDATE site_settings SET
+           content = jsonb_set(
+             jsonb_set(
+               COALESCE(content, '{}'::jsonb) || jsonb_build_object(
+                 'header', COALESCE(content->'header', '{}'::jsonb),
+                 'site', COALESCE(content->'site', '{}'::jsonb)
+               ),
+               '{header,logoImage}',
+               to_jsonb(COALESCE($1, content->'header'->>'logoImage', '/images/favicon-m-caribbean.png')::text),
+               true
+             ),
+             '{site,favicon}',
+             to_jsonb(COALESCE($2, content->'site'->>'favicon', '/images/favicon-m-caribbean.png')::text),
+               true
+           ),
+           updated_at=now() WHERE id=1`,
+        [liveLogo, liveFavicon],
+      );
+      console.log(`→ logo e favicon sincronizados (turquesa caribenho com M caligráfico)`);
+    }
   } catch (e) {
     console.warn(`! home: ${e.message}`);
   }

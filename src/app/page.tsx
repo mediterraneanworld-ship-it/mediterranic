@@ -75,45 +75,11 @@ export default async function HomePage() {
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(120%_100%_at_80%_0%,rgba(29,74,92,0.55),transparent_60%)]" />
         <div className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-t from-parchment/10 to-transparent" />
 
-        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8 lg:pb-20 lg:pt-8">
-          {/* Copy */}
-          <div className="max-w-2xl">
-            {/* The hero opens on the title: the eyebrow line is retired. */}
-            <h1
-              className="animate-fade-up font-display text-[clamp(3rem,6.5vw,6.5rem)] leading-[0.94] text-parchment"
-              style={{ animationDelay: "0.15s" }}
-            >
-              {c.hero.title}{" "}
-              <em className="font-normal italic text-brass">{c.hero.titleItalic}</em>
-            </h1>
-            <p
-              className="animate-fade-up mt-8 max-w-xl text-base leading-relaxed text-parchment/75 md:text-lg"
-              style={{ animationDelay: "0.3s" }}
-            >
-              {c.hero.description}
-            </p>
-            <div className="animate-fade-up mt-10 flex flex-wrap gap-4" style={{ animationDelay: "0.45s" }}>
-              <Link
-                href="/shop"
-                className="group inline-flex h-14 items-center gap-3 rounded-full bg-parchment px-8 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:bg-brass"
-              >
-                {c.hero.primaryCta}
-                <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-              </Link>
-              <a
-                href="#provenance"
-                className="inline-flex h-14 items-center rounded-full border border-parchment/30 px-8 text-[12px] uppercase tracking-[0.22em] text-parchment transition hover:border-parchment hover:bg-parchment/5"
-              >
-                {c.hero.secondaryCta}
-              </a>
-            </div>
-
-          </div>
-
-          {/* Photograph — circular, with the edges dissolved into the background */}
+        <div className="mx-auto flex max-w-4xl flex-col items-center px-5 pb-16 pt-6 text-center lg:px-8 lg:pb-20 lg:pt-8">
+          {/* 1. Photograph — circular, with the edges dissolved into the background */}
           <div
-            className="animate-fade-up relative mx-auto w-full max-w-[300px] sm:max-w-[380px] lg:max-w-[460px]"
-            style={{ animationDelay: "0.25s" }}
+            className="animate-fade-up relative mx-auto w-full max-w-[280px] sm:max-w-[340px] lg:max-w-[390px]"
+            style={{ animationDelay: "0.15s" }}
           >
             {/* soft halo behind the specimen */}
             <div
@@ -129,8 +95,6 @@ export default async function HomePage() {
             <div
               className="relative aspect-square overflow-hidden rounded-full ring-1 ring-parchment/15"
               style={{
-                // Feathers the rim so the picture melts into the page instead of
-                // ending on a hard edge.
                 WebkitMaskImage:
                   "radial-gradient(circle at 50% 50%, #000 62%, rgba(0,0,0,0.35) 82%, transparent 94%)",
                 maskImage:
@@ -153,11 +117,49 @@ export default async function HomePage() {
               className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-brass/25"
               style={{ transform: "scale(1.045)" }}
             />
-
-            <p className="relative mt-8 text-center text-[10px] uppercase tracking-[0.26em] text-parchment/55">
-              {c.hero.caption}
-            </p>
           </div>
+
+          {/* 2. Caption under the photo */}
+          <p
+            className="animate-fade-up relative mt-5 text-center text-[10px] uppercase tracking-[0.26em] text-parchment/55 sm:text-[11px]"
+            style={{ animationDelay: "0.2s" }}
+          >
+            {c.hero.caption}
+          </p>
+
+          {/* 3. Buttons (primary and secondary) */}
+          <div
+            className="animate-fade-up mt-8 flex flex-wrap justify-center gap-4"
+            style={{ animationDelay: "0.25s" }}
+          >
+            <Link
+              href="/shop"
+              className="group inline-flex h-14 items-center gap-3 rounded-full bg-parchment px-8 text-[12px] uppercase tracking-[0.22em] text-ink transition hover:bg-brass"
+            >
+              {c.hero.primaryCta}
+              <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+            </Link>
+            <a
+              href="#provenance"
+              className="inline-flex h-14 items-center rounded-full border border-parchment/30 px-8 text-[12px] uppercase tracking-[0.22em] text-parchment transition hover:border-parchment hover:bg-parchment/5"
+            >
+              {c.hero.secondaryCta}
+            </a>
+          </div>
+
+          {/* 4. Title part (first part + italic part) */}
+          <h1
+            className="animate-fade-up font-display mt-10 max-w-3xl text-[clamp(2.75rem,6vw,5.5rem)] leading-[0.96] text-parchment"
+            style={{ animationDelay: "0.35s" }}
+          >
+            {c.hero.title}{" "}
+            <em className="font-normal italic text-brass">{c.hero.titleItalic}</em>
+          </h1><p
+            className="animate-fade-up mt-6 max-w-2xl text-base leading-relaxed text-parchment/75 md:text-lg"
+            style={{ animationDelay: "0.45s" }}
+          >
+            {c.hero.description}
+          </p>
         </div>
       </section>
     ),

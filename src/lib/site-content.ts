@@ -223,7 +223,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   layout: { home: DEFAULT_HOME_ORDER },
   header: {
     trustBar: ["23 Years in the Field", "eBay & Catawiki Verified", "Safe Worldwide Shipping"],
-    logoImage: "/images/logo-m-emblem.png",
+    logoImage: "/images/favicon-m-caribbean.png",
     wordmark: "Mediterranic",
     tagline: "Moroccan Trilobites",
     navShopAll: "Shop all",

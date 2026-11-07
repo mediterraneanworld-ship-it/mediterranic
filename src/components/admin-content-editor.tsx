@@ -626,11 +626,13 @@ export function AdminContentEditor({
                             {meta.label}
                           </p>
                           <p className="truncate text-[11px] text-ink/50">
-                            {isFixed
-                              ? meta.fixed === "top"
-                                ? "Fixed header frame · all pages"
-                                : "Fixed footer frame · all pages"
-                              : `Position #${orderIndex + 1} on homepage`}
+                            {sectionId === "h9"
+                              ? "Hidden from homepage · settings preserved"
+                              : isFixed
+                                ? meta.fixed === "top"
+                                  ? "Fixed header frame · all pages"
+                                  : "Fixed footer frame · all pages"
+                                : `Position #${orderIndex + 1} on homepage`}
                           </p>
                         </div>
                       </button>

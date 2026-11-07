@@ -310,6 +310,7 @@ export default async function HomePage() {
               <Link
                 href={c.externalUrl ?? `/shop?collection=${c.slug}`}
                 {...(c.externalUrl ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                data-collection={c.slug}
                 className="group flex flex-col overflow-hidden rounded-sm border border-ink/10 bg-white/80 p-4 transition duration-300 hover:border-ink/25 hover:bg-white hover:shadow-md sm:p-5"
               >
                 {/* Specimen / collection cover image: unobstructed so the photograph is clear on phone and desktop */}
@@ -319,7 +320,7 @@ export default async function HomePage() {
                     alt={c.title}
                     fill
                     sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-                    className="object-cover transition-all duration-[1.2s] ease-out group-hover:scale-105"
+                    className="object-cover transition-transform duration-[1.2s] ease-out motion-reduce:transition-none lg:group-hover:scale-[1.20] lg:group-focus-visible:scale-[1.20]"
                   />
                 </div>
 
@@ -439,72 +440,9 @@ export default async function HomePage() {
         </div>
       </section>
     ),
-    h9: (
-      <section className="border-t border-ink/10 bg-bone/40 py-12 md:py-16">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8">
-          {(c.marketplaces.title || c.marketplaces.eyebrow) && (
-            <div className="mb-8 text-center sm:text-left">
-              {c.marketplaces.eyebrow && (
-                <p className="text-[11px] uppercase tracking-[0.3em] text-brass">{c.marketplaces.eyebrow}</p>
-              )}
-              {c.marketplaces.title && (
-                <h2 className="mt-2 font-display text-3xl text-ink md:text-4xl">{c.marketplaces.title}</h2>
-              )}
-              {c.marketplaces.description && (
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink/65">{c.marketplaces.description}</p>
-              )}
-            </div>
-          )}
-
-          {/* Customizable marketplace boxes with drag-order, logo and background colors */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {(c.marketplaces.boxes || []).map((box) => {
-              const isPreset = ["ebay-quad", "cw-grad", "ig-grad", "fb-grad", "wa-grad"].includes(box.bgColor || "");
-              const liveUrls: Record<string, string> = {
-                ebay: settings.ebayUrl,
-                catawiki: settings.catawikiUrl,
-                instagram: settings.instagramUrl,
-                facebook: settings.facebookUrl,
-                whatsapp: settings.whatsappPhone ? `https://wa.me/${settings.whatsappPhone.replace(/\D/g, "")}` : "",
-              };
-              const url = box.url || liveUrls[box.id] || "";
-              if (!url) return null;
-
-              return (
-                <a
-                  key={box.id}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`group flex items-center justify-between gap-3 rounded-sm border border-transparent px-4 py-3.5 text-white shadow-sm transition hover:brightness-110 hover:shadow-md ${
-                    isPreset ? box.bgColor : ""
-                  }`}
-                  style={!isPreset && box.bgColor ? { backgroundColor: box.bgColor, color: "#fff" } : undefined}
-                >
-                  <div className="min-w-0">
-                    {box.eyebrow && (
-                      <p className="whitespace-nowrap text-[9px] uppercase tracking-[0.22em] text-white/80">
-                        {box.eyebrow}
-                      </p>
-                    )}
-                    {box.logo ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={box.logo} alt={box.title} className="mt-1 h-5 w-auto max-w-[130px] object-contain object-left" />
-                    ) : (
-                      <p className="whitespace-nowrap font-display text-lg leading-tight text-white">{box.title}</p>
-                    )}
-                    {box.text && (
-                      <p className="truncate text-[11px] text-white/80">{box.text}</p>
-                    )}
-                  </div>
-                  <ExternalLink size={14} className="shrink-0 text-white/80 transition group-hover:text-white group-hover:translate-x-0.5" />
-                </a>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-    ),
+    // H9 was removed from the homepage as a duplicate. Its saved content and
+    // place in the administrator's layout remain intact for future decisions.
+    h9: null,
     h10: testimonials.length > 0 ? (
       // Testimonials rotator: at least 2 side by side on mobile, 3 side by side on desktop, rotating randomly
       <HomeReviewsRotator
@@ -714,32 +652,16 @@ export default async function HomePage() {
               </div>
               {c.closing.archiveNote.trim() && (
                 <p className="mt-6 text-center text-sm leading-relaxed text-ink/65">
-                  {c.closing.archiveNote}
+                  <Link
+                    href="/archive"
+                    className="underline decoration-ink/30 underline-offset-4 transition hover:text-terracotta hover:decoration-terracotta"
+                  >
+                    {c.closing.archiveNote}
+                  </Link>
                 </p>
               )}
             </div>
           )}
-
-          <div className="mt-12 flex flex-col items-center justify-center gap-4 border-t border-ink/10 pt-8 sm:flex-row">
-            <span className="text-[11px] uppercase tracking-[0.24em] text-ink/45">{c.closing.alsoOn}</span>
-            <a
-              href={settings.ebayUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.2em] text-ink underline decoration-ink/25 underline-offset-8 transition hover:text-terracotta hover:decoration-terracotta"
-            >
-              {c.closing.ebayLabel} <ExternalLink size={12} />
-            </a>
-            <span className="hidden text-ink/25 sm:inline">·</span>
-            <a
-              href={settings.catawikiUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.2em] text-ink underline decoration-ink/25 underline-offset-8 transition hover:text-terracotta hover:decoration-terracotta"
-            >
-              {c.closing.catawikiLabel} <ExternalLink size={12} />
-            </a>
-          </div>
         </Reveal>
       </section>
     ),

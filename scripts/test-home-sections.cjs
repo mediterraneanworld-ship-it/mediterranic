@@ -180,17 +180,48 @@ test("H6 home collection cards place letters below the box images", () => {
   assert.ok(imgBoxIdx < textBoxIdx, "image is placed above the text block");
 });
 
+test("H6 photographs zoom to 120% on desktop hover and keyboard focus without breaking the crop", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  const h6 = page.slice(page.indexOf("// {/* Collections */}"), page.indexOf("// {/* Featured */}"));
+  assert.match(h6, /h6:\s*\(/);
+  assert.match(h6, /data-collection=\{c\.slug\}/);
+  assert.match(h6, /overflow-hidden rounded-sm bg-bone/);
+  assert.match(h6, /lg:group-hover:scale-\[1\.20\]/);
+  assert.match(h6, /lg:group-focus-visible:scale-\[1\.20\]/);
+  assert.match(h6, /motion-reduce:transition-none/);
+  assert.doesNotMatch(h6, /group-hover:scale-105/);
+});
 
-test("home archive teaser is photo and title only; the new invitation stays below it", () => {
+test("H9 is absent from the home but saved marketplace choices and ordering remain intact", () => {
+  const page = fs.readFileSync("src/app/page.tsx", "utf8");
+  assert.match(page, /h9:\s*null\s*,/);
+  assert.doesNotMatch(page, /c\.marketplaces\.(title|eyebrow|boxes)/);
+  const custom = { home: { marketplaces: { title: "My saved H9 title", boxes: [{ id: "kept", title: "Saved box", url: "https://example.test", bgColor: "#123456", logo: "/images/logo.png" }] } }, layout: { home: ["h9", "h6", "h2"] } };
+  const merged = content.mergeContent(custom);
+  assert.equal(merged.home.marketplaces.title, "My saved H9 title");
+  assert.equal(merged.home.marketplaces.boxes[0].url, "https://example.test");
+  assert.ok(merged.layout.home.includes("h9"));
+  assert.ok(merged.layout.home.indexOf("h9") < merged.layout.home.indexOf("h6"));
+  const editor = fs.readFileSync("src/components/admin-content-editor.tsx", "utf8");
+  assert.match(editor, /Hidden from homepage · settings preserved/);
+  assert.match(content.CONTENT_GROUPS.find(group => group.id === "h9").note, /Hidden from the homepage/);
+});
+
+
+test("home archive teaser is photo and title only; the invitation below links to the archive", () => {
   const page = fs.readFileSync("src/app/page.tsx", "utf8");
   const start = page.indexOf("{archivePieces.slice(0, 4)");
-  const block = page.slice(start, page.indexOf("{c.closing.alsoOn}", start));
+  const noteStart = page.indexOf("{c.closing.archiveNote.trim() && (", start);
+  assert.ok(noteStart > start, "archive note exists below the cards");
+  const block = page.slice(start, noteStart);
   assert.match(block, /<figure key=\{p\.id\}/);
   assert.match(block, /src=\{p\.images\[0\]\.src\}/);
   assert.match(block, /<figcaption[^>]*>\{p\.name\}<\/figcaption>/);
   assert.ok(!/<(?:a|Link)\b/.test(block), "home specimen previews have no anchors");
   assert.ok(!/href|onClick|cursor-pointer|group-hover:scale/.test(block), "no navigation or clickable affordance");
-  assert.ok(block.indexOf("</figure>") < block.indexOf("{c.closing.archiveNote}"), "note is below the specimen cards");
+  const noteBlock = page.slice(noteStart, page.indexOf("</Reveal>", noteStart));
+  assert.match(noteBlock, /<Link\s+href="\/archive"[^>]*>\s*\{c\.closing\.archiveNote\}\s*<\/Link>/, "the saved invitation is clickable and opens /archive");
+  assert.ok(!/c\.closing\.alsoOn|c\.closing\.ebayLabel|c\.closing\.catawikiLabel/.test(page), "redundant closing marketplace row is removed");
   const defaults = content.mergeContent({}).home.closing;
   assert.equal(defaults.archiveTitle, "Pieces that found their collectors last days.");
   assert.equal(defaults.archiveNote, "Visit the whole archive, where you can request similar specimens.");

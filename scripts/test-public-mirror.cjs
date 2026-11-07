@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const fs = require("node:fs");
-const { assertLocalDatabase, balancedJson, decodeFlight, productFromHtml, homeFromHtml, shippingFromHtml, replaceImageReferences } = require("./lib/live-public.cjs");
+const { assertLocalDatabase, balancedJson, decodeFlight, productFromHtml, homeFromHtml, shippingFromHtml, replaceImageReferences, collectionFromHtml } = require("./lib/live-public.cjs");
 
 test("mirror refuses every non-loopback database before loading the application", () => {
   for (const host of ["localhost", "127.0.0.1", "[::1]"]) assert.doesNotThrow(() => assertLocalDatabase(`postgresql://u:p@${host}:5432/app_db`));
@@ -72,4 +72,24 @@ test('public mirror reads the archive invitation without confusing it with closi
   const result = homeFromHtml(html);
   assert.equal(result.home.closing.archiveTitle, 'Pieces that found their collectors last days.');
   assert.equal(result.home.closing.archiveNote, 'Visit the whole archive, where you can request similar specimens.');
+});
+
+test('collection mirror requires the exact complete public filter and deduplicates specimen links', () => {
+  const flight = JSON.stringify({ initialCollection: 'devonian-crown', initialChannel: 'all' });
+  const html = `<html><header><a href="/shop/outside-main">Outside</a></header><main><a href="/shop/cyphaspis-walteri">One</a><a href="/shop/cyphaspis-walteri">Duplicate</a><a href="/shop?collection=the-connoisseur">Filter</a></main><script>self.__next_f.push(${JSON.stringify([1, flight])})</script></html>`;
+  assert.deepEqual(collectionFromHtml(html, 'devonian-crown'), { verified: true, slugs: ['cyphaspis-walteri'] });
+  assert.equal(collectionFromHtml(html, 'the-connoisseur').verified, false);
+  assert.equal(collectionFromHtml(html.replace('</html>', ''), 'devonian-crown').verified, false);
+  assert.equal(collectionFromHtml('<html><main>Forbidden</main></html>', 'devonian-crown').verified, false);
+  assert.equal(collectionFromHtml(html, 'unknown-collection').verified, false);
+});
+
+test('a verified empty collection is readable but never clears local memberships', () => {
+  const flight = JSON.stringify({ initialCollection: 'the-connoisseur', products: [] });
+  const html = `<html><main><p>No pieces match</p></main><script>self.__next_f.push(${JSON.stringify([1, flight])})</script></html>`;
+  assert.deepEqual(collectionFromHtml(html, 'the-connoisseur'), { verified: true, slugs: [] });
+  const source = fs.readFileSync('scripts/pull-live.cjs', 'utf8');
+  assert.match(source, /if \(!observed\.verified\) throw new Error/);
+  assert.match(source, /\.set\(\{ collections: next \}\)/);
+  assert.match(source, /removedSlugs\.has\(slug\)/);
 });

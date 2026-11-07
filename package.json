@@ -12,16 +12,16 @@
     "cheerio": "^1.2.0",
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.2",
-    "lucide-react": "^1.61.0",
-    "motion": "^14.6.0",
-    "next": "^16.4.3",
+    "lucide-react": "^1.70.0",
+    "motion": "^14.10.1",
+    "next": "^16.4.5",
     "pg": "8.20.0",
     "playwright": "^1.65.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "source-map-js": "^1.2.2",
     "tsx": "^4.23.15",
-    "zustand": "^5.0.16"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.17",
@@ -31,8 +31,8 @@
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
-    "postcss": "8.5.8",
+    "eslint-config-next": "^16.4.5",
+    "postcss": "^8.5.32",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
   }

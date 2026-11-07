@@ -866,7 +866,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   {
     id: "h9",
     label: "H9 · Marketplaces",
-    note: "Movable. Add boxes, custom links, descriptions, logo images and background colors. Drag to reorder. eBay brand colors and Catawiki logo are preserved by default.",
+    note: "Hidden from the homepage as a duplicate. The marketplace boxes, links, logos, colors and their saved order are preserved here; the remaining marketplace links are unaffected.",
     fields: [
       { path: ["home", "marketplaces", "eyebrow"], label: "Eyebrow", type: "text" },
       { path: ["home", "marketplaces", "title"], label: "Title", type: "text" },
@@ -919,9 +919,6 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { path: ["home", "closing", "archiveTitle"], label: "Archive block · title", type: "text" },
       { path: ["home", "closing", "archiveNote"], label: "Archive block · line below the pieces", type: "text" },
       { path: ["home", "closing", "archiveCta"], label: "Archive block · link", type: "text" },
-      { path: ["home", "closing", "alsoOn"], label: "Marketplace row · prefix", type: "text" },
-      { path: ["home", "closing", "ebayLabel"], label: "Marketplace row · eBay", type: "text" },
-      { path: ["home", "closing", "catawikiLabel"], label: "Marketplace row · Catawiki", type: "text" },
     ],
   },
   {

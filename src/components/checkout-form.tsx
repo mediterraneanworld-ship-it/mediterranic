@@ -43,16 +43,26 @@ export function CheckoutForm({
   const clear = useCart((s) => s.clear);
   const [country, setCountry] = useState("US");
   const [submitting, setSubmitting] = useState(false);
-  const [paypalBusy, setPaypalBusy] = useState(false);
+  const [paypalRedirectBusy, setPaypalRedirectBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
-  const [paypalNote, setPaypalNote] = useState<string | null>(null);
+  const [paypalMessage, setPaypalMessage] = useState<string | null>(null);
   /** The invoice option opens a small box for the buyer's note before confirming. */
   const [invoiceBoxOpen, setInvoiceBoxOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
   const paypalHandledRef = useRef(false);
+  const returnOrderId = searchParams.get("order");
+  const returnToken = searchParams.get("token");
+  const returnKey = `${returnOrderId}:${returnToken}`;
+  const [paypalCaptureFailure, setPaypalCaptureFailure] = useState<string | null>(null);
+  // A return is pending from its first render; do not set state synchronously
+  // in the capture effect. Only that exact return's failure clears its spinner.
+  const paypalBusy = paypalRedirectBusy || (searchParams.get("paypal") === "return" && Boolean(returnOrderId && returnToken) && paypalCaptureFailure !== returnKey);
+  const paypalNote = !paypalRedirectBusy && searchParams.get("paypal") === "cancel" && returnOrderId
+    ? "Payment cancelled on PayPal — nothing was charged. Your cabinet is unchanged."
+    : paypalMessage;
 
   // Return from PayPal: capture the approved payment and finish the order once.
   useEffect(() => {
@@ -63,7 +73,6 @@ export function CheckoutForm({
 
     if (action === "return" && token) {
       paypalHandledRef.current = true;
-      setPaypalBusy(true);
       (async () => {
         try {
           const res = await fetch("/api/paypal/capture", {
@@ -78,11 +87,11 @@ export function CheckoutForm({
             router.push(`/orders/${data.orderId}`);
           } else {
             setError(data.error ?? "The payment could not be confirmed. Check your PayPal activity before paying again.");
-            setPaypalBusy(false);
+            setPaypalCaptureFailure(`${orderId}:${token}`);
           }
         } catch {
           setError("Network error while confirming the payment. Check your PayPal activity and contact us before paying again.");
-          setPaypalBusy(false);
+          setPaypalCaptureFailure(`${orderId}:${token}`);
         }
       })();
     } else if (action === "cancel") {
@@ -92,9 +101,21 @@ export function CheckoutForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId }),
       }).catch(() => {});
-      setPaypalNote("Payment cancelled on PayPal — nothing was charged. Your cabinet is unchanged.");
     }
   }, [searchParams, clear, router]);
+
+  // Register every hook before the empty-cart/hydration returns. A persisted
+  // cabinet changes the rendered branch between SSR and client hydration;
+  // conditional hook order would otherwise crash checkout with React #310.
+  useEffect(() => {
+    if (!invoiceBoxOpen) return;
+    noteRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !submitting) setInvoiceBoxOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [invoiceBoxOpen, submitting]);
 
   if (!hydrated) {
     return (
@@ -166,13 +187,13 @@ export function CheckoutForm({
   async function onPaypal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setPaypalNote(null);
+    setPaypalMessage(null);
     const data = new FormData(event.currentTarget);
     if (!data.get("email") || !data.get("firstName") || !data.get("lastName") || !data.get("addressLine1") || !data.get("city") || !data.get("postalCode")) {
       setError("Please fill in the contact and delivery details above first.");
       return;
     }
-    setPaypalBusy(true);
+    setPaypalRedirectBusy(true);
     try {
       const response = await fetch("/api/paypal/create-order", {
         method: "POST",
@@ -190,13 +211,13 @@ export function CheckoutForm({
         } else {
           setError(payload.error ?? "Could not start the PayPal payment. Please try again.");
         }
-        setPaypalBusy(false);
+        setPaypalRedirectBusy(false);
         return;
       }
-      window.location.href = payload.approveUrl;
+      window.location.assign(payload.approveUrl);
     } catch {
       setError("Network error. Please check your connection and try again.");
-      setPaypalBusy(false);
+      setPaypalRedirectBusy(false);
     }
   }
 
@@ -207,15 +228,7 @@ export function CheckoutForm({
     setInvoiceBoxOpen(true);
   }
 
-  useEffect(() => {
-    if (!invoiceBoxOpen) return;
-    noteRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !submitting) setInvoiceBoxOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [invoiceBoxOpen, submitting]);
+  
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

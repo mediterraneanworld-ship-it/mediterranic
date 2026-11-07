@@ -316,4 +316,23 @@ function replaceImageReferences(value, mapping) {
   return value;
 }
 
-module.exports = { assertLocalDatabase, balancedJson, decodeFlight, valuesAfter, productFromHtml, homeFromHtml, shippingFromHtml, publicImagePath, replaceImageReferences };
+/** A collection is verified only when its complete shop page identifies that filter.
+ * An verified empty result is valid; an error/incomplete page is not. Membership
+ * extraction is separate from writes so the caller can keep failures additive.
+ */
+function collectionFromHtml(html, collection) {
+  const known = ["devonian-crown", "ordovician-mariners", "cambrian-dawn", "the-connoisseur"];
+  if (!known.includes(collection) || typeof html !== "string" || !html.includes("</html>")) return { verified: false, slugs: [] };
+  const $ = load(html);
+  const flight = decodeFlight(html);
+  const marker = `${JSON.stringify("initialCollection")}:${JSON.stringify(collection)}`;
+  if ($("main").length !== 1 || !(flight.includes(marker + ",") || flight.includes(marker + "}"))) return { verified: false, slugs: [] };
+  const slugs = new Set();
+  $("main a[href]").each((_, element) => {
+    const match = String($(element).attr("href") || "").match(/^\/shop\/([a-z0-9-]+)$/);
+    if (match) slugs.add(match[1]);
+  });
+  return { verified: true, slugs: [...slugs] };
+}
+
+module.exports = { assertLocalDatabase, balancedJson, decodeFlight, valuesAfter, productFromHtml, homeFromHtml, shippingFromHtml, publicImagePath, replaceImageReferences, collectionFromHtml };

@@ -2,7 +2,7 @@
 
 Copia este documento para o início do novo chat. Pede ao assistente para o ler antes de alterar código.
 Se o chat anterior bloquear, o trabalho publicado e os dados no Neon continuam a existir.
-Versão DESTE CÓDIGO: 2026-11-05-am. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
+Versão DESTE CÓDIGO: 2026-11-05-ap. A versão realmente publicada deve ser confirmada em https://mediterranic.vercel.app/api/version.
 
 ## 1. Dono, idioma e respostas
 Sou o dono da loja Mediterranic. Responde sempre em português; a loja e o admin são em inglês. Respostas curtas.
@@ -57,10 +57,10 @@ Seed apenas se a tabela estiver vazia; settings apenas se a linha não existir. 
 - Textos da home (admin, separador 5 → Home): título do hero em Hero → Title (first part); linha por baixo dos 4 cartões em Collections → Text below the four cards. As idades (milhões de anos) saíram dos cartões e ficam só nessa linha.
 
 ## 5.1. Estrutura da homepage e estado desta entrega
-H0 Top Bar; H1 Header; H2 Hero; H3 Hero Stats; H4 Trust Strip; H5 Channels; H6 Collections; H7 Featured; H8 Provenance; H9 Marketplaces; H10 Reviews; H11 Links; H12 Closing; H13 Footer.
-No admin, tab 5, todas as caixas H começam recolhidas. Um clique em qualquer parte da linha de cabeçalho abre/recolhe a caixa; botões e pega de arrastar mantêm acções próprias. H0/H1 ficam no topo e H13 no fim; H2–H12 podem ser reordenadas. Cada caixa tem Save changes.
-H2, de cima para baixo: fotografia, legenda, botões, título (normal + itálico), descrição. H6: The Cambrian Explosion; texto abaixo das imagens. H9: caixas reordenáveis, links, texto, logo e cor; eBay e Catawiki mantêm a identidade visual.
-H12 (decisão actual): título "Pieces that found their collectors last days."; até quatro cartões APENAS com a primeira fotografia escolhida no admin e o título por baixo, SEM links nem navegação ao clicar. Por baixo dos cartões: "Visit the whole archive, where you can request similar specimens." Ambos os textos são editáveis em Tab 5 → H12. Os botões gerais para /archive mantêm-se. Na página /archive, sim: cada peça abre a sua ficha individual, sem preço e com Request a similar specimen. Não voltar a pôr links das fichas nos cartões da homepage. H10: avaliações escolhidas/aprovadas rodam aleatoriamente; duas colunas em telemóvel e três em desktop. O curador pode escrever avaliações reais na tab 6.
+H0 Top Bar; H1 Header; H2 Hero; H3 Hero Stats; H4 Trust Strip; H5 Channels; H6 Collections; H7 Featured; H8 Provenance; H9 Marketplaces (oculta na home); H10 Reviews; H11 Links; H12 Closing; H13 Footer.
+No admin, tab 5, todas as caixas H começam recolhidas. Um clique em qualquer parte da linha de cabeçalho abre/recolhe a caixa; botões e pega de arrastar mantêm acções próprias. H0/H1 ficam no topo e H13 no fim; H2–H12 podem ser reordenadas. Cada caixa tem Save changes. H9 permanece no editor com aviso de que está oculta; nenhuma configuração guardada é apagada.
+H2, de cima para baixo: fotografia, legenda, botões, título (normal + itálico), descrição. H6: The Cambrian Explosion; texto abaixo das imagens; no desktop, as quatro fotografias aumentam para 120% ao passar o cursor ou focar por teclado. H9 (Verified storefronts / One standard across all marketplaces) foi retirada da home por estar repetida; as caixas, links, textos, logos, cores e ordem guardados mantêm-se. H5, H11 e o rodapé conservam os restantes links de marketplaces.
+H12 (decisão actual): título "Pieces that found their collectors last days."; até quatro cartões APENAS com a primeira fotografia escolhida no admin e o título por baixo, SEM links nem navegação ao clicar. Por baixo dos cartões: "Visit the whole archive, where you can request similar specimens." — esta frase é clicável e abre /archive. A linha redundante "Also on / Our eBay store / Our Catawiki auctions" foi removida da home. O título e a frase continuam editáveis em Tab 5 → H12. Os botões gerais para /archive mantêm-se. Na página /archive, sim: cada peça abre a sua ficha individual, sem preço e com Request a similar specimen. Não voltar a pôr links das fichas nos cartões da homepage. H10: avaliações escolhidas/aprovadas rodam aleatoriamente; duas colunas em telemóvel e três em desktop. O curador pode escrever avaliações reais na tab 6.
 pull-live.cjs só escreve em PostgreSQL loopback local. Copia páginas públicas, textos visíveis e fotografias referenciadas; verifica SHA-256, cria uploads locais separados e nunca sobrescreve IDs existentes. Falhas ficam não verificadas e preservam dados locais. Não é um backup privado completo.
 O rodapé mantém MEDITERRANIC numa linha. /api/uploads/N usa ETag e revalidação, não cache immutable. A capa /covers/connoisseur-cyphaspis.jpg redirecciona com Location relativo, funcionando também atrás do proxy da sandbox.
 Tradução: CANCELADA por decisão do dono. Manter a loja e o admin em inglês; não acrescentar tradutor nem geolocalização de idioma.
@@ -69,6 +69,11 @@ Publish e Save & publish partilham a mesma validação. Descrição longa ou cur
 Delete permanently na Tab 1 pede escrever DELETE e remove realmente a peça de products, da loja, da tabela e do arquivo. Não elimina uploads partilhados nem cancela anúncios externos. Pagamentos/invoices em curso bloqueiam a eliminação até resolução.
 Tabela aditiva product_deletions: guarda apenas identidade anti-reimportação e snapshots dos recibos e das reviews/moderação associados. Não é um catálogo nem um arquivo público. O cron e pull-live não reimportam automaticamente as peças eliminadas; a base vazia após eliminação não volta a fazer seed.
 Recibos, CSV, tracking e mensagens usam getStoredOrderItems para conservar linhas de encomendas de peças eliminadas. Backups v4 preservam productDeletions; o restauro explícito desse histórico não republica a peça.
+
+## 5.2. Recuperação verificada desta entrega
+Base recuperada de GitHub master, commit 04eed7c50f74d3180947bb41a4ec20c3b4baa1b9, preservando as alterações posteriores até 2026-11-05-ap. A produção foi confirmada como 2026-11-05-am no início desta entrega; verificar novamente /api/version. Esta alteração não foi publicada em produção.
+O espelhamento público foi executado apenas contra PostgreSQL loopback: 9 peças, 18 páginas, 48 referências fotográficas verificadas e quatro coleções verificadas, sem falhas. Não representa um backup privado completo. Não foram efectuadas compras, envios de e-mail ou alterações em produção.
+Na recuperação anterior passaram 174 testes offline, moderação local e carrinho/invoice sem submissão. O checkout com carrinho persistido foi corrigido. Para a entrega actual e a validação de H9/H6 consultar ALTERACOES-2026-11-05-ap.md.
 
 ## 6. Domínio e variáveis Vercel
 A loja continua em https://mediterranic.vercel.app. mediterranic.com só no FIM do projecto; shop.mediterranic.com não existe nem será usado.
@@ -107,20 +112,20 @@ Site Only: https://mediterranic.vercel.app/shop?channel=direct
 eBay: https://mediterranic.vercel.app/shop?channel=ebay
 Catawiki: https://mediterranic.vercel.app/shop?channel=catawiki
 SOS produção (depois do deploy): https://mediterranic.vercel.app/sos
-Sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app
-Admin sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/admin
-Versão sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/api/version
-Checkout sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/checkout
-Arquivo sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/archive
-Envios sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shipping
-Featured sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/featured
-Site Only sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shop?channel=direct
-eBay sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shop?channel=ebay
-Catawiki sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/shop?channel=catawiki
-Capa The Connoisseur: https://3000-iul8hz6xizeamhtootqjx.e2b.app/covers/connoisseur-cyphaspis.jpg
-SOS sandbox: https://3000-iul8hz6xizeamhtootqjx.e2b.app/sos
-Texto SOS: https://3000-iul8hz6xizeamhtootqjx.e2b.app/api/sos-context
-ZIP completo: https://3000-iul8hz6xizeamhtootqjx.e2b.app/downloads/mediterranic-2026-11-05-am.zip
+Sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app
+Admin sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/admin
+Versão sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/api/version
+Checkout sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/checkout
+Arquivo sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/archive
+Envios sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/shipping
+Featured sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/featured
+Site Only sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/shop?channel=direct
+eBay sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/shop?channel=ebay
+Catawiki sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/shop?channel=catawiki
+Capa The Connoisseur: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/covers/connoisseur-cyphaspis.jpg
+SOS sandbox: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/sos
+Texto SOS: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/api/sos-context
+ZIP completo: https://3000-ill48ctkqw0vytkxh31a6.e2b.app/downloads/mediterranic-2026-11-05-ap.zip
 GitHub: https://github.com/mediterraneanworld-ship-it/mediterranic (master)
 Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado são as referências duradouras.
 
@@ -209,3 +214,10 @@ Os links sandbox/ZIP são temporários. O código no GitHub e o SOS publicado s�
 - home-archive-similar-specimens-note
 - home-archive-photo-title-only
 - archive-page-specimen-links-preserved
+- verified-sandbox-handover
+- public-collection-membership-mirror
+- checkout-cart-hydration-hooks
+- home-archive-note-linked
+- home-closing-marketplace-row-removed
+- home-h9-marketplaces-hidden-preserve-settings
+- home-collections-desktop-zoom-120

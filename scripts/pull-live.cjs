@@ -13,7 +13,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { eq, and } = require("drizzle-orm");
-const { assertLocalDatabase, productFromHtml, homeFromHtml, shippingFromHtml, publicImagePath, replaceImageReferences } = require("./lib/live-public.cjs");
+const { assertLocalDatabase, productFromHtml, homeFromHtml, shippingFromHtml, publicImagePath, replaceImageReferences, collectionFromHtml } = require("./lib/live-public.cjs");
 
 assertLocalDatabase(process.env.DATABASE_URL);
 const source = new URL(process.argv[2] || "https://mediterranic.vercel.app");
@@ -28,9 +28,10 @@ const { products, uploadedImages, siteSettings, reviews, productDeletions } = re
 const { ensureSchema } = require("../src/lib/schema-migrate.ts");
 const { mergeContent, DEFAULT_CONTENT } = require("../src/lib/site-content.ts");
 const { DEFAULT_SITE_SETTINGS } = require("../src/lib/catalog.ts");
+const { COLLECTIONS } = require("../src/lib/collections.ts");
 
 const sha256 = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
-const report = { verified: 0, reused: 0, insertedImages: 0, products: 0, failures: [], pages: [] };
+const report = { verified: 0, reused: 0, insertedImages: 0, products: 0, collections: 0, collectionAssignments: 0, failures: [], pages: [] };
 const imageCache = new Map();
 const verifiedMappings = new Map();
 let existingImages = [];
@@ -182,6 +183,35 @@ async function main() {
     } catch (error) { failure(slug, error); }
   }
 
+  // Public filtered shop pages expose actual curator memberships. Add only
+  // verified assignments to existing local rows; never infer a collection from
+  // a species/era, clear a private choice, or resurrect a deleted specimen.
+  const memberships = new Map();
+  for (const collection of COLLECTIONS) {
+    try {
+      const observed = collectionFromHtml(await htmlPage(`/shop?collection=${collection.slug}`), collection.slug);
+      if (!observed.verified) throw new Error("public collection filter was not verified; local memberships kept");
+      report.collections++;
+      for (const slug of observed.slugs) {
+        const assigned = memberships.get(slug) || new Set();
+        assigned.add(collection.slug);
+        memberships.set(slug, assigned);
+      }
+      console.log(`  ✓ collection ${collection.slug}: ${observed.slugs.length} public memberships`);
+    } catch (error) { failure(`collection:${collection.slug}`, error); }
+  }
+  for (const [slug, assigned] of memberships) {
+    if (removedSlugs.has(slug)) continue;
+    const [existing] = await db.select({ id: products.id, collections: products.collections }).from(products).where(eq(products.slug, slug)).limit(1);
+    if (!existing) { failure(`collection:${slug}`, "public specimen is not present locally; no partial catalogue row created"); continue; }
+    const current = Array.isArray(existing.collections) ? existing.collections : [];
+    const next = [...new Set([...current, ...assigned])];
+    if (next.length !== current.length) {
+      await db.update(products).set({ collections: next }).where(eq(products.id, existing.id));
+      report.collectionAssignments += next.length - current.length;
+    }
+  }
+
   let settingsRow = (await db.select().from(siteSettings).where(eq(siteSettings.id, 1)).limit(1))[0];
   if (!settingsRow) {
     await db.insert(siteSettings).values(DEFAULT_SITE_SETTINGS).onConflictDoNothing();
@@ -269,6 +299,7 @@ async function main() {
   }
   console.log(`\nMedia: ${report.verified} byte-verified references, ${report.insertedImages} new local uploads, ${report.reused} unchanged/reused.`);
   console.log(`Public mirror: ${report.products} specimens, ${report.pages.length} pages. Existing upload IDs were not overwritten.`);
+  console.log(`Collections: ${report.collections}/${COLLECTIONS.length} public filters verified, ${report.collectionAssignments} additive local memberships.`);
   if (report.failures.length) {
     console.warn(`NOT VERIFIED (${report.failures.length}); existing local data was preserved:`);
     for (const item of report.failures) console.warn(`  ! ${item}`);
